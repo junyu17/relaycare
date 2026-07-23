@@ -1,0 +1,2847 @@
+import { Ionicons } from "@expo/vector-icons";
+import * as DocumentPicker from "expo-document-picker";
+import { StatusBar } from "expo-status-bar";
+import { useEffect, useMemo, useState } from "react";
+import { Alert, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+
+import { initialState } from "./data";
+import {
+  addDocument,
+  addTimelineEvent,
+  claimTask,
+  completeTask,
+  confirmDocumentAndCreateTask,
+  createTask,
+  formatDateTime,
+  hasPermission,
+  inviteMember,
+  isHouseholdInviteExpired,
+  memberName,
+  rejectTask,
+  requestHandoff,
+  toggleDigest,
+  updateMemberRole,
+  withAudit,
+  withRoleNotification
+} from "./domain";
+import {
+  Language,
+  Translate,
+  auditActionLabel,
+  documentStatusLabel,
+  eventTypeLabel,
+  languageLabel,
+  languageShortLabel,
+  makeTranslator,
+  nextLanguage,
+  priorityLabel,
+  roleLabel,
+  roleShortLabel,
+  taskStatusLabel
+} from "./i18n";
+import {
+  AppState,
+  AuditAction,
+  CareEvent,
+  DocumentRecord,
+  EventType,
+  Member,
+  Permission,
+  Role,
+  RoleNotification,
+  Task
+} from "./types";
+
+type TabKey = "home" | "tasks" | "timeline" | "documents" | "audit" | "settings";
+type IconName = keyof typeof Ionicons.glyphMap;
+
+const tabs: { key: TabKey; labelKey: string; icon: IconName }[] = [
+  { key: "home", labelKey: "tabs.home", icon: "home-outline" },
+  { key: "tasks", labelKey: "tabs.tasks", icon: "checkbox-outline" },
+  { key: "timeline", labelKey: "tabs.timeline", icon: "time-outline" },
+  { key: "documents", labelKey: "tabs.documents", icon: "document-text-outline" },
+  { key: "settings", labelKey: "tabs.settings", icon: "settings-outline" }
+];
+
+const eventTypes: ("all" | EventType)[] = ["all", "appointment", "transport", "visit", "reminder", "document"];
+const roleOptions: Role[] = ["coordinator", "caregiver", "viewer"];
+type TaskTemplateKey = "ride" | "paperwork" | "supplies";
+type TimelineTemplateKey = "checkin" | "pickup" | "paperwork";
+type InviteTemplateKey = "caregiver" | "viewer";
+
+const taskTemplateKeys: TaskTemplateKey[] = ["ride", "paperwork", "supplies"];
+const timelineTemplateKeys: TimelineTemplateKey[] = ["checkin", "pickup", "paperwork"];
+const inviteTemplateKeys: InviteTemplateKey[] = ["caregiver", "viewer"];
+
+const palette = {
+  ink: "#172026",
+  muted: "#65717a",
+  page: "#f6f8f5",
+  surface: "#ffffff",
+  line: "#d9e1dc",
+  teal: "#0f766e",
+  blue: "#315b91",
+  amber: "#a76600",
+  red: "#b42318",
+  green: "#2f7d32",
+  gray: "#59636b"
+};
+
+const appStateStorageKey = "relaycare.mvp.appState.v1";
+
+export default function App() {
+  const [state, setState] = useState<AppState>(() => loadPersistedAppState());
+  const [activeTab, setActiveTab] = useState<TabKey>("home");
+  const [actorId, setActorId] = useState("m-maya");
+  const [eventType, setEventType] = useState<"all" | EventType>("all");
+  const [memberFilter, setMemberFilter] = useState("all");
+  const [reportText, setReportText] = useState<Record<Language, string> | null>(null);
+  const [reportVisible, setReportVisible] = useState(false);
+  const [language, setLanguage] = useState<Language>("en");
+  const [roleEditorMemberId, setRoleEditorMemberId] = useState<string | null>(null);
+  const [handoffTaskId, setHandoffTaskId] = useState<string | null>(null);
+  const [documentSafetyConfirmed, setDocumentSafetyConfirmed] = useState(false);
+
+  const t = useMemo(() => makeTranslator(language), [language]);
+
+  const report = reportText ? reportText[language] : "";
+
+  useEffect(() => {
+    persistAppState(state);
+  }, [state]);
+
+  const actor = useMemo(
+    () => state.members.find((member) => member.id === actorId) ?? state.members[0] ?? initialState.members[0],
+    [actorId, state.members]
+  );
+
+  const roleEditorMember = useMemo(
+    () => state.members.find((member) => member.id === roleEditorMemberId),
+    [roleEditorMemberId, state.members]
+  );
+
+  const handoffTask = useMemo(
+    () => state.tasks.find((task) => task.id === handoffTaskId),
+    [handoffTaskId, state.tasks]
+  );
+
+  // hasPermission reads state.roleDefinitions; depending on the full `state` keeps
+  // exhaustive-deps satisfied while remaining correct (members/roles are the only
+  // fields that affect the filtered set).
+  const handoffCandidates = useMemo(
+    () =>
+      state.members.filter(
+        (member) =>
+          member.id !== actor.id && member.inviteStatus !== "pending" && hasPermission(state, member.role, "task:claim")
+      ),
+    [actor.id, state]
+  );
+
+  const can = (permission: Permission) => hasPermission(state, actor.role, permission);
+
+  const canAccessTab = (tab: TabKey) => {
+    if (tab === "home" || tab === "settings") {
+      return true;
+    }
+    if (tab === "timeline") {
+      return can("timeline:read");
+    }
+    if (tab === "tasks") {
+      return can("task:create") || can("task:claim") || can("task:handoff") || can("task:complete");
+    }
+    if (tab === "documents") {
+      return can("document:read") || can("document:upload");
+    }
+    if (tab === "audit") {
+      return can("audit:read");
+    }
+
+    return false;
+  };
+
+  const visibleTabs = tabs.filter((tab) => canAccessTab(tab.key));
+
+  // Tab guard: fall back to home when the active tab becomes inaccessible
+  // (e.g. switching to a role without audit:read). Kept as an effect so it
+  // covers every path that can change actor.role or activeTab.
+  useEffect(() => {
+    if (!canAccessTab(activeTab)) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setActiveTab("home");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, actor.role]);
+
+  const runIfAllowed = (permission: Permission, action: () => void) => {
+    if (!can(permission)) {
+      showMessage(t("alerts.permissionTitle"), t("alerts.missingPermission", { name: actor.name, permission }));
+      return;
+    }
+
+    action();
+  };
+
+  const onClaim = (task: Task) => {
+    runIfAllowed("task:claim", () => setState((current) => claimTask(current, task.id, actor, t)));
+  };
+
+  const onReject = (task: Task) => {
+    runIfAllowed("task:claim", () => setState((current) => rejectTask(current, task.id, actor, t)));
+  };
+
+  const onHandoff = (task: Task) => {
+    runIfAllowed("task:handoff", () => setHandoffTaskId(task.id));
+  };
+
+  const onConfirmHandoff = (target: Member) => {
+    if (!handoffTask) {
+      return;
+    }
+
+    runIfAllowed("task:handoff", () => {
+      setState((current) => requestHandoff(current, handoffTask.id, actor, target, t));
+      setHandoffTaskId(null);
+    });
+  };
+
+  const onComplete = (task: Task) => {
+    runIfAllowed("task:complete", () => setState((current) => completeTask(current, task.id, actor, t)));
+  };
+
+  const onPickDocument = async () => {
+    if (!can("document:upload")) {
+      showMessage(t("alerts.permissionTitle"), t("alerts.uploadBlocked", { name: actor.name }));
+      return;
+    }
+
+    if (!documentSafetyConfirmed) {
+      showMessage(t("alerts.documentSafetyTitle"), t("alerts.documentSafetyBody"));
+      return;
+    }
+
+    const result = await DocumentPicker.getDocumentAsync({
+      copyToCacheDirectory: false,
+      multiple: false,
+      type: ["application/pdf", "image/*"]
+    });
+
+    if (!result.canceled) {
+      const name = result.assets[0]?.name ?? t("task.dynamic.uploadedReview");
+      setState((current) => addDocument(current, actor, name, "manual_upload", t));
+    }
+  };
+
+  const onAddSampleDocument = () => {
+    if (!can("document:upload")) {
+      showMessage(t("alerts.permissionTitle"), t("alerts.uploadBlocked", { name: actor.name }));
+      return;
+    }
+
+    if (!documentSafetyConfirmed) {
+      showMessage(t("alerts.documentSafetyTitle"), t("alerts.documentSafetyBody"));
+      return;
+    }
+
+    setState((current) => addDocument(current, actor, t("document.sampleName"), "sample", t));
+  };
+
+  const onConfirmDocument = (documentId: string) => {
+    runIfAllowed("document:upload", () =>
+      setState((current) => confirmDocumentAndCreateTask(current, documentId, actor, t))
+    );
+  };
+
+  const onGenerateReport = () => {
+    runIfAllowed("report:export", () => {
+      const result = generateLocalizedWeeklyReport(state, actor, language, t);
+      const snapshot = result.state;
+      const localized: Record<Language, string> = {
+        en: buildLocalizedReportText(snapshot, "en", makeTranslator("en")),
+        zh: buildLocalizedReportText(snapshot, "zh", makeTranslator("zh")),
+        es: buildLocalizedReportText(snapshot, "es", makeTranslator("es"))
+      };
+      setState(snapshot);
+      setReportText(localized);
+      setReportVisible(true);
+    });
+  };
+
+  const onUpdateMemberRole = (memberId: string, role: Role) => {
+    runIfAllowed("member:role_update", () => {
+      if (memberId === actor.id) {
+        showMessage(t("alerts.permissionTitle"), t("alerts.selfRoleBlocked"));
+        return;
+      }
+
+      setState((current) => updateMemberRole(current, memberId, role, actor, t));
+    });
+  };
+
+  const onInviteMember = (templateKey: InviteTemplateKey) => {
+    runIfAllowed("member:invite", () => {
+      if (isHouseholdInviteExpired(state)) {
+        showMessage(t("alerts.inviteExpiredTitle"), t("alerts.inviteExpiredBody"));
+        return;
+      }
+      setState((current) => inviteMember(current, actor, templateKey, t));
+    });
+  };
+
+  const onCreateTaskFromTemplate = (templateKey: TaskTemplateKey) => {
+    runIfAllowed("task:create", () => {
+      setState((current) => createTask(current, actor, taskTemplateInput(templateKey, t), t));
+    });
+  };
+
+  const onCreateTimelineEvent = (templateKey: TimelineTemplateKey) => {
+    runIfAllowed("timeline:add", () => {
+      setState((current) => addTimelineEvent(current, actor, timelineTemplateInput(templateKey, t), t));
+    });
+  };
+
+  const metrics = useMemo(() => {
+    const open = state.tasks.filter((task) => task.status !== "completed");
+    const ownerRate = state.tasks.length
+      ? Math.round((state.tasks.filter((task) => task.ownerId).length / state.tasks.length) * 100)
+      : 0;
+    const criticalOpen = open.filter((task) => task.priority === "critical").length;
+    return {
+      open: open.length,
+      completed: state.tasks.length - open.length,
+      ownerRate,
+      criticalOpen
+    };
+  }, [state.tasks]);
+
+  const filteredEvents = useMemo(
+    () =>
+      state.events
+        .filter((event) => eventType === "all" || event.type === eventType)
+        .filter((event) => memberFilter === "all" || event.ownerId === memberFilter)
+        .sort((left, right) => new Date(left.startsAt).getTime() - new Date(right.startsAt).getTime()),
+    [eventType, memberFilter, state.events]
+  );
+
+  return (
+    <View style={styles.app}>
+      <StatusBar style="dark" />
+      <View style={styles.topBar}>
+        <View style={styles.brandMark}>
+          <Ionicons name="git-compare-outline" size={22} color={palette.surface} />
+        </View>
+        <View style={styles.brandText}>
+          <Text style={styles.productName} allowFontScaling>
+            RelayCare
+          </Text>
+          <Text style={styles.productMeta} allowFontScaling>
+            {t("app.subtitle")}
+          </Text>
+        </View>
+        <Pill tone="safe" text="MVP" />
+        <TouchableOpacity
+          style={styles.languageButton}
+          accessibilityRole="button"
+          accessibilityLabel={t("language.switch", { language: languageLabel(language) })}
+          onPress={() => setLanguage((current) => nextLanguage(current))}
+        >
+          <Ionicons name="language-outline" size={16} color={palette.teal} />
+          <Text style={styles.languageButtonText} allowFontScaling>
+            {languageShortLabel(language)}
+          </Text>
+        </TouchableOpacity>
+      </View>
+
+      <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+        <SectionTitle icon="people-outline" title={t("home.careCircle")} />
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.actorRow}>
+          {state.members.map((member) => {
+            const isPending = member.inviteStatus === "pending";
+            return (
+              <TouchableOpacity
+                key={member.id}
+                style={[
+                  styles.actorChip,
+                  actor.id === member.id && styles.actorChipActive,
+                  isPending && styles.actorChipDisabled
+                ]}
+                accessibilityRole="button"
+                accessibilityState={{ disabled: isPending, selected: actor.id === member.id }}
+                accessibilityLabel={
+                  isPending ? t("settings.pendingInvite") : t("member.actAs", { name: memberDisplayName(member, t) })
+                }
+                disabled={isPending}
+                onPress={() => setActorId(member.id)}
+              >
+                <Text style={[styles.actorName, actor.id === member.id && styles.actorNameActive]} allowFontScaling>
+                  {memberDisplayName(member, t)}
+                </Text>
+                <Text style={[styles.actorRole, actor.id === member.id && styles.actorRoleActive]} allowFontScaling>
+                  {isPending ? t("settings.pendingInvite") : roleShortLabel(member.role, t)}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
+
+        <View style={styles.notice}>
+          <Ionicons name="medkit-outline" size={20} color={palette.amber} />
+          <Text style={styles.noticeText} allowFontScaling>
+            {t("notice.boundary")}
+          </Text>
+        </View>
+
+        {activeTab === "home" &&
+          renderHome(
+            state,
+            actor,
+            metrics,
+            language,
+            t,
+            (memberId) => {
+              if (actor.id !== memberId && actor.role !== "coordinator") {
+                showMessage(t("alerts.permissionTitle"), t("alerts.notificationBlocked", { name: actor.name }));
+                return;
+              }
+
+              setState((current) => toggleDigest(current, memberId, actor, t));
+            },
+            onClaim,
+            onComplete,
+            setActiveTab,
+            onGenerateReport
+          )}
+        {activeTab === "tasks" &&
+          renderTasks(state, actor, language, t, onCreateTaskFromTemplate, onClaim, onReject, onHandoff, onComplete)}
+        {activeTab === "timeline" &&
+          renderTimeline(
+            state,
+            actor,
+            filteredEvents,
+            eventType,
+            setEventType,
+            memberFilter,
+            setMemberFilter,
+            language,
+            t,
+            onCreateTimelineEvent
+          )}
+        {activeTab === "documents" &&
+          renderDocuments(
+            state,
+            actor,
+            language,
+            t,
+            documentSafetyConfirmed,
+            () => setDocumentSafetyConfirmed((current) => !current),
+            onPickDocument,
+            onAddSampleDocument,
+            onConfirmDocument
+          )}
+        {activeTab === "settings" &&
+          renderSettings(
+            state,
+            actor,
+            language,
+            t,
+            report,
+            onGenerateReport,
+            setRoleEditorMemberId,
+            onInviteMember,
+            isHouseholdInviteExpired(state),
+            () => setActiveTab("audit")
+          )}
+        {activeTab === "audit" && can("audit:read") && renderAudit(state, language, t, () => setActiveTab("settings"))}
+      </ScrollView>
+
+      <View style={styles.tabBar}>
+        {visibleTabs.map((tab) => (
+          <TouchableOpacity
+            key={tab.key}
+            style={[styles.tabButton, activeTab === tab.key && styles.tabButtonActive]}
+            accessibilityRole="button"
+            accessibilityLabel={t(tab.labelKey)}
+            onPress={() => setActiveTab(tab.key)}
+          >
+            <Ionicons name={tab.icon} size={22} color={activeTab === tab.key ? palette.teal : palette.gray} />
+            <Text style={[styles.tabLabel, activeTab === tab.key && styles.tabLabelActive]} allowFontScaling>
+              {t(tab.labelKey)}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+
+      <Modal visible={reportVisible} transparent animationType="slide" onRequestClose={() => setReportVisible(false)}>
+        <View style={styles.modalScrim}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle} allowFontScaling>
+                {t("report.modalTitle")}
+              </Text>
+              <IconButton icon="close-outline" label={t("report.close")} onPress={() => setReportVisible(false)} />
+            </View>
+            <ScrollView style={styles.modalReportScroll}>
+              <Text style={styles.reportText} selectable allowFontScaling>
+                {report}
+              </Text>
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal
+        visible={roleEditorMember != null}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setRoleEditorMemberId(null)}
+      >
+        <View style={styles.modalScrim}>
+          <View style={styles.roleModalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle} allowFontScaling>
+                {t("settings.roleChoiceTitle", {
+                  name: roleEditorMember ? memberDisplayName(roleEditorMember, t) : ""
+                })}
+              </Text>
+              <IconButton
+                icon="close-outline"
+                label={t("settings.closeRolePicker")}
+                onPress={() => setRoleEditorMemberId(null)}
+              />
+            </View>
+            <View style={styles.roleChoiceList}>
+              {roleEditorMember &&
+                roleOptions.map((role) => {
+                  const active = roleEditorMember.role === role;
+                  return (
+                    <TouchableOpacity
+                      key={role}
+                      style={[styles.roleChoiceButton, active && styles.roleChoiceButtonActive]}
+                      accessibilityRole="button"
+                      accessibilityState={{ selected: active }}
+                      accessibilityLabel={t("settings.changeRole", {
+                        name: memberDisplayName(roleEditorMember, t),
+                        role: roleLabel(role, t)
+                      })}
+                      disabled={active}
+                      onPress={() => {
+                        onUpdateMemberRole(roleEditorMember.id, role);
+                        setRoleEditorMemberId(null);
+                      }}
+                    >
+                      <View style={styles.roleChoiceIcon}>
+                        <Ionicons
+                          name={active ? "checkmark-circle-outline" : "ellipse-outline"}
+                          size={20}
+                          color={palette.teal}
+                        />
+                      </View>
+                      <View style={styles.listText}>
+                        <Text style={styles.itemTitle} allowFontScaling>
+                          {roleLabel(role, t)}
+                        </Text>
+                        <Text style={styles.itemMeta} allowFontScaling>
+                          {roleCapabilityLabels(role, t).join(" · ")}
+                        </Text>
+                      </View>
+                    </TouchableOpacity>
+                  );
+                })}
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal
+        visible={handoffTask != null}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setHandoffTaskId(null)}
+      >
+        <View style={styles.modalScrim}>
+          <View style={styles.roleModalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle} allowFontScaling>
+                {t("handoff.title")}
+              </Text>
+              <IconButton icon="close-outline" label={t("handoff.close")} onPress={() => setHandoffTaskId(null)} />
+            </View>
+            {handoffTask && (
+              <Text style={styles.bodyText} allowFontScaling>
+                {t("handoff.copy", { task: taskTitle(handoffTask, t) })}
+              </Text>
+            )}
+            <View style={styles.roleChoiceList}>
+              {handoffCandidates.length === 0 ? (
+                <Text style={styles.bodyText} allowFontScaling>
+                  {t("handoff.empty")}
+                </Text>
+              ) : (
+                handoffCandidates.map((candidate) => (
+                  <TouchableOpacity
+                    key={candidate.id}
+                    style={styles.roleChoiceButton}
+                    accessibilityRole="button"
+                    accessibilityLabel={t("handoff.choose", { name: memberDisplayName(candidate, t) })}
+                    onPress={() => onConfirmHandoff(candidate)}
+                  >
+                    <View style={styles.roleChoiceIcon}>
+                      <Ionicons name="person-circle-outline" size={22} color={palette.teal} />
+                    </View>
+                    <View style={styles.listText}>
+                      <Text style={styles.itemTitle} allowFontScaling>
+                        {memberDisplayName(candidate, t)}
+                      </Text>
+                      <Text style={styles.itemMeta} allowFontScaling>
+                        {roleLabel(candidate.role, t)} · {memberAvailability(candidate, t)}
+                      </Text>
+                    </View>
+                  </TouchableOpacity>
+                ))
+              )}
+            </View>
+          </View>
+        </View>
+      </Modal>
+    </View>
+  );
+}
+
+function renderHome(
+  state: AppState,
+  actor: Member,
+  metrics: { open: number; completed: number; ownerRate: number; criticalOpen: number },
+  language: Language,
+  t: Translate,
+  onToggleDigest: (memberId: string) => void,
+  onClaimTask: (task: Task) => void,
+  onCompleteTask: (task: Task) => void,
+  onOpenTab: (tab: TabKey) => void,
+  onGenerateReport: () => void
+) {
+  const roleNotifications = state.roleNotifications
+    .filter((notification) => notification.audience === "all" || notification.audience === actor.role)
+    .slice(0, 4);
+  const homeActions = buildHomeActions(
+    state,
+    actor,
+    metrics,
+    language,
+    t,
+    onClaimTask,
+    onCompleteTask,
+    onOpenTab,
+    onGenerateReport
+  );
+
+  return (
+    <View>
+      <View style={styles.metricGrid}>
+        <Metric label={t("home.openTasks")} value={String(metrics.open)} icon="albums-outline" tone="blue" />
+        <Metric
+          label={t("home.completed")}
+          value={String(metrics.completed)}
+          icon="checkmark-done-outline"
+          tone="green"
+        />
+        <Metric label={t("home.ownerRate")} value={`${metrics.ownerRate}%`} icon="person-circle-outline" tone="teal" />
+        <Metric
+          label={t("home.criticalOpen")}
+          value={String(metrics.criticalOpen)}
+          icon="alert-circle-outline"
+          tone="red"
+        />
+      </View>
+
+      <SectionTitle icon="flash-outline" title={t("home.nextActions")} />
+      <View style={styles.panel}>
+        <Text style={styles.bodyText} allowFontScaling>
+          {t("home.nextActionsCopy")}
+        </Text>
+        {homeActions.map((action) => (
+          <View key={action.id} style={styles.nextActionItem}>
+            <View style={styles.nextActionIcon}>
+              <Ionicons name={action.icon} size={18} color={palette.surface} />
+            </View>
+            <View style={styles.listText}>
+              <Text style={styles.itemTitle} allowFontScaling>
+                {action.title}
+              </Text>
+              <Text style={styles.itemMeta} allowFontScaling>
+                {action.meta}
+              </Text>
+            </View>
+            <ActionButton
+              icon={action.buttonIcon}
+              label={action.buttonLabel}
+              tone={action.buttonTone}
+              onPress={action.onPress}
+            />
+          </View>
+        ))}
+      </View>
+
+      <SectionTitle icon="lock-closed-outline" title={t("home.rolePermissions")} />
+      <View style={styles.panel}>
+        <View style={styles.panelHeader}>
+          <View>
+            <Text style={styles.panelTitle} allowFontScaling>
+              {actor.name}
+            </Text>
+            <Text style={styles.panelSubtitle} allowFontScaling>
+              {memberRelation(actor, t)} - {actor.timezone}
+            </Text>
+          </View>
+          <Pill tone={actor.role === "viewer" ? "muted" : "info"} text={roleLabel(actor.role, t)} />
+        </View>
+        <Text style={styles.bodyText} allowFontScaling>
+          {t("home.availability", { value: memberAvailability(actor, t) })}
+        </Text>
+        <View style={styles.permissionWrap}>
+          {roleCapabilityLabels(actor.role, t).map((capability) => (
+            <View key={capability} style={styles.permissionChip}>
+              <Ionicons name="checkmark-circle-outline" size={14} color={palette.blue} />
+              <Text style={styles.permissionText} allowFontScaling>
+                {capability}
+              </Text>
+            </View>
+          ))}
+        </View>
+      </View>
+
+      <SectionTitle icon="mail-unread-outline" title={t("home.inviteStatus")} />
+      <View style={styles.panel}>
+        <Text style={styles.bodyText} allowFontScaling>
+          {t("home.inviteCopy", { date: formatDateTime(state.household.inviteExpiresAt, language) })}
+        </Text>
+      </View>
+
+      <SectionTitle icon="notifications-circle-outline" title={t("home.roleNotifications")} />
+      {roleNotifications.length === 0 ? (
+        <View style={styles.panel}>
+          <Text style={styles.bodyText} allowFontScaling>
+            {t("home.noRoleNotifications")}
+          </Text>
+        </View>
+      ) : (
+        roleNotifications.map((notification) => (
+          <RoleNotificationCard key={notification.id} notification={notification} language={language} t={t} />
+        ))
+      )}
+
+      <SectionTitle icon="notifications-outline" title={t("home.notificationControls")} />
+      {state.notificationPreferences.map((preference) => {
+        const member = state.members.find((item) => item.id === preference.memberId);
+        return (
+          <View key={preference.memberId} style={styles.listItem}>
+            <View style={styles.listText}>
+              <Text style={styles.itemTitle} allowFontScaling>
+                {member ? memberDisplayName(member, t) : t("member.unknown")}
+              </Text>
+              <Text style={styles.itemMeta} allowFontScaling>
+                {t("home.quietCritical", {
+                  start: preference.quietHoursStart,
+                  end: preference.quietHoursEnd
+                })}
+              </Text>
+            </View>
+            <View style={styles.preferenceActions}>
+              <Pill
+                tone={preference.taskDigest ? "safe" : "muted"}
+                text={preference.taskDigest ? t("home.digestOn") : t("home.digestOff")}
+              />
+              <TouchableOpacity
+                style={styles.smallIconButton}
+                accessibilityRole="button"
+                accessibilityLabel={t("home.toggleDigest", {
+                  name: member ? memberDisplayName(member, t) : t("member.unknown")
+                })}
+                onPress={() => onToggleDigest(preference.memberId)}
+              >
+                <Ionicons name="options-outline" size={18} color={palette.teal} />
+              </TouchableOpacity>
+            </View>
+          </View>
+        );
+      })}
+    </View>
+  );
+}
+
+function renderTasks(
+  state: AppState,
+  actor: Member,
+  language: Language,
+  t: Translate,
+  onCreateTaskFromTemplate: (templateKey: TaskTemplateKey) => void,
+  onClaim: (task: Task) => void,
+  onReject: (task: Task) => void,
+  onHandoff: (task: Task) => void,
+  onComplete: (task: Task) => void
+) {
+  const canCreateTask = hasPermission(state, actor.role, "task:create");
+
+  return (
+    <View>
+      {canCreateTask && (
+        <>
+          <SectionTitle icon="add-circle-outline" title={t("tasks.newRequest")} />
+          <View style={styles.panel}>
+            <Text style={styles.bodyText} allowFontScaling>
+              {t("tasks.newRequestCopy")}
+            </Text>
+            <View style={styles.templateGrid}>
+              {taskTemplateKeys.map((templateKey) => (
+                <TouchableOpacity
+                  key={templateKey}
+                  style={styles.templateButton}
+                  accessibilityRole="button"
+                  accessibilityLabel={t("tasks.createTemplate", { name: taskTemplateLabel(templateKey, t) })}
+                  onPress={() => onCreateTaskFromTemplate(templateKey)}
+                >
+                  <View style={styles.templateIcon}>
+                    <Ionicons name={taskTemplateIcon(templateKey)} size={18} color={palette.surface} />
+                  </View>
+                  <View style={styles.listText}>
+                    <Text style={styles.templateTitle} allowFontScaling>
+                      {taskTemplateLabel(templateKey, t)}
+                    </Text>
+                    <Text style={styles.itemMeta} allowFontScaling>
+                      {taskTemplateMeta(templateKey, t)}
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+        </>
+      )}
+      <SectionTitle icon="checkbox-outline" title={t("tasks.claimableWork")} />
+      {state.tasks.map((task) => (
+        <TaskCard
+          key={task.id}
+          task={task}
+          state={state}
+          actor={actor}
+          language={language}
+          t={t}
+          onClaim={() => onClaim(task)}
+          onReject={() => onReject(task)}
+          onHandoff={() => onHandoff(task)}
+          onComplete={() => onComplete(task)}
+        />
+      ))}
+    </View>
+  );
+}
+
+function renderTimeline(
+  state: AppState,
+  actor: Member,
+  filteredEvents: AppState["events"],
+  eventType: "all" | EventType,
+  setEventType: (eventType: "all" | EventType) => void,
+  memberFilter: string,
+  setMemberFilter: (memberId: string) => void,
+  language: Language,
+  t: Translate,
+  onCreateTimelineEvent: (templateKey: TimelineTemplateKey) => void
+) {
+  const canAddTimeline = hasPermission(state, actor.role, "timeline:add");
+
+  return (
+    <View>
+      {canAddTimeline && (
+        <>
+          <SectionTitle icon="add-circle-outline" title={t("timeline.quickUpdate")} />
+          <View style={styles.panel}>
+            <Text style={styles.bodyText} allowFontScaling>
+              {t("timeline.quickUpdateCopy")}
+            </Text>
+            <View style={styles.templateGrid}>
+              {timelineTemplateKeys.map((templateKey) => (
+                <TouchableOpacity
+                  key={templateKey}
+                  style={styles.templateButton}
+                  accessibilityRole="button"
+                  accessibilityLabel={t("timeline.addTemplate", { name: timelineTemplateLabel(templateKey, t) })}
+                  onPress={() => onCreateTimelineEvent(templateKey)}
+                >
+                  <View style={styles.templateIcon}>
+                    <Ionicons name={timelineTemplateIcon(templateKey)} size={18} color={palette.surface} />
+                  </View>
+                  <View style={styles.listText}>
+                    <Text style={styles.templateTitle} allowFontScaling>
+                      {timelineTemplateLabel(templateKey, t)}
+                    </Text>
+                    <Text style={styles.itemMeta} allowFontScaling>
+                      {timelineTemplateMeta(templateKey, t)}
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+        </>
+      )}
+
+      <SectionTitle icon="filter-outline" title={t("timeline.filters")} />
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow}>
+        {eventTypes.map((type) => (
+          <FilterChip
+            key={type}
+            label={eventTypeLabel(type, t)}
+            active={eventType === type}
+            onPress={() => setEventType(type)}
+          />
+        ))}
+      </ScrollView>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow}>
+        <FilterChip
+          label={t("timeline.allMembers")}
+          active={memberFilter === "all"}
+          onPress={() => setMemberFilter("all")}
+        />
+        {state.members.map((member) => (
+          <FilterChip
+            key={member.id}
+            label={memberDisplayName(member, t)}
+            active={memberFilter === member.id}
+            onPress={() => setMemberFilter(member.id)}
+          />
+        ))}
+      </ScrollView>
+
+      <SectionTitle icon="time-outline" title={t("timeline.careTimeline")} />
+      {filteredEvents.map((event) => (
+        <View key={event.id} style={styles.timelineItem}>
+          <View style={styles.timelineMarker}>
+            <Ionicons name={eventIcon(event.type)} size={18} color={palette.surface} />
+          </View>
+          <View style={styles.timelineBody}>
+            <Text style={styles.itemTitle} allowFontScaling>
+              {eventTitle(event, state, t)}
+            </Text>
+            <Text style={styles.itemMeta} allowFontScaling>
+              {t("timeline.eventMeta", {
+                date: formatDateTime(event.startsAt, language),
+                location: eventLocation(event, t)
+              })}
+            </Text>
+            <Text style={styles.itemMeta} allowFontScaling>
+              {t("tasks.owner", { name: memberName(state, event.ownerId, t) })}
+            </Text>
+          </View>
+        </View>
+      ))}
+    </View>
+  );
+}
+
+function renderDocuments(
+  state: AppState,
+  actor: Member,
+  language: Language,
+  t: Translate,
+  documentSafetyConfirmed: boolean,
+  onToggleDocumentSafety: () => void,
+  onPickDocument: () => void,
+  onAddSampleDocument: () => void,
+  onConfirmDocument: (documentId: string) => void
+) {
+  return (
+    <View>
+      <SectionTitle icon="cloud-upload-outline" title={t("documents.basicUploads")} />
+      <View style={styles.notice}>
+        <Ionicons name="information-circle-outline" size={20} color={palette.blue} />
+        <Text style={styles.noticeText} allowFontScaling>
+          {t("documents.notice", { name: actor.name })}
+        </Text>
+      </View>
+      <TouchableOpacity
+        style={[styles.safetyToggle, documentSafetyConfirmed && styles.safetyToggleActive]}
+        accessibilityRole="button"
+        accessibilityState={{ selected: documentSafetyConfirmed }}
+        accessibilityLabel={t("documents.safetyConfirm")}
+        onPress={onToggleDocumentSafety}
+      >
+        <Ionicons
+          name={documentSafetyConfirmed ? "checkmark-circle-outline" : "ellipse-outline"}
+          size={20}
+          color={documentSafetyConfirmed ? palette.teal : palette.gray}
+        />
+        <Text style={styles.safetyToggleText} allowFontScaling>
+          {t("documents.safetyConfirm")}
+        </Text>
+      </TouchableOpacity>
+      <View style={styles.actionRow}>
+        <ActionButton icon="attach-outline" label={t("documents.upload")} tone="primary" onPress={onPickDocument} />
+        <ActionButton
+          icon="flask-outline"
+          label={t("documents.sample")}
+          tone="secondary"
+          onPress={onAddSampleDocument}
+        />
+      </View>
+
+      {state.documents.map((document) => (
+        <View key={document.id} style={styles.panel}>
+          <View style={styles.panelHeader}>
+            <View style={styles.listText}>
+              <Text style={styles.itemTitle} allowFontScaling>
+                {documentName(document.id, document.name, document.source, t)}
+              </Text>
+              <Text style={styles.itemMeta} allowFontScaling>
+                {t("documents.uploadedBy", {
+                  name: memberName(state, document.uploadedById, t),
+                  date: formatDateTime(document.uploadedAt, language)
+                })}
+              </Text>
+            </View>
+            <Pill
+              tone={document.status === "confirmed" ? "safe" : "warning"}
+              text={documentStatusLabel(document.status, t)}
+            />
+          </View>
+          <Text style={styles.bodyText} allowFontScaling>
+            {t("documents.ocr", { confidence: Math.round(document.confidence * 100) })}
+          </Text>
+          <Text style={styles.bodyText} allowFontScaling>
+            {t("documents.suggestedAction", {
+              action: documentSuggestedAction(document.id, document.suggestedAction, t)
+            })}
+          </Text>
+          {document.status !== "confirmed" && (
+            <ActionButton
+              icon="checkmark-circle-outline"
+              label={t("documents.confirmCreateTask")}
+              tone="primary"
+              onPress={() => onConfirmDocument(document.id)}
+            />
+          )}
+        </View>
+      ))}
+    </View>
+  );
+}
+
+function renderAudit(state: AppState, language: Language, t: Translate, onBack: () => void) {
+  return (
+    <View>
+      <View style={styles.backBar}>
+        <TouchableOpacity
+          style={styles.backButton}
+          accessibilityRole="button"
+          accessibilityLabel={t("audit.back")}
+          onPress={onBack}
+        >
+          <Ionicons name="arrow-back-outline" size={18} color={palette.teal} />
+          <Text style={styles.backButtonText} allowFontScaling>
+            {t("audit.back")}
+          </Text>
+        </TouchableOpacity>
+      </View>
+      <SectionTitle icon="shield-checkmark-outline" title={t("audit.trail")} />
+      {state.auditEvents.map((event) => (
+        <View key={event.id} style={styles.auditItem}>
+          <View style={styles.auditIcon}>
+            <Ionicons name="finger-print-outline" size={18} color={palette.teal} />
+          </View>
+          <View style={styles.listText}>
+            <Text style={styles.itemTitle} allowFontScaling>
+              {auditActionLabel(event.action, t)}
+            </Text>
+            <Text style={styles.itemMeta} allowFontScaling>
+              {formatDateTime(event.createdAt, language)} - {memberName(state, event.actorId, t)}
+            </Text>
+            <Text style={styles.bodyText} allowFontScaling>
+              {auditDetail(event.action, event.detail, event.actorId, event.entityId, state, t)}
+            </Text>
+          </View>
+        </View>
+      ))}
+    </View>
+  );
+}
+
+function renderSettings(
+  state: AppState,
+  actor: Member,
+  language: Language,
+  t: Translate,
+  report: string,
+  onGenerateReport: () => void,
+  onOpenRoleEditor: (memberId: string) => void,
+  onInviteMember: (templateKey: InviteTemplateKey) => void,
+  inviteExpired: boolean,
+  onViewAllAudit: () => void
+) {
+  const canManageRoles = hasPermission(state, actor.role, "member:role_update");
+  const canInviteMembers = hasPermission(state, actor.role, "member:invite");
+  const canGenerateReport = hasPermission(state, actor.role, "report:export");
+  const canReadAudit = hasPermission(state, actor.role, "audit:read");
+  const completed = state.tasks.filter((task) => task.status === "completed");
+  const pending = state.tasks.filter((task) => task.status !== "completed");
+  const recentAuditEvents = state.auditEvents.slice(0, 4);
+  const settingsMembers = canManageRoles ? state.members : state.members.filter((member) => member.id === actor.id);
+
+  return (
+    <View>
+      <SectionTitle icon="settings-outline" title={t("settings.title")} />
+      <View style={styles.notice}>
+        <Ionicons name="apps-outline" size={20} color={palette.blue} />
+        <Text style={styles.noticeText} allowFontScaling>
+          {t("settings.sameApp")}
+        </Text>
+      </View>
+      <View style={styles.notice}>
+        <Ionicons name="phone-portrait-outline" size={20} color={palette.teal} />
+        <Text style={styles.noticeText} allowFontScaling>
+          {t("settings.localSave")}
+        </Text>
+      </View>
+
+      {canInviteMembers && (
+        <>
+          <SectionTitle icon="person-add-outline" title={t("settings.inviteTitle")} />
+          <View style={styles.panel}>
+            <Text style={styles.bodyText} allowFontScaling>
+              {t("settings.inviteCopy")}
+            </Text>
+            {inviteExpired ? (
+              <View style={styles.notice}>
+                <Ionicons name="time-outline" size={20} color={palette.amber} />
+                <Text style={styles.noticeText} allowFontScaling>
+                  {t("settings.inviteExpiredNotice")}
+                </Text>
+              </View>
+            ) : (
+              <View style={styles.templateGrid}>
+                {inviteTemplateKeys.map((templateKey) => (
+                  <TouchableOpacity
+                    key={templateKey}
+                    style={styles.templateButton}
+                    accessibilityRole="button"
+                    accessibilityLabel={t("settings.inviteTemplate", { role: inviteTemplateLabel(templateKey, t) })}
+                    onPress={() => onInviteMember(templateKey)}
+                  >
+                    <View style={styles.templateIcon}>
+                      <Ionicons
+                        name={templateKey === "caregiver" ? "hand-left-outline" : "eye-outline"}
+                        size={18}
+                        color={palette.surface}
+                      />
+                    </View>
+                    <View style={styles.listText}>
+                      <Text style={styles.templateTitle} allowFontScaling>
+                        {inviteTemplateLabel(templateKey, t)}
+                      </Text>
+                      <Text style={styles.itemMeta} allowFontScaling>
+                        {inviteTemplateMeta(templateKey, t)}
+                      </Text>
+                    </View>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
+          </View>
+        </>
+      )}
+
+      <SectionTitle icon="people-circle-outline" title={t("settings.roleManagement")} />
+      {settingsMembers.map((member) => {
+        const isSelf = member.id === actor.id;
+        return (
+          <View key={member.id} style={styles.panel}>
+            <View style={styles.panelHeader}>
+              <View style={styles.listText}>
+                <Text style={styles.itemTitle} allowFontScaling>
+                  {memberDisplayName(member, t)}
+                </Text>
+                <Text style={styles.itemMeta} allowFontScaling>
+                  {memberRelation(member, t)} - {t("settings.currentRole", { role: roleLabel(member.role, t) })}
+                </Text>
+              </View>
+              <Pill tone={member.role === "viewer" ? "muted" : "info"} text={roleLabel(member.role, t)} />
+            </View>
+            {member.inviteStatus === "pending" && <Pill tone="warning" text={t("settings.pendingInvite")} />}
+
+            {canManageRoles && !isSelf && (
+              <TouchableOpacity
+                style={styles.roleChangeButton}
+                accessibilityRole="button"
+                accessibilityLabel={t("settings.changeRoleButtonFor", { name: memberDisplayName(member, t) })}
+                onPress={() => onOpenRoleEditor(member.id)}
+              >
+                <Ionicons name="swap-horizontal-outline" size={17} color={palette.teal} />
+                <Text style={styles.roleChangeButtonText} allowFontScaling>
+                  {t("settings.changeRoleButton")}
+                </Text>
+              </TouchableOpacity>
+            )}
+
+            <Text style={styles.itemMeta} allowFontScaling>
+              {isSelf && !canManageRoles
+                ? t("settings.ownRoleManaged")
+                : isSelf
+                  ? t("settings.selfLocked")
+                  : canManageRoles
+                    ? t("settings.permissionsFor", { role: roleLabel(member.role, t) })
+                    : t("settings.viewOnly")}
+            </Text>
+            <View style={styles.permissionWrap}>
+              {roleCapabilityLabels(member.role, t).map((capability) => (
+                <View key={capability} style={styles.permissionChip}>
+                  <Ionicons name="checkmark-circle-outline" size={14} color={palette.blue} />
+                  <Text style={styles.permissionText} allowFontScaling>
+                    {capability}
+                  </Text>
+                </View>
+              ))}
+            </View>
+          </View>
+        );
+      })}
+
+      {(canGenerateReport || canReadAudit) && <SectionTitle icon="construct-outline" title={t("settings.advanced")} />}
+
+      {canGenerateReport && (
+        <View style={styles.panel}>
+          <View style={styles.panelHeader}>
+            <View style={styles.listText}>
+              <Text style={styles.itemTitle} allowFontScaling>
+                {t("settings.weeklyReport")}
+              </Text>
+              <Text style={styles.itemMeta} allowFontScaling>
+                {t("report.explainer")}
+              </Text>
+            </View>
+            <Ionicons name="reader-outline" size={22} color={palette.teal} />
+          </View>
+          <View style={styles.reportStats}>
+            <Metric
+              label={t("report.done")}
+              value={String(completed.length)}
+              icon="checkmark-done-outline"
+              tone="green"
+            />
+            <Metric label={t("report.pending")} value={String(pending.length)} icon="hourglass-outline" tone="amber" />
+          </View>
+          <ActionButton icon="share-outline" label={t("report.generate")} tone="primary" onPress={onGenerateReport} />
+          {report.length > 0 && (
+            <Text style={styles.reportPreview} numberOfLines={5} allowFontScaling>
+              {report}
+            </Text>
+          )}
+        </View>
+      )}
+
+      {canReadAudit && (
+        <View style={styles.panel}>
+          <View style={styles.panelHeader}>
+            <View style={styles.listText}>
+              <Text style={styles.itemTitle} allowFontScaling>
+                {t("settings.recentAudit")}
+              </Text>
+              <Text style={styles.itemMeta} allowFontScaling>
+                {t("settings.auditSummary")}
+              </Text>
+            </View>
+            <Ionicons name="shield-checkmark-outline" size={22} color={palette.teal} />
+          </View>
+          {recentAuditEvents.length === 0 ? (
+            <Text style={styles.bodyText} allowFontScaling>
+              {t("settings.auditEmpty")}
+            </Text>
+          ) : (
+            recentAuditEvents.map((event) => (
+              <View key={event.id} style={styles.compactAuditItem}>
+                <Ionicons name="finger-print-outline" size={16} color={palette.teal} />
+                <View style={styles.listText}>
+                  <Text style={styles.itemTitle} allowFontScaling>
+                    {auditActionLabel(event.action, t)}
+                  </Text>
+                  <Text style={styles.itemMeta} allowFontScaling>
+                    {formatDateTime(event.createdAt, language)} - {memberName(state, event.actorId, t)}
+                  </Text>
+                </View>
+              </View>
+            ))
+          )}
+          {state.auditEvents.length > 0 && (
+            <TouchableOpacity
+              style={styles.roleChangeButton}
+              accessibilityRole="button"
+              accessibilityLabel={t("settings.viewAllAudit")}
+              onPress={onViewAllAudit}
+            >
+              <Ionicons name="chevron-forward-outline" size={17} color={palette.teal} />
+              <Text style={styles.roleChangeButtonText} allowFontScaling>
+                {t("settings.viewAllAudit")}
+              </Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      )}
+    </View>
+  );
+}
+
+function buildHomeActions(
+  state: AppState,
+  actor: Member,
+  metrics: { open: number; completed: number; ownerRate: number; criticalOpen: number },
+  language: Language,
+  t: Translate,
+  onClaimTask: (task: Task) => void,
+  onCompleteTask: (task: Task) => void,
+  onOpenTab: (tab: TabKey) => void,
+  onGenerateReport: () => void
+): {
+  id: string;
+  icon: IconName;
+  title: string;
+  meta: string;
+  buttonIcon: IconName;
+  buttonLabel: string;
+  buttonTone: "primary" | "secondary" | "success";
+  onPress: () => void;
+}[] {
+  const actions: {
+    id: string;
+    icon: IconName;
+    title: string;
+    meta: string;
+    buttonIcon: IconName;
+    buttonLabel: string;
+    buttonTone: "primary" | "secondary" | "success";
+    onPress: () => void;
+  }[] = [];
+  const orderedTasks = [...state.tasks].sort(
+    (left, right) => new Date(left.dueAt).getTime() - new Date(right.dueAt).getTime()
+  );
+  const canClaim = hasPermission(state, actor.role, "task:claim");
+  const canComplete = hasPermission(state, actor.role, "task:complete");
+  const canReadDocuments = hasPermission(state, actor.role, "document:read");
+  const canAddTimeline = hasPermission(state, actor.role, "timeline:add");
+  const canGenerateReport = hasPermission(state, actor.role, "report:export");
+
+  const handoffTask = orderedTasks.find((task) => task.status === "handoff_requested" && task.handoffToId === actor.id);
+  if (handoffTask && canClaim) {
+    actions.push({
+      id: `handoff-${handoffTask.id}`,
+      icon: "swap-horizontal-outline",
+      title: t("home.actionAcceptHandoff", { task: taskTitle(handoffTask, t) }),
+      meta: t("home.actionDue", { date: formatDateTime(handoffTask.dueAt, language) }),
+      buttonIcon: "checkmark-circle-outline",
+      buttonLabel: t("tasks.acceptHandoff"),
+      buttonTone: "primary",
+      onPress: () => onClaimTask(handoffTask)
+    });
+  }
+
+  const ownedTask = orderedTasks.find((task) => task.status === "claimed" && task.ownerId === actor.id);
+  if (ownedTask && canComplete) {
+    actions.push({
+      id: `owned-${ownedTask.id}`,
+      icon: "checkbox-outline",
+      title: t("home.actionCompleteTask", { task: taskTitle(ownedTask, t) }),
+      meta: t("home.actionDue", { date: formatDateTime(ownedTask.dueAt, language) }),
+      buttonIcon: "checkmark-circle-outline",
+      buttonLabel: t("tasks.complete"),
+      buttonTone: "success",
+      onPress: () => onCompleteTask(ownedTask)
+    });
+  }
+
+  const claimableTask = orderedTasks.find((task) => task.status === "open" || task.status === "rejected");
+  if (claimableTask && canClaim) {
+    actions.push({
+      id: `claim-${claimableTask.id}`,
+      icon: claimableTask.priority === "critical" ? "alert-circle-outline" : "hand-left-outline",
+      title: t("home.actionClaimTask", { task: taskTitle(claimableTask, t) }),
+      meta: t("home.actionDue", { date: formatDateTime(claimableTask.dueAt, language) }),
+      buttonIcon: "hand-left-outline",
+      buttonLabel: t("tasks.claim"),
+      buttonTone: "primary",
+      onPress: () => onClaimTask(claimableTask)
+    });
+  }
+
+  const reviewDocument = state.documents.find((document) => document.status !== "confirmed");
+  if (reviewDocument && canReadDocuments) {
+    actions.push({
+      id: `document-${reviewDocument.id}`,
+      icon: "document-text-outline",
+      title: t("home.actionReviewFile", {
+        document: documentName(reviewDocument.id, reviewDocument.name, reviewDocument.source, t)
+      }),
+      meta: t("home.actionReviewFileMeta"),
+      buttonIcon: "document-text-outline",
+      buttonLabel: t("home.openDocs"),
+      buttonTone: "secondary",
+      onPress: () => onOpenTab("documents")
+    });
+  }
+
+  if (canAddTimeline) {
+    actions.push({
+      id: "timeline-add",
+      icon: "time-outline",
+      title: t("home.actionAddTimeline"),
+      meta: t("home.actionAddTimelineMeta"),
+      buttonIcon: "add-circle-outline",
+      buttonLabel: t("home.openTimeline"),
+      buttonTone: "secondary",
+      onPress: () => onOpenTab("timeline")
+    });
+  }
+
+  if (canGenerateReport && metrics.open > 0) {
+    actions.push({
+      id: "report-generate",
+      icon: "reader-outline",
+      title: t("home.actionGenerateReport"),
+      meta: t("home.actionGenerateReportMeta", { count: metrics.open }),
+      buttonIcon: "share-outline",
+      buttonLabel: t("report.generate"),
+      buttonTone: "secondary",
+      onPress: onGenerateReport
+    });
+  }
+
+  if (actions.length === 0) {
+    actions.push({
+      id: "timeline-view",
+      icon: "time-outline",
+      title: t("home.actionViewTimeline"),
+      meta: t("home.actionViewTimelineMeta"),
+      buttonIcon: "time-outline",
+      buttonLabel: t("home.openTimeline"),
+      buttonTone: "secondary",
+      onPress: () => onOpenTab("timeline")
+    });
+  }
+
+  return actions.slice(0, 3);
+}
+
+function roleCapabilityLabels(role: Role, t: Translate): string[] {
+  if (role === "coordinator") {
+    return [
+      t("capability.manage"),
+      t("capability.coordinate"),
+      t("capability.help"),
+      t("capability.timelineUpdate"),
+      t("capability.files"),
+      t("capability.report"),
+      t("capability.audit")
+    ];
+  }
+
+  if (role === "caregiver") {
+    return [
+      t("capability.coordinate"),
+      t("capability.help"),
+      t("capability.timelineUpdate"),
+      t("capability.files"),
+      t("capability.report")
+    ];
+  }
+
+  return [t("capability.timeline"), t("capability.viewOnly")];
+}
+
+function RoleNotificationCard({
+  notification,
+  language,
+  t
+}: {
+  notification: RoleNotification;
+  language: Language;
+  t: Translate;
+}) {
+  const values = localizedNotificationValues(notification, t);
+
+  return (
+    <View style={styles.notificationCard}>
+      <View style={styles.notificationIcon}>
+        <Ionicons
+          name={notification.severity === "critical" ? "alert-circle-outline" : "notifications-outline"}
+          size={18}
+          color={notification.severity === "critical" ? palette.red : palette.teal}
+        />
+      </View>
+      <View style={styles.listText}>
+        <View style={styles.notificationHeader}>
+          <Text style={styles.itemTitle} allowFontScaling>
+            {t(notification.titleKey, values)}
+          </Text>
+          <Pill
+            tone={notification.severity === "critical" ? "danger" : "info"}
+            text={notificationAudienceLabel(notification.audience, t)}
+          />
+        </View>
+        <Text style={styles.bodyText} allowFontScaling>
+          {t(notification.bodyKey, values)}
+        </Text>
+        <Text style={styles.itemMeta} allowFontScaling>
+          {formatDateTime(notification.createdAt, language)}
+        </Text>
+      </View>
+    </View>
+  );
+}
+
+function localizedNotificationValues(notification: RoleNotification, t: Translate): Record<string, string | number> {
+  const values = { ...notification.values };
+
+  if (values.priority === "normal" || values.priority === "critical") {
+    values.priority = priorityLabel(values.priority, t);
+  }
+
+  if (values.role === "coordinator" || values.role === "caregiver" || values.role === "viewer") {
+    values.role = roleLabel(values.role, t);
+  }
+
+  if (values.role === "Coordinator" || values.role === "Caregiver" || values.role === "Viewer") {
+    const legacyRole: Record<string, Role> = {
+      Coordinator: "coordinator",
+      Caregiver: "caregiver",
+      Viewer: "viewer"
+    };
+    values.role = roleLabel(legacyRole[String(values.role)], t);
+  }
+
+  return values;
+}
+
+function notificationAudienceLabel(audience: RoleNotification["audience"], t: Translate): string {
+  return audience === "all" ? t("notification.audience.all") : roleLabel(audience, t);
+}
+
+function TaskCard({
+  task,
+  state,
+  actor,
+  language,
+  t,
+  onClaim,
+  onReject,
+  onHandoff,
+  onComplete
+}: {
+  task: Task;
+  state: AppState;
+  actor: Member;
+  language: Language;
+  t: Translate;
+  onClaim: () => void;
+  onReject: () => void;
+  onHandoff: () => void;
+  onComplete: () => void;
+}) {
+  const ownedByActor = task.ownerId === actor.id;
+  const canClaim = hasPermission(state, actor.role, "task:claim");
+  const canHandoff = hasPermission(state, actor.role, "task:handoff");
+  const canComplete = hasPermission(state, actor.role, "task:complete");
+  const canFinish = canComplete && (ownedByActor || actor.role === "coordinator");
+  const canRequestHandoff = canHandoff && (ownedByActor || actor.role === "coordinator");
+  const canAcceptHandoff = canClaim && task.status === "handoff_requested" && task.handoffToId === actor.id;
+  const canTakeOpenTask = task.status === "open" || task.status === "rejected";
+
+  return (
+    <View style={styles.taskCard}>
+      <View style={styles.panelHeader}>
+        <View style={styles.listText}>
+          <Text style={styles.itemTitle} allowFontScaling>
+            {taskTitle(task, t)}
+          </Text>
+          <Text style={styles.itemMeta} allowFontScaling>
+            {t("tasks.dueMeta", { date: formatDateTime(task.dueAt, language), minutes: task.expectedMinutes })}
+          </Text>
+        </View>
+        <Pill tone={task.priority === "critical" ? "danger" : "info"} text={priorityLabel(task.priority, t)} />
+      </View>
+      <View style={styles.taskMetaRow}>
+        <Pill tone={task.status === "completed" ? "safe" : "muted"} text={taskStatusLabel(task.status, t)} />
+        <Text style={styles.itemMeta} allowFontScaling>
+          {t("tasks.owner", { name: memberName(state, task.ownerId, t) })}
+        </Text>
+      </View>
+      {task.handoffToId && (
+        <Text style={styles.itemMeta} allowFontScaling>
+          {t("tasks.handoffRequested", { name: memberName(state, task.handoffToId, t) })}
+        </Text>
+      )}
+      {task.rejectionReason && (
+        <Text style={styles.warningText} allowFontScaling>
+          {task.rejectionReason}
+        </Text>
+      )}
+      {task.subtasks.map((subtask, index) => (
+        <View key={subtask} style={styles.subtaskRow}>
+          <Ionicons name="ellipse-outline" size={14} color={palette.teal} />
+          <Text style={styles.subtaskText} allowFontScaling>
+            {taskSubtask(task, index, subtask, t)}
+          </Text>
+        </View>
+      ))}
+      {task.proof && (
+        <Text style={styles.proofText} allowFontScaling>
+          {t("tasks.proof", { value: task.proof })}
+        </Text>
+      )}
+      <View style={styles.actionRow}>
+        {task.status !== "completed" && canClaim && canTakeOpenTask && (
+          <ActionButton icon="hand-left-outline" label={t("tasks.claim")} tone="primary" onPress={onClaim} />
+        )}
+        {task.status !== "completed" && canClaim && canTakeOpenTask && (
+          <ActionButton icon="close-circle-outline" label={t("tasks.reject")} tone="secondary" onPress={onReject} />
+        )}
+        {task.status === "claimed" && canRequestHandoff && (
+          <ActionButton
+            icon="swap-horizontal-outline"
+            label={t("tasks.handoff")}
+            tone="secondary"
+            onPress={onHandoff}
+          />
+        )}
+        {canAcceptHandoff && (
+          <ActionButton
+            icon="checkmark-circle-outline"
+            label={t("tasks.acceptHandoff")}
+            tone="primary"
+            onPress={onClaim}
+          />
+        )}
+        {canAcceptHandoff && (
+          <ActionButton
+            icon="close-circle-outline"
+            label={t("tasks.declineHandoff")}
+            tone="secondary"
+            onPress={onReject}
+          />
+        )}
+        {task.status !== "completed" && canFinish && (
+          <ActionButton
+            icon="checkmark-circle-outline"
+            label={t("tasks.complete")}
+            tone="success"
+            onPress={onComplete}
+          />
+        )}
+      </View>
+    </View>
+  );
+}
+
+function memberRelation(member: Member, t: Translate): string {
+  if (member.relation === "Pending invite") {
+    return t("member.pendingInvite");
+  }
+
+  const keys: Record<string, string> = {
+    "m-maya": "member.primaryCaregiver",
+    "m-eli": "member.remoteSibling",
+    "m-sam": "member.neighborHelper",
+    "m-lee": "member.readOnlyRelative"
+  };
+
+  return keys[member.id] ? t(keys[member.id]) : member.relation;
+}
+
+function memberDisplayName(member: Member, t: Translate): string {
+  if (member.inviteStatus === "pending") {
+    return member.role === "caregiver" ? t("member.invitedCaregiver") : t("member.invitedViewer");
+  }
+
+  return member.name;
+}
+
+function memberAvailability(member: Member, t: Translate): string {
+  if (member.availability === "Pending setup") {
+    return t("availability.pendingSetup");
+  }
+
+  const keys: Record<string, string> = {
+    "m-maya": "availability.maya",
+    "m-eli": "availability.eli",
+    "m-sam": "availability.sam",
+    "m-lee": "availability.lee"
+  };
+
+  return keys[member.id] ? t(keys[member.id]) : member.availability;
+}
+
+function taskTitle(task: Task, t: Translate): string {
+  if (task.id.startsWith("task-") && task.documentId) {
+    return t("task.dynamic.documentReview");
+  }
+
+  const key = `task.${task.id}.title`;
+  const translated = t(key);
+  return translated === key ? task.title : translated;
+}
+
+function taskSubtask(task: Task, index: number, fallback: string, t: Translate): string {
+  if (task.id.startsWith("task-") && task.documentId) {
+    return t(`task.dynamic.subtask.${index}`);
+  }
+
+  const key = `task.${task.id}.subtask.${index}`;
+  const translated = t(key);
+  return translated === key ? fallback : translated;
+}
+
+function eventTitle(event: CareEvent, state: AppState, t: Translate): string {
+  const knownKey = `event.${event.id}.title`;
+  const knownTitle = t(knownKey);
+  if (knownTitle !== knownKey) {
+    return knownTitle;
+  }
+
+  if (event.documentId) {
+    const document = state.documents.find((item) => item.id === event.documentId);
+    return t("event.uploaded", {
+      name: documentName(document?.id, document?.name ?? event.title.replace(/^Uploaded: /, ""), document?.source, t)
+    });
+  }
+
+  if (event.taskId && event.type === "reminder") {
+    const task = state.tasks.find((item) => item.id === event.taskId);
+    return t("event.completed", { title: task ? taskTitle(task, t) : "Task" });
+  }
+
+  return event.title;
+}
+
+function eventLocation(event: CareEvent, t: Translate): string {
+  const knownKey = `event.${event.id}.location`;
+  const knownLocation = t(knownKey);
+  if (knownLocation !== knownKey) {
+    return knownLocation;
+  }
+
+  if (event.location === "Shared documents") {
+    return t("event.location.sharedDocuments");
+  }
+
+  if (event.location === "RelayCare activity") {
+    return t("event.location.activity");
+  }
+
+  return event.location;
+}
+
+function documentName(
+  documentId: string | undefined,
+  fallback: string,
+  source: DocumentRecord["source"] | undefined,
+  t: Translate
+): string {
+  if (documentId === "d-discharge") {
+    return t("document.d-discharge.name");
+  }
+
+  if (source === "sample") {
+    return t("document.sampleName");
+  }
+
+  return fallback;
+}
+
+function documentSuggestedAction(documentId: string, fallback: string | undefined, t: Translate): string {
+  if (documentId === "d-discharge") {
+    return t("document.d-discharge.action");
+  }
+
+  return fallback ?? t("task.dynamic.documentReview");
+}
+
+function taskTemplateLabel(templateKey: TaskTemplateKey, t: Translate): string {
+  return {
+    ride: t("tasks.templateRide"),
+    paperwork: t("tasks.templatePaperwork"),
+    supplies: t("tasks.templateSupplies")
+  }[templateKey];
+}
+
+function taskTemplateMeta(templateKey: TaskTemplateKey, t: Translate): string {
+  return {
+    ride: t("tasks.templateRideMeta"),
+    paperwork: t("tasks.templatePaperworkMeta"),
+    supplies: t("tasks.templateSuppliesMeta")
+  }[templateKey];
+}
+
+function taskTemplateIcon(templateKey: TaskTemplateKey): IconName {
+  const icons: Record<TaskTemplateKey, IconName> = {
+    ride: "car-outline",
+    paperwork: "call-outline",
+    supplies: "bag-handle-outline"
+  };
+
+  return icons[templateKey];
+}
+
+function timelineTemplateLabel(templateKey: TimelineTemplateKey, t: Translate): string {
+  return {
+    checkin: t("timeline.templateCheckin"),
+    pickup: t("timeline.templatePickup"),
+    paperwork: t("timeline.templatePaperwork")
+  }[templateKey];
+}
+
+function timelineTemplateMeta(templateKey: TimelineTemplateKey, t: Translate): string {
+  return {
+    checkin: t("timeline.templateCheckinMeta"),
+    pickup: t("timeline.templatePickupMeta"),
+    paperwork: t("timeline.templatePaperworkMeta")
+  }[templateKey];
+}
+
+function timelineTemplateIcon(templateKey: TimelineTemplateKey): IconName {
+  const icons: Record<TimelineTemplateKey, IconName> = {
+    checkin: "chatbubble-ellipses-outline",
+    pickup: "car-outline",
+    paperwork: "document-text-outline"
+  };
+
+  return icons[templateKey];
+}
+
+function inviteTemplateLabel(templateKey: InviteTemplateKey, t: Translate): string {
+  return {
+    caregiver: t("settings.inviteCaregiver"),
+    viewer: t("settings.inviteViewer")
+  }[templateKey];
+}
+
+function inviteTemplateMeta(templateKey: InviteTemplateKey, t: Translate): string {
+  return {
+    caregiver: t("settings.inviteCaregiverMeta"),
+    viewer: t("settings.inviteViewerMeta")
+  }[templateKey];
+}
+
+function timelineTemplateInput(
+  templateKey: TimelineTemplateKey,
+  t: Translate
+): Pick<CareEvent, "type" | "title" | "startsAt" | "location"> {
+  const now = Date.now();
+  const inputs: Record<TimelineTemplateKey, Pick<CareEvent, "type" | "title" | "startsAt" | "location">> = {
+    checkin: {
+      type: "visit",
+      title: t("timeline.templateCheckinTitle"),
+      startsAt: new Date(now).toISOString(),
+      location: t("event.location.activity")
+    },
+    pickup: {
+      type: "transport",
+      title: t("timeline.templatePickupTitle"),
+      startsAt: new Date(now + 2 * 60 * 60 * 1000).toISOString(),
+      location: t("event.location.activity")
+    },
+    paperwork: {
+      type: "document",
+      title: t("timeline.templatePaperworkTitle"),
+      startsAt: new Date(now + 24 * 60 * 60 * 1000).toISOString(),
+      location: t("event.location.sharedDocuments")
+    }
+  };
+
+  return inputs[templateKey];
+}
+
+function taskTemplateInput(
+  templateKey: TaskTemplateKey,
+  t: Translate
+): Pick<Task, "title" | "expectedMinutes" | "dueAt" | "priority" | "subtasks"> {
+  const now = Date.now();
+  const inputs: Record<TaskTemplateKey, Pick<Task, "title" | "expectedMinutes" | "dueAt" | "priority" | "subtasks">> = {
+    ride: {
+      title: t("task.template.ride.title"),
+      expectedMinutes: 20,
+      dueAt: new Date(now + 24 * 60 * 60 * 1000).toISOString(),
+      priority: "critical",
+      subtasks: [
+        t("task.template.ride.subtask.0"),
+        t("task.template.ride.subtask.1"),
+        t("task.template.ride.subtask.2")
+      ]
+    },
+    paperwork: {
+      title: t("task.template.paperwork.title"),
+      expectedMinutes: 15,
+      dueAt: new Date(now + 36 * 60 * 60 * 1000).toISOString(),
+      priority: "normal",
+      subtasks: [t("task.template.paperwork.subtask.0"), t("task.template.paperwork.subtask.1")]
+    },
+    supplies: {
+      title: t("task.template.supplies.title"),
+      expectedMinutes: 35,
+      dueAt: new Date(now + 30 * 60 * 60 * 1000).toISOString(),
+      priority: "normal",
+      subtasks: [t("task.template.supplies.subtask.0"), t("task.template.supplies.subtask.1")]
+    }
+  };
+
+  return inputs[templateKey];
+}
+
+function auditDetail(
+  action: AuditAction,
+  fallback: string,
+  actorId: string,
+  entityId: string,
+  state: AppState,
+  t: Translate
+): string {
+  const actor = memberName(state, actorId, t);
+  const task = state.tasks.find((item) => item.id === entityId);
+  const memberTarget = state.members.find((item) => item.id === entityId);
+  const target =
+    action === "member.role_updated"
+      ? memberName(state, entityId, t)
+      : task?.handoffToId
+        ? memberName(state, task.handoffToId, t)
+        : t("member.unknown");
+  const role = memberTarget ? roleLabel(memberTarget.role, t) : t("member.unknown");
+  const title = task ? taskTitle(task, t) : fallback;
+  const key = `audit.detail.${action}`;
+  const translated = t(key, { actor, target, role, title });
+  return translated === key ? fallback : translated;
+}
+
+function generateLocalizedWeeklyReport(
+  state: AppState,
+  actor: Member,
+  language: Language,
+  t: Translate
+): { state: AppState; report: string } {
+  const report = buildLocalizedReportText(state, language, t);
+
+  return {
+    report,
+    state: withAudit(
+      withRoleNotification(
+        state,
+        "coordinator",
+        "info",
+        "notification.title.reportGenerated",
+        "notification.body.reportGenerated",
+        { actor: actor.name },
+        "report",
+        `report-${Date.now()}`
+      ),
+      actor.id,
+      "report.generated",
+      "report",
+      `report-${Date.now()}`,
+      t("audit.detail.report.generated")
+    )
+  };
+}
+
+function buildLocalizedReportText(state: AppState, language: Language, t: Translate): string {
+  const completed = state.tasks.filter((task) => task.status === "completed");
+  const open = state.tasks.filter((task) => task.status !== "completed");
+  const loadByMember = state.members
+    .map((member) => {
+      const count = state.tasks.filter((task) => task.ownerId === member.id && task.status !== "completed").length;
+      return `${memberDisplayName(member, t)}: ${count}`;
+    })
+    .join(" | ");
+  const upcoming =
+    [...state.events]
+      .sort((left, right) => new Date(left.startsAt).getTime() - new Date(right.startsAt).getTime())
+      .slice(0, 3)
+      .map((event) => `${formatDateTime(event.startsAt, language)} - ${eventTitle(event, state, t)}`)
+      .join("\n") || t("report.noUpcoming");
+
+  return [
+    t("report.title"),
+    t("report.household", { name: state.household.name }),
+    t("report.completed", { count: completed.length }),
+    t("report.open", { count: open.length }),
+    t("report.load", { load: loadByMember }),
+    t("report.upcoming"),
+    upcoming,
+    t("report.boundary")
+  ].join("\n");
+}
+
+function Metric({
+  label,
+  value,
+  icon,
+  tone
+}: {
+  label: string;
+  value: string;
+  icon: IconName;
+  tone: "blue" | "green" | "teal" | "red" | "amber";
+}) {
+  return (
+    <View style={styles.metric}>
+      <View style={[styles.metricIcon, { backgroundColor: toneColor(tone) }]}>
+        <Ionicons name={icon} size={18} color={palette.surface} />
+      </View>
+      <Text style={styles.metricValue} allowFontScaling>
+        {value}
+      </Text>
+      <Text style={styles.metricLabel} allowFontScaling>
+        {label}
+      </Text>
+    </View>
+  );
+}
+
+function SectionTitle({ icon, title }: { icon: IconName; title: string }) {
+  return (
+    <View style={styles.sectionTitle}>
+      <Ionicons name={icon} size={20} color={palette.teal} />
+      <Text style={styles.sectionTitleText} allowFontScaling>
+        {title}
+      </Text>
+    </View>
+  );
+}
+
+function ActionButton({
+  icon,
+  label,
+  tone,
+  onPress
+}: {
+  icon: IconName;
+  label: string;
+  tone: "primary" | "secondary" | "success";
+  onPress: () => void;
+}) {
+  return (
+    <TouchableOpacity
+      style={[
+        styles.actionButton,
+        tone === "primary" && styles.actionPrimary,
+        tone === "success" && styles.actionSuccess
+      ]}
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      onPress={onPress}
+    >
+      <Ionicons name={icon} size={18} color={tone === "secondary" ? palette.teal : palette.surface} />
+      <Text style={[styles.actionText, tone !== "secondary" && styles.actionTextLight]} allowFontScaling>
+        {label}
+      </Text>
+    </TouchableOpacity>
+  );
+}
+
+function IconButton({ icon, label, onPress }: { icon: IconName; label: string; onPress: () => void }) {
+  return (
+    <Pressable style={styles.iconButton} accessibilityRole="button" accessibilityLabel={label} onPress={onPress}>
+      <Ionicons name={icon} size={24} color={palette.ink} />
+    </Pressable>
+  );
+}
+
+function FilterChip({ label, active, onPress }: { label: string; active: boolean; onPress: () => void }) {
+  return (
+    <TouchableOpacity style={[styles.filterChip, active && styles.filterChipActive]} onPress={onPress}>
+      <Text style={[styles.filterText, active && styles.filterTextActive]} allowFontScaling>
+        {label}
+      </Text>
+    </TouchableOpacity>
+  );
+}
+
+function Pill({ text, tone }: { text: string; tone: "safe" | "info" | "warning" | "danger" | "muted" }) {
+  return (
+    <View style={[styles.pill, pillStyle(tone)]}>
+      <Text style={[styles.pillText, tone === "muted" && styles.pillTextMuted]} allowFontScaling>
+        {text}
+      </Text>
+    </View>
+  );
+}
+
+function toneColor(tone: "blue" | "green" | "teal" | "red" | "amber") {
+  return {
+    blue: palette.blue,
+    green: palette.green,
+    teal: palette.teal,
+    red: palette.red,
+    amber: palette.amber
+  }[tone];
+}
+
+function pillStyle(tone: "safe" | "info" | "warning" | "danger" | "muted") {
+  return {
+    safe: { backgroundColor: "#e4f4e7", borderColor: "#b9dfc0" },
+    info: { backgroundColor: "#e7eef7", borderColor: "#bfd0e6" },
+    warning: { backgroundColor: "#fff3d8", borderColor: "#e5c270" },
+    danger: { backgroundColor: "#fde8e6", borderColor: "#efb2ab" },
+    muted: { backgroundColor: "#eef1f0", borderColor: "#d4dbd8" }
+  }[tone];
+}
+
+function eventIcon(type: EventType): IconName {
+  const icons: Record<EventType, IconName> = {
+    appointment: "calendar-outline",
+    transport: "car-outline",
+    visit: "home-outline",
+    reminder: "notifications-outline",
+    document: "document-text-outline"
+  };
+
+  return icons[type];
+}
+
+function showMessage(title: string, message: string) {
+  if (Platform.OS === "web") {
+    window.alert(`${title}\n${message}`);
+    return;
+  }
+
+  Alert.alert(title, message);
+}
+
+function loadPersistedAppState(): AppState {
+  if (!canUseLocalStorage()) {
+    return initialState;
+  }
+
+  try {
+    const raw = window.localStorage.getItem(appStateStorageKey);
+    if (!raw) {
+      return initialState;
+    }
+
+    const parsed = JSON.parse(raw) as Partial<AppState>;
+    return normalizePersistedAppState(parsed);
+  } catch {
+    return initialState;
+  }
+}
+
+function persistAppState(state: AppState) {
+  if (!canUseLocalStorage()) {
+    return;
+  }
+
+  try {
+    window.localStorage.setItem(appStateStorageKey, JSON.stringify(state));
+  } catch {
+    // Local persistence is best-effort for the MVP preview.
+  }
+}
+
+function normalizePersistedAppState(value: Partial<AppState>): AppState {
+  return {
+    household: { ...initialState.household, ...(value.household ?? {}) },
+    roleDefinitions: initialState.roleDefinitions,
+    members: Array.isArray(value.members) && value.members.length > 0 ? value.members : initialState.members,
+    notificationPreferences: Array.isArray(value.notificationPreferences)
+      ? value.notificationPreferences
+      : initialState.notificationPreferences,
+    roleNotifications: Array.isArray(value.roleNotifications)
+      ? value.roleNotifications
+      : initialState.roleNotifications,
+    tasks: Array.isArray(value.tasks) ? value.tasks : initialState.tasks,
+    events: Array.isArray(value.events) ? value.events : initialState.events,
+    documents: Array.isArray(value.documents) ? value.documents : initialState.documents,
+    auditEvents: Array.isArray(value.auditEvents) ? value.auditEvents : initialState.auditEvents
+  };
+}
+
+function canUseLocalStorage(): boolean {
+  return Platform.OS === "web" && typeof window !== "undefined" && typeof window.localStorage !== "undefined";
+}
+
+const styles = StyleSheet.create({
+  app: {
+    flex: 1,
+    backgroundColor: palette.page
+  },
+  topBar: {
+    paddingTop: Platform.OS === "ios" ? 58 : 34,
+    paddingHorizontal: 18,
+    paddingBottom: 14,
+    backgroundColor: palette.surface,
+    borderBottomWidth: 1,
+    borderBottomColor: palette.line,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12
+  },
+  brandMark: {
+    width: 42,
+    height: 42,
+    borderRadius: 8,
+    backgroundColor: palette.teal,
+    alignItems: "center",
+    justifyContent: "center"
+  },
+  brandText: {
+    flex: 1
+  },
+  productName: {
+    fontSize: 22,
+    fontWeight: "800",
+    color: palette.ink
+  },
+  productMeta: {
+    fontSize: 13,
+    color: palette.muted,
+    marginTop: 2
+  },
+  languageButton: {
+    minWidth: 58,
+    minHeight: 36,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: palette.line,
+    backgroundColor: palette.surface,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 5,
+    paddingHorizontal: 8
+  },
+  languageButtonText: {
+    fontSize: 12,
+    color: palette.teal,
+    fontWeight: "800"
+  },
+  container: {
+    flex: 1
+  },
+  content: {
+    padding: 16,
+    paddingBottom: 24
+  },
+  actorRow: {
+    gap: 10,
+    paddingBottom: 8
+  },
+  actorChip: {
+    minWidth: 150,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: palette.line,
+    backgroundColor: palette.surface,
+    paddingVertical: 10,
+    paddingHorizontal: 12
+  },
+  actorChipActive: {
+    backgroundColor: "#e5f3ef",
+    borderColor: palette.teal
+  },
+  actorChipDisabled: {
+    opacity: 0.62
+  },
+  actorName: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: palette.ink
+  },
+  actorNameActive: {
+    color: palette.teal
+  },
+  actorRole: {
+    fontSize: 12,
+    color: palette.muted,
+    marginTop: 2
+  },
+  actorRoleActive: {
+    color: palette.teal
+  },
+  notice: {
+    flexDirection: "row",
+    gap: 10,
+    alignItems: "flex-start",
+    padding: 12,
+    backgroundColor: "#fffaf0",
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#ead7ab",
+    marginVertical: 10
+  },
+  noticeText: {
+    flex: 1,
+    fontSize: 13,
+    lineHeight: 18,
+    color: palette.ink
+  },
+  sectionTitle: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginTop: 18,
+    marginBottom: 10
+  },
+  sectionTitleText: {
+    fontSize: 17,
+    fontWeight: "800",
+    color: palette.ink
+  },
+  metricGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 10
+  },
+  metric: {
+    flexGrow: 1,
+    flexBasis: "47%",
+    minHeight: 112,
+    backgroundColor: palette.surface,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: palette.line,
+    padding: 12
+  },
+  metricIcon: {
+    width: 30,
+    height: 30,
+    borderRadius: 6,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 12
+  },
+  metricValue: {
+    fontSize: 24,
+    fontWeight: "800",
+    color: palette.ink
+  },
+  metricLabel: {
+    fontSize: 13,
+    color: palette.muted,
+    marginTop: 4
+  },
+  panel: {
+    backgroundColor: palette.surface,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: palette.line,
+    padding: 14,
+    marginBottom: 10,
+    gap: 10
+  },
+  panelHeader: {
+    flexDirection: "row",
+    gap: 10,
+    alignItems: "flex-start",
+    justifyContent: "space-between"
+  },
+  panelTitle: {
+    fontSize: 18,
+    fontWeight: "800",
+    color: palette.ink
+  },
+  panelSubtitle: {
+    fontSize: 13,
+    color: palette.muted,
+    marginTop: 2
+  },
+  bodyText: {
+    fontSize: 14,
+    lineHeight: 20,
+    color: palette.ink
+  },
+  permissionWrap: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8
+  },
+  permissionChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    borderRadius: 6,
+    backgroundColor: "#f0f5fb",
+    paddingVertical: 6,
+    paddingHorizontal: 8
+  },
+  permissionText: {
+    fontSize: 12,
+    color: palette.blue
+  },
+  listItem: {
+    backgroundColor: palette.surface,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: palette.line,
+    padding: 12,
+    marginBottom: 8,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 10
+  },
+  nextActionItem: {
+    minHeight: 68,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: palette.line,
+    backgroundColor: "#f8fbfa",
+    padding: 10,
+    flexDirection: "row",
+    flexWrap: "wrap",
+    alignItems: "center",
+    gap: 10
+  },
+  nextActionIcon: {
+    width: 34,
+    height: 34,
+    borderRadius: 8,
+    backgroundColor: palette.blue,
+    alignItems: "center",
+    justifyContent: "center"
+  },
+  listText: {
+    flex: 1,
+    minWidth: 150
+  },
+  notificationCard: {
+    backgroundColor: palette.surface,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: palette.line,
+    padding: 12,
+    marginBottom: 8,
+    flexDirection: "row",
+    gap: 10
+  },
+  notificationIcon: {
+    width: 34,
+    height: 34,
+    borderRadius: 8,
+    backgroundColor: "#eef7f4",
+    alignItems: "center",
+    justifyContent: "center"
+  },
+  notificationHeader: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    gap: 10
+  },
+  itemTitle: {
+    fontSize: 16,
+    fontWeight: "800",
+    color: palette.ink
+  },
+  itemMeta: {
+    fontSize: 13,
+    color: palette.muted,
+    marginTop: 4,
+    lineHeight: 18
+  },
+  taskCard: {
+    backgroundColor: palette.surface,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: palette.line,
+    padding: 14,
+    marginBottom: 12,
+    gap: 10
+  },
+  taskMetaRow: {
+    flexDirection: "row",
+    gap: 10,
+    flexWrap: "wrap",
+    alignItems: "center"
+  },
+  subtaskRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 8
+  },
+  subtaskText: {
+    flex: 1,
+    fontSize: 13,
+    lineHeight: 18,
+    color: palette.ink
+  },
+  warningText: {
+    color: palette.red,
+    fontSize: 13,
+    lineHeight: 18
+  },
+  proofText: {
+    color: palette.green,
+    fontSize: 13,
+    fontWeight: "700"
+  },
+  actionRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    alignItems: "center"
+  },
+  actionButton: {
+    minHeight: 42,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: palette.teal,
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: palette.surface
+  },
+  actionPrimary: {
+    backgroundColor: palette.teal
+  },
+  actionSuccess: {
+    backgroundColor: palette.green,
+    borderColor: palette.green
+  },
+  actionText: {
+    color: palette.teal,
+    fontWeight: "800",
+    fontSize: 13
+  },
+  actionTextLight: {
+    color: palette.surface
+  },
+  safetyToggle: {
+    minHeight: 46,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: palette.line,
+    backgroundColor: palette.surface,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10
+  },
+  safetyToggleActive: {
+    borderColor: palette.teal,
+    backgroundColor: "#e5f3ef"
+  },
+  safetyToggleText: {
+    flex: 1,
+    fontSize: 13,
+    lineHeight: 18,
+    color: palette.ink,
+    fontWeight: "700"
+  },
+  roleButtonGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8
+  },
+  roleButton: {
+    minHeight: 38,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: palette.line,
+    backgroundColor: palette.surface,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 10,
+    paddingVertical: 8
+  },
+  roleButtonActive: {
+    backgroundColor: "#e5f3ef",
+    borderColor: palette.teal
+  },
+  roleButtonDisabled: {
+    opacity: 0.48
+  },
+  roleButtonText: {
+    fontSize: 12,
+    fontWeight: "800",
+    color: palette.ink
+  },
+  roleButtonTextActive: {
+    color: palette.teal
+  },
+  roleChangeButton: {
+    minHeight: 38,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: palette.teal,
+    alignSelf: "flex-start",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    backgroundColor: "#f8fbfa"
+  },
+  roleChangeButtonText: {
+    color: palette.teal,
+    fontSize: 13,
+    fontWeight: "800"
+  },
+  backBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 8
+  },
+  backButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingVertical: 6,
+    paddingHorizontal: 4
+  },
+  backButtonText: {
+    color: palette.teal,
+    fontSize: 14,
+    fontWeight: "700"
+  },
+  templateGrid: {
+    gap: 8
+  },
+  templateButton: {
+    minHeight: 64,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: palette.line,
+    backgroundColor: "#f8fbfa",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    padding: 10
+  },
+  templateIcon: {
+    width: 34,
+    height: 34,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: palette.teal
+  },
+  templateTitle: {
+    fontSize: 14,
+    fontWeight: "800",
+    color: palette.ink
+  },
+  filterRow: {
+    gap: 8,
+    paddingBottom: 8
+  },
+  filterChip: {
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: palette.line,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    backgroundColor: palette.surface
+  },
+  filterChipActive: {
+    backgroundColor: palette.blue,
+    borderColor: palette.blue
+  },
+  filterText: {
+    color: palette.ink,
+    fontSize: 13,
+    fontWeight: "700"
+  },
+  filterTextActive: {
+    color: palette.surface
+  },
+  timelineItem: {
+    flexDirection: "row",
+    gap: 10,
+    marginBottom: 12
+  },
+  timelineMarker: {
+    width: 36,
+    height: 36,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: palette.blue
+  },
+  timelineBody: {
+    flex: 1,
+    backgroundColor: palette.surface,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: palette.line,
+    padding: 12
+  },
+  reportStats: {
+    flexDirection: "row",
+    gap: 10
+  },
+  reportText: {
+    fontSize: 14,
+    lineHeight: 21,
+    color: palette.ink,
+    fontFamily: Platform.select({ ios: "Menlo", android: "monospace", default: "monospace" })
+  },
+  reportPreview: {
+    fontSize: 13,
+    lineHeight: 19,
+    color: palette.ink,
+    backgroundColor: "#f8fbfa",
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: palette.line,
+    padding: 10
+  },
+  auditItem: {
+    flexDirection: "row",
+    gap: 10,
+    backgroundColor: palette.surface,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: palette.line,
+    padding: 12,
+    marginBottom: 8
+  },
+  compactAuditItem: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 8,
+    borderTopWidth: 1,
+    borderTopColor: palette.line,
+    paddingTop: 10
+  },
+  auditIcon: {
+    width: 34,
+    height: 34,
+    borderRadius: 8,
+    backgroundColor: "#e2f3ef",
+    alignItems: "center",
+    justifyContent: "center"
+  },
+  tabBar: {
+    minHeight: 68,
+    marginHorizontal: 12,
+    marginBottom: Platform.OS === "ios" ? 24 : 14,
+    borderRadius: 8,
+    backgroundColor: palette.surface,
+    borderWidth: 1,
+    borderColor: palette.line,
+    flexDirection: "row",
+    justifyContent: "space-around",
+    alignItems: "center",
+    paddingHorizontal: 6,
+    shadowColor: "#000",
+    shadowOpacity: 0.12,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 6
+  },
+  tabButton: {
+    flex: 1,
+    minHeight: 54,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 3,
+    borderRadius: 8
+  },
+  tabButtonActive: {
+    backgroundColor: "#e5f3ef"
+  },
+  tabLabel: {
+    fontSize: 10,
+    color: palette.gray,
+    fontWeight: "700"
+  },
+  tabLabelActive: {
+    color: palette.teal
+  },
+  pill: {
+    borderRadius: 999,
+    borderWidth: 1,
+    paddingVertical: 5,
+    paddingHorizontal: 8,
+    alignSelf: "flex-start"
+  },
+  pillText: {
+    fontSize: 11,
+    fontWeight: "800",
+    color: palette.ink,
+    textTransform: "capitalize"
+  },
+  pillTextMuted: {
+    color: palette.gray
+  },
+  modalScrim: {
+    flex: 1,
+    backgroundColor: "rgba(23, 32, 38, 0.38)",
+    justifyContent: "flex-end"
+  },
+  modalContent: {
+    maxHeight: "74%",
+    backgroundColor: palette.surface,
+    borderTopLeftRadius: 8,
+    borderTopRightRadius: 8,
+    padding: 18,
+    gap: 12
+  },
+  roleModalContent: {
+    maxHeight: "70%",
+    backgroundColor: palette.surface,
+    borderTopLeftRadius: 8,
+    borderTopRightRadius: 8,
+    padding: 18,
+    gap: 12
+  },
+  modalHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between"
+  },
+  modalReportScroll: {
+    maxHeight: 440
+  },
+  roleChoiceList: {
+    gap: 8
+  },
+  roleChoiceButton: {
+    minHeight: 76,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: palette.line,
+    backgroundColor: "#f8fbfa",
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 10,
+    padding: 12
+  },
+  roleChoiceButtonActive: {
+    borderColor: palette.teal,
+    backgroundColor: "#e5f3ef"
+  },
+  roleChoiceIcon: {
+    paddingTop: 2
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: "800",
+    color: palette.ink
+  },
+  iconButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#eef1f0"
+  },
+  preferenceActions: {
+    alignItems: "flex-end",
+    gap: 8
+  },
+  smallIconButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: palette.line,
+    backgroundColor: palette.surface,
+    alignItems: "center",
+    justifyContent: "center"
+  }
+});

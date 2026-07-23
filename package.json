@@ -1,0 +1,37 @@
+{
+  "name": "relaycare-mvp",
+  "version": "0.1.0",
+  "private": true,
+  "main": "index.ts",
+  "scripts": {
+    "start": "expo start",
+    "android": "expo start --android",
+    "ios": "expo start --ios",
+    "web": "expo start --web",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
+  },
+  "dependencies": {
+    "@expo/vector-icons": "^15.1.1",
+    "expo": "^57.0.7",
+    "expo-document-picker": "^57.0.1",
+    "expo-status-bar": "^57.0.1",
+    "react": "19.2.3",
+    "react-dom": "19.2.3",
+    "react-native": "^0.86.0",
+    "react-native-web": "^0.21.2"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.7",
+    "eslint": "^9.39.5",
+    "eslint-config-expo": "^57.0.0",
+    "prettier": "^3.9.6",
+    "typescript": "~6.0.3",
+    "vitest": "^4.1.10"
+  }
+}

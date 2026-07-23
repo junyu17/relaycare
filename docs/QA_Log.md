@@ -393,3 +393,43 @@ Actual artifact verification after fix:
 - Static server stopped after testing.
 
 Open items requiring project-lead decision (presented separately to user): P1 #5/#6 dead-code + audit-page strategy, P2 #9/#10/#11 engineering baseline, P2 #12/#13/#8 minor fixes.
+
+## 2026-07-23
+
+### Stage: A2 + B3 + C1 completion, lint hardening, first commit, full verification
+
+Context: User approved A2 + B3 + C1 and added delivery constraints: no web deliverable (app-only), all settings in-app, role-differentiated UI. This stage completes all three workstreams and verifies the final artifact.
+
+Original requirement match:
+
+- A2 (audit page reachable + dead-code removal): `renderReport` and `domain.generateWeeklyReport` dead code removed (grep-confirmed no residue); `TabKey` no longer contains `"report"`; `renderAudit` is reachable from Settings via `settings.viewAllAudit` entry, gated to `audit:read` (coordinator only), with a localized back button (`audit.back`).
+- B3 (engineering baseline): independent git repo initialized with first commit `469ff27` (toplevel = relaycare-mvp, decoupled from `~/` home git); vitest + `src/__tests__/domain.test.ts` (17 tests covering permissions/claim/handoff/audit/invite-expiry/ID-uniqueness); ESLint flat config + Prettier; npm scripts for typecheck/lint/test/format.
+- C1 (minor fixes): P2#13 a11y `Act as` hardcoded -> `t("member.actAs", {name})`; P2#12 invite expiry enforced via `domain.isHouseholdInviteExpired` + `onInviteMember` interception + Settings notice; P1#8 weekly report snapshot per language `reportText: Record<Language,string>` with the state-driven rebuild useEffect removed.
+- Delivery constraints honored: deliverable is RN app (iOS/Android); `web-build/` is gitignored and not delivered; `expo export --platform web` used only as headless build smoke; all settings in-app (Settings tab); role-differentiated UI via `canAccessTab` (coordinator sees audit entry, caregiver does not, viewer sees only home/timeline/settings).
+
+Independent quality review:
+
+- Confirmed dead-code removal by grep: no `generateWeeklyReport`, no `renderReport` in `src/`.
+- Confirmed audit page is coordinator-only: entry uses `can("audit:read")` and `activeTab === "audit" && can("audit:read")` guards the render.
+- Confirmed i18n keys exist in all three locales: `member.actAs`, `alerts.inviteExpiredTitle/Body`, `settings.inviteExpiredNotice`, `settings.viewAllAudit`, `audit.back` (en/zh/es verified).
+- Confirmed invite expiry uses a pure function `isHouseholdInviteExpired(state, now)` and is invoked in both `onInviteMember` and Settings rendering.
+- Confirmed weekly report stores a trilingual snapshot at generation time and no longer rebuilds on every state change.
+- Confirmed git identity is set (Billy / Billy.yu@me.com) and no node_modules/web-build/.expo/.env staged in the first commit.
+- Confirmed lint fixes are behavior-preserving: hydration moved to lazy `useState(() => loadPersistedAppState())` (eliminates the mount effect, removes the `stateHydrated` flag); tab-guard effect kept as an effect (covers every role/tab change path) with a documented `eslint-disable-next-line`; `handoffCandidates` dependency changed to `[actor.id, state]` to satisfy exhaustive-deps while remaining correct.
+
+Actual artifact verification:
+
+- `npx tsc --noEmit`: 0 errors.
+- `npx vitest run`: 17/17 passed.
+- `npx eslint .`: 0 errors, 0 warnings.
+- `npx prettier --check .`: all files pass.
+- `npx expo export --platform web --output-dir web-build`: passed, bundle 987KB, `index.html` + `metadata.json` emitted.
+- Headless Chrome (`--headless=new --virtual-time-budget=6000`) render smoke: DOM 24,767 bytes; rendered text contains `RelayCare`, `Non-PHI`, `coordinator`, `Maya`, `Next actions`; desktop 1280x900 screenshot captured to `/tmp/relaycare-qa/desktop.png` (91KB). Hydration lazy initializer confirmed working at runtime.
+- `git log --oneline -1`: `469ff27 chore: initial commit of RelayCare MVP (A2+B3+C1 baseline)`; working tree clean.
+
+Double self-check:
+
+- Pass 1 (vs original requirement): A2/B3/C1 complete; no-web-deliverable, in-app settings, role-differentiated UI all satisfied; 30-min reporting mechanism decision presented to user.
+- Pass 2 (independent completeness/correctness/format/risk): all checks green; i18n trilingual; git clean; residual risks recorded (web dependency retained for dev smoke pending user confirmation; reporting mechanism pending user choice; native persistence is a known MVP limitation out of scope).
+
+Open items requiring user decision: 30-min reporting mechanism (in-session vs LaunchAgent vs Feishu bot); whether to fully remove web capability.

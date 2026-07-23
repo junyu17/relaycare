@@ -132,3 +132,53 @@ MVP 边界遵守良好，未越界：
 
 - 方案 1：删除死代码，保留 4 条紧凑视图（维持现状）
 - 方案 2：恢复可达的完整审计页（满足"审计优先"要求）
+
+---
+
+## 六、2026-07-23 状态更新（A2 + B3 + C1 完成后）
+
+用户已批准 A2 + B3 + C1 方案并完成实施。各缺陷当前状态：
+
+### P0（07-23 早期已修复，本次复核仍为 FIXED）
+
+| # | 缺陷 | 当前状态 |
+| --- | --- | --- |
+| 1 | 邀请成员名称 i18n 缺陷 | ✅ FIXED（语言中性 sentinel + 渲染时本地化，三语齐全） |
+| 2 | 实体 ID 碰撞 | ✅ FIXED（`uniqueId` 统一加随机后缀，vitest 覆盖） |
+| 3 | 交接候选含待邀请成员 | ✅ FIXED（`handoffCandidates` 过滤 `inviteStatus !== "pending"`） |
+
+### P1
+
+| # | 缺陷 | 当前状态 |
+| --- | --- | --- |
+| 4 | 持久化空 members 崩溃 | ✅ FIXED（`normalizePersistedAppState` 空数组回退 + `actor` 空值守卫） |
+| 5 | Audit/Report 死代码不可达 | ✅ FIXED（A2：`renderReport` 删除；`renderAudit` 从 Settings「查看全部审计」入口可达，仅 coordinator 可见） |
+| 6 | 两套周报函数死代码 | ✅ FIXED（A2：`domain.generateWeeklyReport` 删除） |
+| 7 | 上传校验顺序不一致 | ✅ FIXED（权限 -> 安全统一顺序） |
+| 8 | 周报文本随状态漂移 | ✅ FIXED（C1：生成时三语快照 `Record<Language,string>`，移除 state 重建 useEffect） |
+
+### P2
+
+| # | 缺陷 | 当前状态 |
+| --- | --- | --- |
+| 9 | 无独立 Git 仓库 | ✅ FIXED（B3：`git init` + 首次提交 `469ff27`，toplevel = relaycare-mvp） |
+| 10 | 无自动化测试 | ✅ FIXED（B3：vitest + 17 项单测） |
+| 11 | 无 ESLint/Prettier | ✅ FIXED（B3：flat config + Prettier，lint 0 error 0 warning） |
+| 12 | 邀请过期未强制 | ✅ FIXED（C1：`isHouseholdInviteExpired` 纯函数 + `onInviteMember` 拦截 + Settings 提示） |
+| 13 | a11y 标签硬编码英文 | ✅ FIXED（C1：`t("member.actAs", {name})`，三语） |
+| 14 | 多时区显示 | ⏸ MVP 暂缓（已知限制，非本次范围） |
+
+### 工程化基线 lint 修复说明（本次新增）
+
+- Hydration：mount effect 内 `setState` -> 改为 lazy `useState(() => loadPersistedAppState())`，消除 effect 并移除 `stateHydrated` 标志（行为等价或更优，无首次默认 state 闪烁）。
+- Tab 守卫 effect：保留为 effect 以覆盖所有 role/tab 变化路径，加 `eslint-disable-next-line react-hooks/set-state-in-effect` + 注释说明。
+- `handoffCandidates`：依赖改为 `[actor.id, state]` 满足 exhaustive-deps 且保持正确。
+
+### 最终验证（全绿）
+
+`tsc --noEmit` 0 错误 · `vitest run` 17/17 · `eslint .` 0/0 · `prettier --check` 全过 · `expo export --platform web` 构建通过 · Headless Chrome 渲染冒烟通过。
+
+### 待用户决策
+
+1. 30 分钟汇报机制（会话内 / LaunchAgent / 飞书 bot）。
+2. 是否彻底移除 web 能力（当前仅作开发冒烟，不交付）。

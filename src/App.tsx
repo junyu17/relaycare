@@ -403,7 +403,7 @@ function LocalApp(props: { cloud?: CloudProps } = {}) {
             householdName: state.household.name
           })
           .then((memberId) => {
-            const link = Linking.createUrl("invite", { member: memberId });
+            const link = Linking.createURL("invite", { queryParams: { member: memberId } });
             showMessage("Invite link", link);
           })
           .catch(() => {});

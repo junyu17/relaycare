@@ -66,9 +66,7 @@ export function OnboardingScreen() {
 
   useEffect(() => {
     if (!pendingInviteId) return;
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     setInviteId(pendingInviteId);
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     setTab("join");
   }, [pendingInviteId]);
 

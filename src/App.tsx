@@ -8,6 +8,7 @@ import { initialState } from "./data";
 import { AuthProvider, useAuth } from "./auth/AuthContext";
 import { AuthScreen, OnboardingScreen } from "./auth/AuthScreen";
 import { fetchHouseholdState, subscribeHouseholdState } from "./lib/db";
+import * as cloudActions from "./lib/actions";
 import { isSupabaseConfigured } from "./lib/supabase";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 import {
@@ -94,8 +95,18 @@ const palette = {
 
 const appStateStorageKey = "relaycare.mvp.appState.v1";
 
-function LocalApp() {
-  const [state, setState] = useState<AppState>(() => loadPersistedAppState());
+interface CloudProps {
+  state: AppState;
+  actor: Member;
+  householdId: string;
+  onSignOut: () => void;
+}
+
+function LocalApp(props: { cloud?: CloudProps } = {}) {
+  const cloud = props.cloud;
+  const [localState, setLocalState] = useState<AppState>(() => loadPersistedAppState());
+  const state = cloud ? cloud.state : localState;
+  const setState = setLocalState;
   const [activeTab, setActiveTab] = useState<TabKey>("home");
   const [actorId, setActorId] = useState("m-maya");
   const [eventType, setEventType] = useState<"all" | EventType>("all");
@@ -112,13 +123,15 @@ function LocalApp() {
   const report = reportText ? reportText[language] : "";
 
   useEffect(() => {
+    if (cloud) return;
     persistAppState(state);
-  }, [state]);
+  }, [state, cloud]);
 
-  const actor = useMemo(
+  const localActor = useMemo(
     () => state.members.find((member) => member.id === actorId) ?? state.members[0] ?? initialState.members[0],
     [actorId, state.members]
   );
+  const actor = cloud ? cloud.actor : localActor;
 
   const roleEditorMember = useMemo(
     () => state.members.find((member) => member.id === roleEditorMemberId),
@@ -187,11 +200,29 @@ function LocalApp() {
   };
 
   const onClaim = (task: Task) => {
-    runIfAllowed("task:claim", () => setState((current) => claimTask(current, task.id, actor, t)));
+    runIfAllowed("task:claim", () => {
+      if (cloud) {
+        cloudActions.claimTask({ householdId: cloud.householdId, taskId: task.id, actor, taskTitle: task.title });
+      } else {
+        setState((current) => claimTask(current, task.id, actor, t));
+      }
+    });
   };
 
   const onReject = (task: Task) => {
-    runIfAllowed("task:claim", () => setState((current) => rejectTask(current, task.id, actor, t)));
+    runIfAllowed("task:claim", () => {
+      if (cloud) {
+        cloudActions.rejectTask({
+          householdId: cloud.householdId,
+          taskId: task.id,
+          actor,
+          taskTitle: task.title,
+          reason: "Declined"
+        });
+      } else {
+        setState((current) => rejectTask(current, task.id, actor, t));
+      }
+    });
   };
 
   const onHandoff = (task: Task) => {
@@ -204,13 +235,35 @@ function LocalApp() {
     }
 
     runIfAllowed("task:handoff", () => {
-      setState((current) => requestHandoff(current, handoffTask.id, actor, target, t));
+      if (cloud) {
+        cloudActions.requestHandoff({
+          householdId: cloud.householdId,
+          taskId: handoffTask.id,
+          actor,
+          target,
+          taskTitle: handoffTask.title
+        });
+      } else {
+        setState((current) => requestHandoff(current, handoffTask.id, actor, target, t));
+      }
       setHandoffTaskId(null);
     });
   };
 
   const onComplete = (task: Task) => {
-    runIfAllowed("task:complete", () => setState((current) => completeTask(current, task.id, actor, t)));
+    runIfAllowed("task:complete", () => {
+      if (cloud) {
+        cloudActions.completeTask({
+          householdId: cloud.householdId,
+          taskId: task.id,
+          actor,
+          taskTitle: task.title,
+          proof: "Completed"
+        });
+      } else {
+        setState((current) => completeTask(current, task.id, actor, t));
+      }
+    });
   };
 
   const onPickDocument = async () => {
@@ -232,7 +285,17 @@ function LocalApp() {
 
     if (!result.canceled) {
       const name = result.assets[0]?.name ?? t("task.dynamic.uploadedReview");
-      setState((current) => addDocument(current, actor, name, "manual_upload", t));
+      if (cloud) {
+        cloudActions.addDocument({
+          householdId: cloud.householdId,
+          actor,
+          name,
+          source: "manual_upload",
+          confidence: 0.7
+        });
+      } else {
+        setState((current) => addDocument(current, actor, name, "manual_upload", t));
+      }
     }
   };
 
@@ -247,13 +310,36 @@ function LocalApp() {
       return;
     }
 
-    setState((current) => addDocument(current, actor, t("document.sampleName"), "sample", t));
+    if (cloud) {
+      cloudActions.addDocument({
+        householdId: cloud.householdId,
+        actor,
+        name: t("document.sampleName"),
+        source: "sample",
+        confidence: 0.72
+      });
+    } else {
+      setState((current) => addDocument(current, actor, t("document.sampleName"), "sample", t));
+    }
   };
 
   const onConfirmDocument = (documentId: string) => {
-    runIfAllowed("document:upload", () =>
-      setState((current) => confirmDocumentAndCreateTask(current, documentId, actor, t))
-    );
+    runIfAllowed("document:upload", () => {
+      if (cloud) {
+        const doc = state.documents.find((d) => d.id === documentId);
+        cloudActions.confirmDocumentAndCreateTask({
+          householdId: cloud.householdId,
+          actor,
+          documentId,
+          documentName: doc?.name ?? "",
+          taskTitle: doc?.suggestedAction ?? "Confirm document requirements",
+          dueAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+          subtasks: ["Review document", "Add result to timeline"]
+        });
+      } else {
+        setState((current) => confirmDocumentAndCreateTask(current, documentId, actor, t));
+      }
+    });
   };
 
   const onGenerateReport = () => {
@@ -265,7 +351,15 @@ function LocalApp() {
         zh: buildLocalizedReportText(snapshot, "zh", makeTranslator("zh")),
         es: buildLocalizedReportText(snapshot, "es", makeTranslator("es"))
       };
-      setState(snapshot);
+      if (cloud) {
+        cloudActions.recordReportGenerated({
+          householdId: cloud.householdId,
+          actor,
+          openCount: snapshot.tasks.filter((task) => task.status !== "completed").length
+        });
+      } else {
+        setState(snapshot);
+      }
       setReportText(localized);
       setReportVisible(true);
     });
@@ -278,7 +372,18 @@ function LocalApp() {
         return;
       }
 
-      setState((current) => updateMemberRole(current, memberId, role, actor, t));
+      if (cloud) {
+        const member = state.members.find((m) => m.id === memberId);
+        cloudActions.updateMemberRole({
+          householdId: cloud.householdId,
+          actor,
+          memberId,
+          memberName: member?.name ?? "",
+          role
+        });
+      } else {
+        setState((current) => updateMemberRole(current, memberId, role, actor, t));
+      }
     });
   };
 
@@ -288,19 +393,53 @@ function LocalApp() {
         showMessage(t("alerts.inviteExpiredTitle"), t("alerts.inviteExpiredBody"));
         return;
       }
-      setState((current) => inviteMember(current, actor, templateKey, t));
+      if (cloud) {
+        cloudActions.inviteMember({
+          householdId: cloud.householdId,
+          actor,
+          role: templateKey,
+          householdName: state.household.name
+        });
+      } else {
+        setState((current) => inviteMember(current, actor, templateKey, t));
+      }
     });
   };
 
   const onCreateTaskFromTemplate = (templateKey: TaskTemplateKey) => {
     runIfAllowed("task:create", () => {
-      setState((current) => createTask(current, actor, taskTemplateInput(templateKey, t), t));
+      const input = taskTemplateInput(templateKey, t);
+      if (cloud) {
+        cloudActions.createTask({
+          householdId: cloud.householdId,
+          actor,
+          title: input.title,
+          expectedMinutes: input.expectedMinutes,
+          dueAt: input.dueAt,
+          priority: input.priority,
+          subtasks: input.subtasks
+        });
+      } else {
+        setState((current) => createTask(current, actor, input, t));
+      }
     });
   };
 
   const onCreateTimelineEvent = (templateKey: TimelineTemplateKey) => {
     runIfAllowed("timeline:add", () => {
-      setState((current) => addTimelineEvent(current, actor, timelineTemplateInput(templateKey, t), t));
+      const input = timelineTemplateInput(templateKey, t);
+      if (cloud) {
+        cloudActions.addTimelineEvent({
+          householdId: cloud.householdId,
+          actor,
+          type: input.type,
+          title: input.title,
+          startsAt: input.startsAt,
+          location: input.location
+        });
+      } else {
+        setState((current) => addTimelineEvent(current, actor, input, t));
+      }
     });
   };
 
@@ -354,6 +493,16 @@ function LocalApp() {
             {languageShortLabel(language)}
           </Text>
         </TouchableOpacity>
+        {cloud && (
+          <TouchableOpacity
+            style={styles.languageButton}
+            accessibilityRole="button"
+            accessibilityLabel="Sign out"
+            onPress={cloud.onSignOut}
+          >
+            <Ionicons name="log-out-outline" size={16} color={palette.teal} />
+          </TouchableOpacity>
+        )}
       </View>
 
       <ScrollView style={styles.container} contentContainerStyle={styles.content}>
@@ -408,7 +557,17 @@ function LocalApp() {
                 return;
               }
 
-              setState((current) => toggleDigest(current, memberId, actor, t));
+              if (cloud) {
+                const pref = state.notificationPreferences.find((p) => p.memberId === memberId);
+                cloudActions.toggleDigest({
+                  householdId: cloud.householdId,
+                  actor,
+                  memberId,
+                  enabled: !(pref?.taskDigest ?? true)
+                });
+              } else {
+                setState((current) => toggleDigest(current, memberId, actor, t));
+              }
             },
             onClaim,
             onComplete,
@@ -670,25 +829,7 @@ function CloudApp() {
   }
 
   const actor = state.members.find((m) => m.userId === user.id) ?? state.members[0];
-  return (
-    <View style={cloudStyles.center}>
-      <StatusBar style="dark" />
-      <Text style={cloudStyles.title}>RelayCare</Text>
-      <Text>Household: {state.household.name}</Text>
-      <Text>
-        Signed in: {actor.name} ({actor.role})
-      </Text>
-      <Text>
-        Members: {state.members.length} · Tasks: {state.tasks.length} · Audit: {state.auditEvents.length}
-      </Text>
-      <Text style={cloudStyles.note}>
-        Auth + realtime sync connected. Full UI (tabs/tasks/timeline) integration is the next step.
-      </Text>
-      <TouchableOpacity style={cloudStyles.btn} onPress={signOut}>
-        <Text style={cloudStyles.btnText}>Sign out</Text>
-      </TouchableOpacity>
-    </View>
-  );
+  return <LocalApp cloud={{ state, actor, householdId, onSignOut: signOut }} />;
 }
 
 export default function App() {

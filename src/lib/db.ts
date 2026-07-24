@@ -12,7 +12,7 @@ import type {
   DocumentRecord,
   AuditEvent,
   Permission,
-  Role,
+  Role
 } from "../types";
 
 // ============ DB 行类型（snake_case）-> App 类型（camelCase）映射 ============
@@ -114,7 +114,7 @@ const mapHousehold = (r: DBHousehold): Household => ({
   name: r.name,
   timezone: r.timezone,
   inviteExpiresAt: r.invite_expires_at,
-  careRecipientLabel: r.care_recipient_label,
+  careRecipientLabel: r.care_recipient_label
 });
 const mapMember = (r: DBMember): Member => ({
   id: r.id,
@@ -125,12 +125,12 @@ const mapMember = (r: DBMember): Member => ({
   availability: r.availability,
   inviteStatus: r.invite_status,
   inviteExpiresAt: r.invite_expires_at ?? undefined,
-  userId: r.user_id,
+  userId: r.user_id
 });
 const mapRoleDefinition = (r: DBRoleDefinition): RoleDefinition => ({
   role: r.role,
   label: r.label,
-  permissions: r.permissions,
+  permissions: r.permissions
 });
 const mapNotificationPreference = (r: DBNotificationPreference): NotificationPreference => ({
   memberId: r.member_id,
@@ -139,7 +139,7 @@ const mapNotificationPreference = (r: DBNotificationPreference): NotificationPre
   quietHoursStart: r.quiet_hours_start,
   quietHoursEnd: r.quiet_hours_end,
   taskDigest: r.task_digest,
-  criticalDueAlerts: true,
+  criticalDueAlerts: true
 });
 const mapRoleNotification = (r: DBRoleNotification): RoleNotification => ({
   id: r.id,
@@ -150,7 +150,7 @@ const mapRoleNotification = (r: DBRoleNotification): RoleNotification => ({
   values: r.values,
   entityType: r.entity_type,
   entityId: r.entity_id,
-  createdAt: r.created_at,
+  createdAt: r.created_at
 });
 const mapTask = (r: DBTask): Task => ({
   id: r.id,
@@ -166,7 +166,7 @@ const mapTask = (r: DBTask): Task => ({
   subtasks: r.subtasks ?? [],
   proof: r.proof ?? undefined,
   rejectionReason: r.rejection_reason ?? undefined,
-  handoffToId: r.handoff_to_id ?? undefined,
+  handoffToId: r.handoff_to_id ?? undefined
 });
 const mapCareEvent = (r: DBCareEvent): CareEvent => ({
   id: r.id,
@@ -176,7 +176,7 @@ const mapCareEvent = (r: DBCareEvent): CareEvent => ({
   location: r.location,
   ownerId: r.owner_id ?? undefined,
   taskId: r.task_id ?? undefined,
-  documentId: r.document_id ?? undefined,
+  documentId: r.document_id ?? undefined
 });
 const mapDocument = (r: DBDocument): DocumentRecord => ({
   id: r.id,
@@ -187,7 +187,7 @@ const mapDocument = (r: DBDocument): DocumentRecord => ({
   containsPhi: false,
   confidence: r.confidence,
   source: r.source,
-  suggestedAction: r.suggested_action ?? undefined,
+  suggestedAction: r.suggested_action ?? undefined
 });
 const mapAuditEvent = (r: DBAuditEvent): AuditEvent => ({
   id: r.id,
@@ -197,37 +197,28 @@ const mapAuditEvent = (r: DBAuditEvent): AuditEvent => ({
   entityType: r.entity_type,
   entityId: r.entity_id,
   createdAt: r.created_at,
-  detail: r.detail,
+  detail: r.detail
 });
 
 // ============ 加载家庭全部数据 -> AppState ============
 
 export async function fetchHouseholdState(householdId: string): Promise<AppState> {
-  const [
-    householdRes,
-    membersRes,
-    rolesRes,
-    prefsRes,
-    notesRes,
-    tasksRes,
-    eventsRes,
-    docsRes,
-    auditRes,
-  ] = await Promise.all([
-    supabase.from("households").select("*").eq("id", householdId).single(),
-    supabase.from("members").select("*").eq("household_id", householdId),
-    supabase.from("role_definitions").select("*"),
-    supabase.from("notification_preferences").select("*").eq("household_id", householdId),
-    supabase.from("role_notifications").select("*").eq("household_id", householdId),
-    supabase.from("tasks").select("*").eq("household_id", householdId),
-    supabase.from("care_events").select("*").eq("household_id", householdId),
-    supabase.from("documents").select("*").eq("household_id", householdId),
-    supabase
-      .from("audit_events")
-      .select("*")
-      .eq("household_id", householdId)
-      .order("created_at", { ascending: false }),
-  ]);
+  const [householdRes, membersRes, rolesRes, prefsRes, notesRes, tasksRes, eventsRes, docsRes, auditRes] =
+    await Promise.all([
+      supabase.from("households").select("*").eq("id", householdId).single(),
+      supabase.from("members").select("*").eq("household_id", householdId),
+      supabase.from("role_definitions").select("*"),
+      supabase.from("notification_preferences").select("*").eq("household_id", householdId),
+      supabase.from("role_notifications").select("*").eq("household_id", householdId),
+      supabase.from("tasks").select("*").eq("household_id", householdId),
+      supabase.from("care_events").select("*").eq("household_id", householdId),
+      supabase.from("documents").select("*").eq("household_id", householdId),
+      supabase
+        .from("audit_events")
+        .select("*")
+        .eq("household_id", householdId)
+        .order("created_at", { ascending: false })
+    ]);
 
   const errors = [
     householdRes.error,
@@ -238,7 +229,7 @@ export async function fetchHouseholdState(householdId: string): Promise<AppState
     tasksRes.error,
     eventsRes.error,
     docsRes.error,
-    auditRes.error,
+    auditRes.error
   ].filter(Boolean);
   if (errors.length) {
     throw new Error(`fetchHouseholdState failed: ${errors[0]?.message}`);
@@ -253,7 +244,7 @@ export async function fetchHouseholdState(householdId: string): Promise<AppState
     tasks: (tasksRes.data as DBTask[]).map(mapTask),
     events: (eventsRes.data as DBCareEvent[]).map(mapCareEvent),
     documents: (docsRes.data as DBDocument[]).map(mapDocument),
-    auditEvents: (auditRes.data as DBAuditEvent[]).map(mapAuditEvent),
+    auditEvents: (auditRes.data as DBAuditEvent[]).map(mapAuditEvent)
   };
 }
 
@@ -316,7 +307,7 @@ export async function createHousehold(args: {
     p_care_recipient_label: args.careRecipientLabel,
     p_member_name: args.memberName,
     p_member_relation: args.memberRelation,
-    p_member_timezone: args.memberTimezone,
+    p_member_timezone: args.memberTimezone
   });
   if (error) throw error;
   return data as string;
@@ -325,7 +316,7 @@ export async function createHousehold(args: {
 export async function acceptInvite(memberId: string, displayName?: string): Promise<void> {
   const { error } = await supabase.rpc("accept_invite", {
     p_member_id: memberId,
-    p_display_name: displayName ?? null,
+    p_display_name: displayName ?? null
   });
   if (error) throw error;
 }

@@ -47,7 +47,9 @@ export function AuthScreen() {
       <TouchableOpacity style={s.button} onPress={submit} disabled={busy}>
         <Text style={s.buttonText}>{busy ? "..." : mode === "signin" ? "Sign in" : "Create account"}</Text>
       </TouchableOpacity>
-      <Text style={s.hint}>{mode === "signup" ? "After signup, confirm via email if required, then sign in." : ""}</Text>
+      <Text style={s.hint}>
+        {mode === "signup" ? "After signup, confirm via email if required, then sign in." : ""}
+      </Text>
     </ScrollView>
   );
 }
@@ -72,7 +74,7 @@ export function OnboardingScreen() {
         careRecipientLabel: "Care recipient",
         memberName,
         memberRelation: relation,
-        memberTimezone: "America/Los_Angeles",
+        memberTimezone: "America/Los_Angeles"
       });
     } catch (e) {
       Alert.alert("Error", e instanceof Error ? e.message : String(e));
@@ -161,10 +163,10 @@ const s = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 10,
     marginBottom: 12,
-    backgroundColor: "#fff",
+    backgroundColor: "#fff"
   },
   button: { backgroundColor: "#0f766e", paddingVertical: 12, borderRadius: 8, alignItems: "center" },
   buttonText: { color: "#fff", fontWeight: "600" },
   hint: { fontSize: 12, color: "#64748b", marginTop: 8 },
-  link: { color: "#0f766e", marginTop: 16, textAlign: "center" },
+  link: { color: "#0f766e", marginTop: 16, textAlign: "center" }
 });

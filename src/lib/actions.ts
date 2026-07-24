@@ -19,7 +19,7 @@ async function insertAudit(p: {
     action: p.action,
     entity_type: p.entityType,
     entity_id: p.entityId,
-    detail: p.detail,
+    detail: p.detail
   });
   if (error) throw error;
 }
@@ -42,7 +42,7 @@ async function insertNotification(p: {
     body_key: p.bodyKey,
     values: p.values,
     entity_type: p.entityType,
-    entity_id: p.entityId,
+    entity_id: p.entityId
   });
   if (error) throw error;
 }
@@ -70,7 +70,7 @@ export async function createTask(args: {
       requested_by_id: args.actor.id,
       event_id: args.eventId ?? null,
       document_id: args.documentId ?? null,
-      subtasks: args.subtasks,
+      subtasks: args.subtasks
     })
     .select("id")
     .single();
@@ -81,7 +81,7 @@ export async function createTask(args: {
     action: "task.created",
     entityType: "task",
     entityId: data.id,
-    detail: `${args.actor.name} created task "${args.title}".`,
+    detail: `${args.actor.name} created task "${args.title}".`
   });
   await insertNotification({
     householdId: args.householdId,
@@ -91,7 +91,7 @@ export async function createTask(args: {
     bodyKey: "notification.body.claimableTask",
     values: { task: args.title, priority: args.priority },
     entityType: "task",
-    entityId: data.id,
+    entityId: data.id
   });
 }
 
@@ -107,7 +107,7 @@ export async function claimTask(args: { householdId: string; taskId: string; act
     action: "task.claimed",
     entityType: "task",
     entityId: args.taskId,
-    detail: `${args.actor.name} claimed "${args.taskTitle}".`,
+    detail: `${args.actor.name} claimed "${args.taskTitle}".`
   });
   await insertNotification({
     householdId: args.householdId,
@@ -117,7 +117,7 @@ export async function claimTask(args: { householdId: string; taskId: string; act
     bodyKey: "notification.body.taskClaimed",
     values: { task: args.taskTitle, name: args.actor.name },
     entityType: "task",
-    entityId: args.taskId,
+    entityId: args.taskId
   });
 }
 
@@ -139,7 +139,7 @@ export async function rejectTask(args: {
     action: "task.rejected",
     entityType: "task",
     entityId: args.taskId,
-    detail: `${args.actor.name} declined "${args.taskTitle}": ${args.reason}`,
+    detail: `${args.actor.name} declined "${args.taskTitle}": ${args.reason}`
   });
 }
 
@@ -161,7 +161,7 @@ export async function requestHandoff(args: {
     action: "task.handoff_requested",
     entityType: "task",
     entityId: args.taskId,
-    detail: `${args.actor.name} requested handoff of "${args.taskTitle}" to ${args.target.name}.`,
+    detail: `${args.actor.name} requested handoff of "${args.taskTitle}" to ${args.target.name}.`
   });
   await insertNotification({
     householdId: args.householdId,
@@ -171,7 +171,7 @@ export async function requestHandoff(args: {
     bodyKey: "notification.body.handoffRequested",
     values: { task: args.taskTitle, name: args.target.name },
     entityType: "task",
-    entityId: args.taskId,
+    entityId: args.taskId
   });
 }
 
@@ -193,7 +193,7 @@ export async function completeTask(args: {
     action: "task.completed",
     entityType: "task",
     entityId: args.taskId,
-    detail: `${args.actor.name} completed "${args.taskTitle}".`,
+    detail: `${args.actor.name} completed "${args.taskTitle}".`
   });
   await insertNotification({
     householdId: args.householdId,
@@ -203,7 +203,7 @@ export async function completeTask(args: {
     bodyKey: "notification.body.taskCompleted",
     values: { task: args.taskTitle, name: args.actor.name },
     entityType: "task",
-    entityId: args.taskId,
+    entityId: args.taskId
   });
 }
 
@@ -223,7 +223,7 @@ export async function addTimelineEvent(args: {
       title: args.title,
       starts_at: args.startsAt,
       location: args.location,
-      owner_id: args.actor.id,
+      owner_id: args.actor.id
     })
     .select("id")
     .single();
@@ -234,7 +234,7 @@ export async function addTimelineEvent(args: {
     action: "timeline.event_added",
     entityType: "timeline",
     entityId: data.id,
-    detail: `${args.actor.name} added timeline event "${args.title}".`,
+    detail: `${args.actor.name} added timeline event "${args.title}".`
   });
   await insertNotification({
     householdId: args.householdId,
@@ -244,16 +244,11 @@ export async function addTimelineEvent(args: {
     bodyKey: "notification.body.timelineAdded",
     values: { title: args.title, name: args.actor.name },
     entityType: "timeline",
-    entityId: data.id,
+    entityId: data.id
   });
 }
 
-export async function toggleDigest(args: {
-  householdId: string;
-  actor: Member;
-  memberId: string;
-  enabled: boolean;
-}) {
+export async function toggleDigest(args: { householdId: string; actor: Member; memberId: string; enabled: boolean }) {
   const { error } = await supabase
     .from("notification_preferences")
     .update({ task_digest: args.enabled })
@@ -265,7 +260,7 @@ export async function toggleDigest(args: {
     action: "notification.preference_updated",
     entityType: "notification",
     entityId: args.memberId,
-    detail: `${args.actor.name} ${args.enabled ? "enabled" : "disabled"} task digest for member ${args.memberId}.`,
+    detail: `${args.actor.name} ${args.enabled ? "enabled" : "disabled"} task digest for member ${args.memberId}.`
   });
 }
 
@@ -284,7 +279,7 @@ export async function updateMemberRole(args: {
     action: "member.role_updated",
     entityType: "member",
     entityId: args.memberId,
-    detail: `${args.actor.name} changed ${args.memberName}'s role to ${args.role}.`,
+    detail: `${args.actor.name} changed ${args.memberName}'s role to ${args.role}.`
   });
   await insertNotification({
     householdId: args.householdId,
@@ -294,16 +289,11 @@ export async function updateMemberRole(args: {
     bodyKey: "notification.body.roleUpdated",
     values: { name: args.memberName, role: args.role },
     entityType: "member",
-    entityId: args.memberId,
+    entityId: args.memberId
   });
 }
 
-export async function inviteMember(args: {
-  householdId: string;
-  actor: Member;
-  role: Role;
-  householdName: string;
-}) {
+export async function inviteMember(args: { householdId: string; actor: Member; role: Role; householdName: string }) {
   const inviteName = args.role === "caregiver" ? "New caregiver invite" : "New viewer invite";
   const { data, error } = await supabase
     .from("members")
@@ -312,7 +302,7 @@ export async function inviteMember(args: {
       name: inviteName,
       role: args.role,
       invite_status: "pending",
-      invite_expires_at: new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString(),
+      invite_expires_at: new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString()
     })
     .select("id")
     .single();
@@ -324,7 +314,7 @@ export async function inviteMember(args: {
     action: "member.invited",
     entityType: "member",
     entityId: data.id,
-    detail: `${args.actor.name} invited a new ${args.role} to ${args.householdName}.`,
+    detail: `${args.actor.name} invited a new ${args.role} to ${args.householdName}.`
   });
   await insertNotification({
     householdId: args.householdId,
@@ -334,7 +324,7 @@ export async function inviteMember(args: {
     bodyKey: "notification.body.memberInvited",
     values: { role: args.role },
     entityType: "member",
-    entityId: data.id,
+    entityId: data.id
   });
   return data.id; // 邀请 member id，用于生成邀请链接
 }
@@ -357,7 +347,7 @@ export async function addDocument(args: {
       contains_phi: false,
       confidence: args.confidence,
       source: args.source,
-      suggested_action: args.suggestedAction ?? null,
+      suggested_action: args.suggestedAction ?? null
     })
     .select("id")
     .single();
@@ -368,7 +358,7 @@ export async function addDocument(args: {
     action: "document.uploaded",
     entityType: "document",
     entityId: data.id,
-    detail: `${args.actor.name} uploaded "${args.name}"; manual confirmation required.`,
+    detail: `${args.actor.name} uploaded "${args.name}"; manual confirmation required.`
   });
   return data.id;
 }
@@ -382,10 +372,7 @@ export async function confirmDocumentAndCreateTask(args: {
   dueAt: string;
   subtasks: string[];
 }) {
-  const { error: docErr } = await supabase
-    .from("documents")
-    .update({ status: "confirmed" })
-    .eq("id", args.documentId);
+  const { error: docErr } = await supabase.from("documents").update({ status: "confirmed" }).eq("id", args.documentId);
   if (docErr) throw docErr;
   const { data: task, error: taskErr } = await supabase
     .from("tasks")
@@ -398,7 +385,7 @@ export async function confirmDocumentAndCreateTask(args: {
       status: "open",
       requested_by_id: args.actor.id,
       document_id: args.documentId,
-      subtasks: args.subtasks,
+      subtasks: args.subtasks
     })
     .select("id")
     .single();
@@ -409,7 +396,7 @@ export async function confirmDocumentAndCreateTask(args: {
     action: "document.confirmed",
     entityType: "document",
     entityId: args.documentId,
-    detail: `${args.actor.name} confirmed document "${args.documentName}".`,
+    detail: `${args.actor.name} confirmed document "${args.documentName}".`
   });
   await insertAudit({
     householdId: args.householdId,
@@ -417,7 +404,7 @@ export async function confirmDocumentAndCreateTask(args: {
     action: "document.task_created",
     entityType: "task",
     entityId: task.id,
-    detail: `${args.actor.name} created task "${args.taskTitle}" from document "${args.documentName}".`,
+    detail: `${args.actor.name} created task "${args.taskTitle}" from document "${args.documentName}".`
   });
   await insertNotification({
     householdId: args.householdId,
@@ -427,15 +414,11 @@ export async function confirmDocumentAndCreateTask(args: {
     bodyKey: "notification.body.claimableTask",
     values: { task: args.taskTitle, priority: "normal" },
     entityType: "task",
-    entityId: task.id,
+    entityId: task.id
   });
 }
 
-export async function recordReportGenerated(args: {
-  householdId: string;
-  actor: Member;
-  openCount: number;
-}) {
+export async function recordReportGenerated(args: { householdId: string; actor: Member; openCount: number }) {
   const { data, error } = await supabase
     .from("role_notifications")
     .insert({
@@ -446,7 +429,7 @@ export async function recordReportGenerated(args: {
       body_key: "notification.body.weeklyReady",
       values: { count: args.openCount },
       entity_type: "report",
-      entity_id: "weekly-summary",
+      entity_id: "weekly-summary"
     })
     .select("id")
     .single();
@@ -457,6 +440,6 @@ export async function recordReportGenerated(args: {
     action: "report.generated",
     entityType: "report",
     entityId: data.id,
-    detail: `${args.actor.name} generated the weekly family report.`,
+    detail: `${args.actor.name} generated the weekly family report.`
   });
 }

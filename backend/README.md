@@ -13,17 +13,17 @@ backend/supabase/migrations/
 
 ## 数据模型 → Postgres 映射
 
-| App 类型 (types.ts) | Postgres 表 | 说明 |
-| --- | --- | --- |
-| Household | households | created_by → auth.users |
-| Member | members | user_id → auth.users（null=待邀请） |
-| RoleDefinition | role_definitions | 全局只读 |
-| NotificationPreference | notification_preferences | 按 member |
-| RoleNotification | role_notifications | 按 household |
-| Task | tasks | 含 subtasks(jsonb) |
-| CareEvent | care_events | |
-| DocumentRecord | documents | 非 PHI 元数据 |
-| AuditEvent | audit_events | 只增不改 |
+| App 类型 (types.ts)    | Postgres 表              | 说明                                |
+| ---------------------- | ------------------------ | ----------------------------------- |
+| Household              | households               | created_by → auth.users             |
+| Member                 | members                  | user_id → auth.users（null=待邀请） |
+| RoleDefinition         | role_definitions         | 全局只读                            |
+| NotificationPreference | notification_preferences | 按 member                           |
+| RoleNotification       | role_notifications       | 按 household                        |
+| Task                   | tasks                    | 含 subtasks(jsonb)                  |
+| CareEvent              | care_events              |                                     |
+| DocumentRecord         | documents                | 非 PHI 元数据                       |
+| AuditEvent             | audit_events             | 只增不改                            |
 
 ## 安全分层（重要）
 

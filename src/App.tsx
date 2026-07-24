@@ -302,14 +302,19 @@ function LocalApp(props: { cloud?: CloudProps } = {}) {
     });
 
     if (!result.canceled) {
-      const name = result.assets[0]?.name ?? t("task.dynamic.uploadedReview");
+      const asset = result.assets[0];
+      const name = asset?.name ?? t("task.dynamic.uploadedReview");
       if (cloud) {
+        const storagePath = `${cloud.householdId}/${Date.now()}-${name}`;
+        const fileBody = asset?.uri ? await (await fetch(asset.uri)).blob() : undefined;
         cloudActions.addDocument({
           householdId: cloud.householdId,
           actor,
           name,
           source: "manual_upload",
-          confidence: 0.7
+          confidence: 0.7,
+          fileBody,
+          storagePath: fileBody ? storagePath : undefined
         });
       } else {
         setState((current) => addDocument(current, actor, name, "manual_upload", t));

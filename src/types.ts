@@ -124,6 +124,7 @@ export interface DocumentRecord {
   confidence: number;
   source: "manual_upload" | "sample";
   suggestedAction?: string;
+  storagePath?: string;
 }
 
 export interface AuditEvent {

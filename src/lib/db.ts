@@ -98,6 +98,7 @@ interface DBDocument {
   confidence: number;
   source: DocumentRecord["source"];
   suggested_action: string | null;
+  storage_path: string | null;
 }
 interface DBAuditEvent {
   id: string;
@@ -188,7 +189,8 @@ const mapDocument = (r: DBDocument): DocumentRecord => ({
   containsPhi: false,
   confidence: r.confidence,
   source: r.source,
-  suggestedAction: r.suggested_action ?? undefined
+  suggestedAction: r.suggested_action ?? undefined,
+  storagePath: r.storage_path ?? undefined
 });
 const mapAuditEvent = (r: DBAuditEvent): AuditEvent => ({
   id: r.id,

@@ -336,7 +336,13 @@ export async function addDocument(args: {
   source: "manual_upload" | "sample";
   confidence: number;
   suggestedAction?: string;
+  fileBody?: Blob;
+  storagePath?: string;
 }) {
+  if (args.fileBody && args.storagePath) {
+    const { error: upErr } = await supabase.storage.from("documents").upload(args.storagePath, args.fileBody);
+    if (upErr) throw upErr;
+  }
   const { data, error } = await supabase
     .from("documents")
     .insert({
@@ -347,7 +353,8 @@ export async function addDocument(args: {
       contains_phi: false,
       confidence: args.confidence,
       source: args.source,
-      suggested_action: args.suggestedAction ?? null
+      suggested_action: args.suggestedAction ?? null,
+      storage_path: args.storagePath ?? null
     })
     .select("id")
     .single();

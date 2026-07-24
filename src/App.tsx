@@ -523,7 +523,7 @@ function LocalApp(props: { cloud?: CloudProps } = {}) {
                 accessibilityLabel={
                   isPending ? t("settings.pendingInvite") : t("member.actAs", { name: memberDisplayName(member, t) })
                 }
-                disabled={isPending}
+                disabled={isPending || !!cloud}
                 onPress={() => setActorId(member.id)}
               >
                 <Text style={[styles.actorName, actor.id === member.id && styles.actorNameActive]} allowFontScaling>

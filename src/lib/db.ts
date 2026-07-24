@@ -1,4 +1,5 @@
 import { supabase } from "./supabase";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 import type {
   AppState,
@@ -246,6 +247,25 @@ export async function fetchHouseholdState(householdId: string): Promise<AppState
     documents: (docsRes.data as DBDocument[]).map(mapDocument),
     auditEvents: (auditRes.data as DBAuditEvent[]).map(mapAuditEvent)
   };
+}
+
+// ============ 离线缓存（断网时读本地缓存） ============
+
+export async function cacheHouseholdState(householdId: string, state: AppState): Promise<void> {
+  try {
+    await AsyncStorage.setItem(`relaycare:household:${householdId}`, JSON.stringify(state));
+  } catch {
+    // best-effort cache
+  }
+}
+
+export async function getCachedHouseholdState(householdId: string): Promise<AppState | null> {
+  try {
+    const raw = await AsyncStorage.getItem(`relaycare:household:${householdId}`);
+    return raw ? (JSON.parse(raw) as AppState) : null;
+  } catch {
+    return null;
+  }
 }
 
 // ============ 实时订阅：任一业务表变更 -> 触发回调（app 重新 fetch）============

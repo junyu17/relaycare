@@ -7,7 +7,13 @@ import { Alert, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, Toucha
 import { initialState } from "./data";
 import { AuthProvider, useAuth } from "./auth/AuthContext";
 import { AuthScreen, OnboardingScreen } from "./auth/AuthScreen";
-import { fetchHouseholdState, subscribeHouseholdState, subscribeRoleNotifications } from "./lib/db";
+import {
+  fetchHouseholdState,
+  subscribeHouseholdState,
+  subscribeRoleNotifications,
+  cacheHouseholdState,
+  getCachedHouseholdState
+} from "./lib/db";
 import * as Notifications from "expo-notifications";
 import * as cloudActions from "./lib/actions";
 import * as Linking from "expo-linking";
@@ -801,15 +807,24 @@ function CloudApp() {
     setErr(null);
     fetchHouseholdState(householdId)
       .then((s) => {
-        if (active) setState(s);
+        if (active) {
+          setState(s);
+          cacheHouseholdState(householdId, s);
+        }
       })
-      .catch((e) => {
-        if (active) setErr(e instanceof Error ? e.message : String(e));
+      .catch(async (e) => {
+        if (!active) return;
+        const cached = await getCachedHouseholdState(householdId);
+        if (cached) setState(cached);
+        else setErr(e instanceof Error ? e.message : String(e));
       });
     channel = subscribeHouseholdState(householdId, () => {
       fetchHouseholdState(householdId)
         .then((s) => {
-          if (active) setState(s);
+          if (active) {
+            setState(s);
+            cacheHouseholdState(householdId, s);
+          }
         })
         .catch(() => {});
     });

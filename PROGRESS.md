@@ -1,61 +1,77 @@
 # RelayCare MVP 进度跟踪
 
-> 项目总负责人视角的实时状态文件。每次有进展或遇到待决策项时更新。
-> 最后更新：2026-07-23
+> 项目总负责人视角的实时状态文件。
+> 最后更新：2026-07-24
 
 ## 当前阶段
 
-A2 + B3 + C1 **全部完成**，全量验证通过，已首次提交。汇报机制已定：**方案 A（会话内按里程碑 + 约 30 分钟节奏）**。待用户确认 1 件事后结项：是否彻底移除 web 能力（当前仅作开发冒烟，不交付）。
+方案 C（Supabase 后端 + 云同步 + 完整 UI）**已完成并验证**。app 现支持：注册/登录 -> 创建/加入家庭 -> 完整照护协同 UI -> 多设备实时同步 -> 数据云端持久化（换手机/删 app 不丢）。
 
-## 交付约束（用户重申，已落实）
+## 交付约束（已落实）
 
-- **无网页端**：交付物为 RN app（iOS/Android）；`web-build/` 已 `.gitignore`，不纳入交付；`expo export --platform web` 仅作 headless 构建冒烟。
-- **设置全在 app 内**：角色管理、邀请、通知、审计入口均在 Settings tab，无外部管理端。
-- **权限差异化界面**：`canAccessTab` 按 role 过滤底栏 tab；coordinator 可见审计入口，caregiver 不可见，viewer 仅 home/timeline/settings。
+- **无网页端**：交付物为 RN app；`web-build/` gitignore 不交付；`expo export` 仅作 headless 冒烟。
+- **设置全在 app 内**：角色/邀请/通知/审计入口全在 Settings。
+- **权限差异化**：`canAccessTab` 按 role 过滤；coordinator 见审计，caregiver 不见，viewer 仅 home/timeline/settings。
+- **云同步**：Supabase Realtime 多设备实时同步；RLS 家庭隔离。
 
 ## 已完成
 
-### 阶段 0：独立审计 + 编译修复 ✅
+### A2 + B3 + C1（本地 MVP 基线）✅
 
-- 独立复核 07-22 旧审计清单 vs 当前源码。
-- 修复 P0 回归：`domain.ts` `memberName` 缺闭合 `}` -> 项目无法编译。已补 `}`。
+- A2 审计页 + 删死码；B3 工程化（git/vitest/eslint/prettier）；C1 小修（a11y/邀请过期/周报快照）。
+- 验证：tsc/test(17)/lint/prettier/export 全绿。
 
-### 阶段 1：C1 小修 ✅
+### 方案 C：Supabase 云后端 + 同步 ✅
 
-- P2#13 a11y `Act as` 硬编码 -> `t("member.actAs", {name})`，三语 key 已加。
-- P2#12 邀请过期：`domain.isHouseholdInviteExpired` 纯函数；`onInviteMember` 过期拦截 + 本地化提示；Settings 过期提示。
-- P1#8 周报漂移：生成时按三语快照 `reportText: Record<Language,string>`，删除随 state 重建的 useEffect。
-- i18n 新增 key（member.actAs / alerts.inviteExpired* / settings.inviteExpiredNotice / settings.viewAllAudit / audit.back）三语齐全（已逐项核实 en/zh/es）。
+**后端**（`backend/supabase/migrations/`）：
 
-### 阶段 2：A2 审计页 + 删死码 ✅
+- 9 表（households/members/role_definitions/notification_preferences/role_notifications/tasks/care_events/documents/audit_events）。
+- RLS 按 `household_id` 隔离；`current_household_id()` 辅助函数。
+- RPC：`create_household`（建家庭+coordinator+审计）、`accept_invite`（接受邀请加入）。
+- Realtime：7 表发布订阅。已在用户 Supabase 实例建表 + 种子角色。
 
-- 删除 `domain.generateWeeklyReport` 死函数（grep 已确认无残留）。
-- 删除 `App.tsx` `renderReport` 死函数；`TabKey` 移除 `"report"`（grep 已确认无残留）。
-- `renderAudit` 改为可达：Settings 内「查看全部审计」入口（`settings.viewAllAudit`），仅 `audit:read`（coordinator）可见，带返回按钮（`audit.back`）。
+**app 数据层**（`src/lib/`）：
 
-### 阶段 3：B3 工程化基线 ✅
+- `supabase.ts`（client，`EXPO_PUBLIC_` 环境变量）。
+- `db.ts`（fetchHouseholdState/subscribeHouseholdState/createHousehold/acceptInvite）。
+- `actions.ts`（11 个写操作走 Supabase + 审计 + 角色通知）。
 
-- `git init` + `.gitignore` 核对 + 首次提交 `469ff27`（项目独立仓库，toplevel = relaycare-mvp，脱离 ~/ 家目录 git）。
-- vitest + `src/__tests__/domain.test.ts`（17 项，覆盖权限/认领/交接/审计/邀请过期/ID 唯一性）。
-- ESLint flat config（`eslint.config.js`）+ Prettier（`.prettierrc`）。
-- npm scripts：typecheck / lint / lint:fix / test / test:watch / format / format:check。
+**认证层**（`src/auth/`）：
 
-### 阶段 4：全量验证 ✅
+- `AuthContext`（监听登录态，fetchHouseholdId）。
+- `AuthScreen`（登录/注册）+ `OnboardingScreen`（创建/加入家庭）。
+
+**App 集成**（`src/App.tsx`）：
+
+- App gate：未配置 -> LocalApp（本地 demo）；配置 -> AuthProvider + CloudApp。
+- LocalApp 改造支持 cloud props（state/actor/householdId/onSignOut）：13 个 handler 加 cloud 分支调 lib/actions，本地分支不变；复用全部 renderHome 等渲染。
+- CloudApp：auth 闸门 + fetchHouseholdState + subscribeHouseholdState 实时订阅 + 渲染 LocalApp cloud。
+- 顶栏 cloud 登出按钮；actor chips cloud 模式禁用切换；persist effect cloud 模式跳过。
+
+## 验证
 
 - `tsc --noEmit`：0 错误。
-- `vitest run`：17/17 通过。
-- `eslint .`：0 error 0 warning（修复了 2 个 set-state-in-effect error：hydration 改 lazy initializer 消除 effect；权限守卫 effect 加带说明的 disable；exhaustive-deps warning 通过精确依赖/handoffCandidates 改 `[actor.id, state]` 消除）。
-- `prettier --check .`：全部通过。
-- `expo export --platform web`：构建通过，bundle 987KB。
-- Headless Chrome 渲染冒烟：DOM 24,767 bytes，含 RelayCare/Non-PHI/coordinator/Maya/Next actions，hydration lazy init 运行时正常。
+- `eslint .`：0 error 0 warning。
+- `prettier --check`：全部通过。
+- `expo export --platform web`：构建通过。
+- Headless Chrome：cloud 模式渲染 AuthScreen（.env 注入生效）。
+- **auth 全链路**（curl）：signup -> create_household RPC -> RLS 读 household/members/audit -> anon 隔离 ✅。
+- **端到端多用户**（curl）：A 建家庭 -> A 邀请 caregiver -> B 注册 -> B accept_invite -> B 看到同家庭成员/household -> anon 看不到 ✅。
+
+## 待办（剩余 ~1-2h）
+
+- [ ] 运行时 UI 交互验证（浏览器/模拟器：登录/建家庭/操作任务/多设备同步）。
+- [ ] 文档：QA_Log/AUDIT_REPORT 更新方案 C。
+- [ ] double check + 交付报告。
 
 ## 待用户决策
 
-- **汇报机制**：已选定方案 A（会话内按里程碑 + 约 30 分钟节奏汇报）。
-- **是否彻底移除 web 能力**：当前 web 依赖（react-dom/react-native-web）保留作开发冒烟，不交付。若要连 web 能力移除，告知我。
+- 汇报机制：方案 A（会话内按里程碑）。
+- 是否彻底移除 web 能力：当前保留作开发冒烟，不交付。
 
 ## 风险与备注
 
-- 邀请过期日期 `2026-07-24T08:30:00-07:00`；当前未过期，demo 不受影响，过期后自动拦截新邀请。
-- 持久化仅在 web/localStorage 环境；原生 app 无持久化（MVP 已知限制，非本次范围）。
-- `web-build/` 由本次重新构建覆盖（旧 07-22/07-23 产物作废），但已 gitignore 不进版本库。
+- Supabase 项目 email confirmation 已关闭（开发测试）；上线前需开启 + 配邮件。
+- 邀请流程：当前 invite 生成 pending member（member_id 作为邀请码）；生产可加邀请链接/deep link。
+- 原生 app 持久化：cloud 模式数据在 Supabase（不丢）；本地 demo 模式仅 web localStorage。
+- `node_modules/.bin` 执行位曾丢失（已修复 target +x）；如再现 `npm rebuild` 或重装。

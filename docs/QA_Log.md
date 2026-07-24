@@ -433,3 +433,48 @@ Double self-check:
 - Pass 2 (independent completeness/correctness/format/risk): all checks green; i18n trilingual; git clean; residual risks recorded (web dependency retained for dev smoke pending user confirmation; reporting mechanism pending user choice; native persistence is a known MVP limitation out of scope).
 
 Open items requiring user decision: 30-min reporting mechanism (in-session vs LaunchAgent vs Feishu bot); whether to fully remove web capability.
+
+## 2026-07-24
+
+### Stage: Plan C - Supabase cloud backend + sync + full UI integration
+
+User decision: Plan C (Supabase) for "data survives phone change/app reinstall" + family multi-member sharing.
+
+Backend (backend/supabase/migrations/):
+
+- 0001: 9 tables (households/members/role_definitions/notification_preferences/role_notifications/tasks/care_events/documents/audit_events).
+- 0002: RLS per household_id; current_household_id() helper; create_household RPC (household+coordinator+audit); accept_invite RPC; realtime publication for 7 tables.
+- 0003: seed role_definitions (coordinator/caregiver/viewer).
+- Tables built on user Supabase instance; role seed verified.
+
+App data layer (src/lib/):
+
+- supabase.ts: client via EXPO_PUBLIC_ env vars; isSupabaseConfigured flag.
+- db.ts: fetchHouseholdState, subscribeHouseholdState (realtime), createHousehold/acceptInvite RPCs; DB<->App type mapping.
+- actions.ts: 11 write ops via Supabase + audit + role notifications.
+
+Auth (src/auth/):
+
+- AuthContext: onAuthStateChange, fetchHouseholdId.
+- AuthScreen (sign in/up) + OnboardingScreen (create/join household).
+
+App integration (src/App.tsx):
+
+- App gate: unconfigured -> LocalApp (local demo); configured -> AuthProvider + CloudApp.
+- LocalApp accepts optional cloud props; 13 handlers cloud branch calls lib/actions, local branch unchanged; reuses all renderHome etc.
+- CloudApp: auth gate + fetchHouseholdState + subscribeHouseholdState + renders LocalApp cloud.
+- Top bar cloud sign-out; actor chips disabled in cloud (actor fixed to signed-in user); persist effect skipped in cloud.
+
+Verification:
+
+- tsc --noEmit: 0 errors.
+- eslint .: 0 error 0 warning.
+- prettier --check: all pass.
+- expo export --platform web: passed.
+- Headless Chrome: cloud mode renders AuthScreen (.env injected, isSupabaseConfigured=true).
+- auth full chain (curl): signup -> create_household RPC -> RLS read household/members/audit_events -> anon isolation ✅.
+- end-to-end multi-user (curl): A create_household -> A invite caregiver (pending member) -> B signup -> B accept_invite RPC -> B sees same household members (Coord A + self caregiver active) + household -> anon sees nothing ✅.
+
+Supabase config note: email confirmation disabled for dev testing; re-enable + configure email before production.
+
+Open items: runtime UI interactive verification (browser/simulator); whether to fully remove web capability.

@@ -66,6 +66,8 @@ export function OnboardingScreen() {
 
   useEffect(() => {
     if (!pendingInviteId) return;
+    // Sync invite id from deep link into local input state (one-time on link arrival).
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setInviteId(pendingInviteId);
     setTab("join");
   }, [pendingInviteId]);

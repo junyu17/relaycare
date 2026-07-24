@@ -12,3 +12,4 @@ docs/static-server.log
 docs/static-server.pid
 coverage/
 .eslintcache
+.env

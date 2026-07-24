@@ -76,6 +76,8 @@ export interface Member {
   timezone: string;
   availability: string;
   inviteStatus?: "active" | "pending";
+  inviteExpiresAt?: string;
+  userId?: string | null;
 }
 
 export interface RoleDefinition {

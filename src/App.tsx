@@ -5,6 +5,11 @@ import { useEffect, useMemo, useState } from "react";
 import { Alert, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 
 import { initialState } from "./data";
+import { AuthProvider, useAuth } from "./auth/AuthContext";
+import { AuthScreen, OnboardingScreen } from "./auth/AuthScreen";
+import { fetchHouseholdState, subscribeHouseholdState } from "./lib/db";
+import { isSupabaseConfigured } from "./lib/supabase";
+import type { RealtimeChannel } from "@supabase/supabase-js";
 import {
   addDocument,
   addTimelineEvent,
@@ -89,7 +94,7 @@ const palette = {
 
 const appStateStorageKey = "relaycare.mvp.appState.v1";
 
-export default function App() {
+function LocalApp() {
   const [state, setState] = useState<AppState>(() => loadPersistedAppState());
   const [activeTab, setActiveTab] = useState<TabKey>("home");
   const [actorId, setActorId] = useState("m-maya");
@@ -605,6 +610,106 @@ export default function App() {
     </View>
   );
 }
+
+function CloudApp() {
+  const { user, householdId, loading, signOut } = useAuth();
+  const [state, setState] = useState<AppState | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!householdId) return;
+    let active = true;
+    let channel: RealtimeChannel | null = null;
+    setErr(null);
+    fetchHouseholdState(householdId)
+      .then((s) => {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        if (active) setState(s);
+      })
+      .catch((e) => {
+        if (active) setErr(e instanceof Error ? e.message : String(e));
+      });
+    channel = subscribeHouseholdState(householdId, () => {
+      fetchHouseholdState(householdId)
+        .then((s) => {
+          // eslint-disable-next-line react-hooks/set-state-in-effect
+          if (active) setState(s);
+        })
+        .catch(() => {});
+    });
+    return () => {
+      active = false;
+      channel?.unsubscribe();
+    };
+  }, [householdId]);
+
+  if (loading) {
+    return (
+      <View style={cloudStyles.center}>
+        <Text>Loading…</Text>
+      </View>
+    );
+  }
+  if (!user) return <AuthScreen />;
+  if (!householdId) return <OnboardingScreen />;
+  if (err) {
+    return (
+      <View style={cloudStyles.center}>
+        <Text>Load error: {err}</Text>
+        <TouchableOpacity style={cloudStyles.btn} onPress={signOut}>
+          <Text style={cloudStyles.btnText}>Sign out</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+  if (!state) {
+    return (
+      <View style={cloudStyles.center}>
+        <Text>Loading household…</Text>
+      </View>
+    );
+  }
+
+  const actor = state.members.find((m) => m.userId === user.id) ?? state.members[0];
+  return (
+    <View style={cloudStyles.center}>
+      <StatusBar style="dark" />
+      <Text style={cloudStyles.title}>RelayCare</Text>
+      <Text>Household: {state.household.name}</Text>
+      <Text>
+        Signed in: {actor.name} ({actor.role})
+      </Text>
+      <Text>
+        Members: {state.members.length} · Tasks: {state.tasks.length} · Audit: {state.auditEvents.length}
+      </Text>
+      <Text style={cloudStyles.note}>
+        Auth + realtime sync connected. Full UI (tabs/tasks/timeline) integration is the next step.
+      </Text>
+      <TouchableOpacity style={cloudStyles.btn} onPress={signOut}>
+        <Text style={cloudStyles.btnText}>Sign out</Text>
+      </TouchableOpacity>
+    </View>
+  );
+}
+
+export default function App() {
+  if (!isSupabaseConfigured) {
+    return <LocalApp />;
+  }
+  return (
+    <AuthProvider>
+      <CloudApp />
+    </AuthProvider>
+  );
+}
+
+const cloudStyles = StyleSheet.create({
+  center: { flex: 1, justifyContent: "center", alignItems: "center", padding: 24, backgroundColor: "#f7faf7" },
+  title: { fontSize: 22, fontWeight: "700", color: "#0f766e", marginBottom: 12 },
+  note: { fontSize: 12, color: "#64748b", marginTop: 12, textAlign: "center", maxWidth: 300 },
+  btn: { backgroundColor: "#0f766e", paddingHorizontal: 20, paddingVertical: 10, borderRadius: 8, marginTop: 20 },
+  btnText: { color: "#fff", fontWeight: "600" }
+});
 
 function renderHome(
   state: AppState,

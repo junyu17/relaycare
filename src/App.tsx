@@ -9,6 +9,7 @@ import { AuthProvider, useAuth } from "./auth/AuthContext";
 import { AuthScreen, OnboardingScreen } from "./auth/AuthScreen";
 import { fetchHouseholdState, subscribeHouseholdState } from "./lib/db";
 import * as cloudActions from "./lib/actions";
+import * as Linking from "expo-linking";
 import { isSupabaseConfigured } from "./lib/supabase";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 import {

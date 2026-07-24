@@ -620,10 +620,10 @@ function CloudApp() {
     if (!householdId) return;
     let active = true;
     let channel: RealtimeChannel | null = null;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setErr(null);
     fetchHouseholdState(householdId)
       .then((s) => {
-        // eslint-disable-next-line react-hooks/set-state-in-effect
         if (active) setState(s);
       })
       .catch((e) => {
@@ -632,7 +632,6 @@ function CloudApp() {
     channel = subscribeHouseholdState(householdId, () => {
       fetchHouseholdState(householdId)
         .then((s) => {
-          // eslint-disable-next-line react-hooks/set-state-in-effect
           if (active) setState(s);
         })
         .catch(() => {});

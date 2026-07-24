@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, ScrollView } from "react-native";
 import { useAuth } from "./AuthContext";
 
@@ -56,13 +56,21 @@ export function AuthScreen() {
 
 // 已登录但还没家庭时显示：创建家庭 / 加入家庭
 export function OnboardingScreen() {
-  const { createHousehold, acceptInvite, signOut } = useAuth();
+  const { createHousehold, acceptInvite, signOut, pendingInviteId, clearPendingInvite } = useAuth();
   const [tab, setTab] = useState<"create" | "join">("create");
   const [householdName, setHouseholdName] = useState("");
   const [memberName, setMemberName] = useState("");
   const [relation, setRelation] = useState("");
   const [inviteId, setInviteId] = useState("");
   const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    if (!pendingInviteId) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setInviteId(pendingInviteId);
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setTab("join");
+  }, [pendingInviteId]);
 
   const onCreate = async () => {
     if (!householdName || !memberName) return;
@@ -88,6 +96,7 @@ export function OnboardingScreen() {
     setBusy(true);
     try {
       await acceptInvite(inviteId.trim());
+      clearPendingInvite();
     } catch (e) {
       Alert.alert("Error", e instanceof Error ? e.message : String(e));
     } finally {

@@ -394,12 +394,18 @@ function LocalApp(props: { cloud?: CloudProps } = {}) {
         return;
       }
       if (cloud) {
-        cloudActions.inviteMember({
-          householdId: cloud.householdId,
-          actor,
-          role: templateKey,
-          householdName: state.household.name
-        });
+        cloudActions
+          .inviteMember({
+            householdId: cloud.householdId,
+            actor,
+            role: templateKey,
+            householdName: state.household.name
+          })
+          .then((memberId) => {
+            const link = Linking.createUrl("invite", { member: memberId });
+            showMessage("Invite link", link);
+          })
+          .catch(() => {});
       } else {
         setState((current) => inviteMember(current, actor, templateKey, t));
       }

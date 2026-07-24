@@ -291,6 +291,21 @@ export function subscribeHouseholdState(householdId: string, onChanged: () => vo
     .subscribe();
 }
 
+// 实时订阅角色通知新增 -> 触发本地 push 通知
+export function subscribeRoleNotifications(
+  householdId: string,
+  onNew: (notification: RoleNotification) => void
+): RealtimeChannel {
+  return supabase
+    .channel(`role-notifications-${householdId}`)
+    .on(
+      "postgres_changes",
+      { event: "INSERT", schema: "public", table: "role_notifications", filter: `household_id=eq.${householdId}` },
+      (payload) => onNew(mapRoleNotification(payload.new as DBRoleNotification))
+    )
+    .subscribe();
+}
+
 // ============ RPC: 创建家庭 / 接受邀请 ============
 
 export async function createHousehold(args: {

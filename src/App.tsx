@@ -7,7 +7,8 @@ import { Alert, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, Toucha
 import { initialState } from "./data";
 import { AuthProvider, useAuth } from "./auth/AuthContext";
 import { AuthScreen, OnboardingScreen } from "./auth/AuthScreen";
-import { fetchHouseholdState, subscribeHouseholdState } from "./lib/db";
+import { fetchHouseholdState, subscribeHouseholdState, subscribeRoleNotifications } from "./lib/db";
+import * as Notifications from "expo-notifications";
 import * as cloudActions from "./lib/actions";
 import * as Linking from "expo-linking";
 import { isSupabaseConfigured } from "./lib/supabase";
@@ -71,6 +72,16 @@ const tabs: { key: TabKey; labelKey: string; icon: IconName }[] = [
 ];
 
 const eventTypes: ("all" | EventType)[] = ["all", "appointment", "transport", "visit", "reminder", "document"];
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowAlert: true,
+    shouldPlaySound: true,
+    shouldSetBadge: false,
+    shouldShowBanner: true,
+    shouldShowList: true
+  })
+});
+
 const roleOptions: Role[] = ["coordinator", "caregiver", "viewer"];
 type TaskTemplateKey = "ride" | "paperwork" | "supplies";
 type TimelineTemplateKey = "checkin" | "pickup" | "paperwork";
@@ -805,6 +816,21 @@ function CloudApp() {
     return () => {
       active = false;
       channel?.unsubscribe();
+    };
+  }, [householdId]);
+
+  useEffect(() => {
+    if (!householdId) return;
+    const t = makeTranslator("en");
+    Notifications.requestPermissionsAsync({ ios: { allowAlert: true, allowSound: true } });
+    const noteChannel = subscribeRoleNotifications(householdId, (n) => {
+      Notifications.scheduleNotificationAsync({
+        content: { title: t(n.titleKey, n.values), body: t(n.bodyKey, n.values) },
+        trigger: null
+      }).catch(() => {});
+    });
+    return () => {
+      noteChannel?.unsubscribe();
     };
   }, [householdId]);
 

@@ -13,6 +13,7 @@ import {
 } from "./types";
 import { localeForLanguage } from "./i18n";
 import type { Language, Translate } from "./i18n";
+import { uniqueId } from "./lib/id";
 
 function text(
   t: Translate | undefined,
@@ -21,10 +22,6 @@ function text(
   values?: Record<string, string | number>
 ): string {
   return t ? t(key, values) : fallback;
-}
-
-function uniqueId(prefix: string): string {
-  return `${prefix}-${Date.now()}-${Math.round(Math.random() * 1_000_000).toString(36)}`;
 }
 
 export function hasPermission(state: AppState, role: Role, permission: Permission): boolean {

@@ -21,12 +21,5 @@ The MVP intentionally excludes diagnosis, prescription, payment, insurance, emer
 ```bash
 npm install
 npm run typecheck
-npm run web
-```
-
-For native device testing:
-
-```bash
-npm run ios
-npm run android
+npm run ios   # or: npm run android
 ```

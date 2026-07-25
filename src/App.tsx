@@ -4,6 +4,8 @@ import { StatusBar } from "expo-status-bar";
 import { useEffect, useMemo, useState } from "react";
 import { Alert, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 
+import { uniqueId } from "./lib/id";
+import { getStoredLanguage, initStoredLanguage, setStoredLanguage } from "./lib/language";
 import { initialState } from "./data";
 import { AuthProvider, useAuth } from "./auth/AuthContext";
 import { AuthScreen, OnboardingScreen } from "./auth/AuthScreen";
@@ -111,8 +113,6 @@ const palette = {
   gray: "#59636b"
 };
 
-const appStateStorageKey = "relaycare.mvp.appState.v1";
-
 interface CloudProps {
   state: AppState;
   actor: Member;
@@ -122,7 +122,7 @@ interface CloudProps {
 
 function LocalApp(props: { cloud?: CloudProps } = {}) {
   const cloud = props.cloud;
-  const [localState, setLocalState] = useState<AppState>(() => loadPersistedAppState());
+  const [localState, setLocalState] = useState<AppState>(initialState);
   const state = cloud ? cloud.state : localState;
   const setState = setLocalState;
   const [activeTab, setActiveTab] = useState<TabKey>("home");
@@ -141,9 +141,10 @@ function LocalApp(props: { cloud?: CloudProps } = {}) {
   const report = reportText ? reportText[language] : "";
 
   useEffect(() => {
-    if (cloud) return;
-    persistAppState(state);
-  }, [state, cloud]);
+    // Seed language cache from storage on mount; cloud push notifications read
+    // it synchronously via getStoredLanguage().
+    void initStoredLanguage().then(setLanguage);
+  }, []);
 
   const localActor = useMemo(
     () => state.members.find((member) => member.id === actorId) ?? state.members[0] ?? initialState.members[0],
@@ -305,7 +306,7 @@ function LocalApp(props: { cloud?: CloudProps } = {}) {
       const asset = result.assets[0];
       const name = asset?.name ?? t("task.dynamic.uploadedReview");
       if (cloud) {
-        const storagePath = `${cloud.householdId}/${Date.now()}-${name}`;
+        const storagePath = `${cloud.householdId}/${uniqueId()}-${name}`;
         const fileBody = asset?.uri ? await (await fetch(asset.uri)).blob() : undefined;
         cloudActions.addDocument({
           householdId: cloud.householdId,
@@ -515,7 +516,13 @@ function LocalApp(props: { cloud?: CloudProps } = {}) {
           style={styles.languageButton}
           accessibilityRole="button"
           accessibilityLabel={t("language.switch", { language: languageLabel(language) })}
-          onPress={() => setLanguage((current) => nextLanguage(current))}
+          onPress={() =>
+            setLanguage((current) => {
+              const next = nextLanguage(current);
+              void setStoredLanguage(next);
+              return next;
+            })
+          }
         >
           <Ionicons name="language-outline" size={16} color={palette.teal} />
           <Text style={styles.languageButtonText} allowFontScaling>
@@ -841,9 +848,9 @@ function CloudApp() {
 
   useEffect(() => {
     if (!householdId) return;
-    const t = makeTranslator("en");
     Notifications.requestPermissionsAsync({ ios: { allowAlert: true, allowSound: true } });
     const noteChannel = subscribeRoleNotifications(householdId, (n) => {
+      const t = makeTranslator(getStoredLanguage());
       Notifications.scheduleNotificationAsync({
         content: { title: t(n.titleKey, n.values), body: t(n.bodyKey, n.values) },
         trigger: null
@@ -2397,64 +2404,7 @@ function eventIcon(type: EventType): IconName {
 }
 
 function showMessage(title: string, message: string) {
-  if (Platform.OS === "web") {
-    window.alert(`${title}\n${message}`);
-    return;
-  }
-
   Alert.alert(title, message);
-}
-
-function loadPersistedAppState(): AppState {
-  if (!canUseLocalStorage()) {
-    return initialState;
-  }
-
-  try {
-    const raw = window.localStorage.getItem(appStateStorageKey);
-    if (!raw) {
-      return initialState;
-    }
-
-    const parsed = JSON.parse(raw) as Partial<AppState>;
-    return normalizePersistedAppState(parsed);
-  } catch {
-    return initialState;
-  }
-}
-
-function persistAppState(state: AppState) {
-  if (!canUseLocalStorage()) {
-    return;
-  }
-
-  try {
-    window.localStorage.setItem(appStateStorageKey, JSON.stringify(state));
-  } catch {
-    // Local persistence is best-effort for the MVP preview.
-  }
-}
-
-function normalizePersistedAppState(value: Partial<AppState>): AppState {
-  return {
-    household: { ...initialState.household, ...(value.household ?? {}) },
-    roleDefinitions: initialState.roleDefinitions,
-    members: Array.isArray(value.members) && value.members.length > 0 ? value.members : initialState.members,
-    notificationPreferences: Array.isArray(value.notificationPreferences)
-      ? value.notificationPreferences
-      : initialState.notificationPreferences,
-    roleNotifications: Array.isArray(value.roleNotifications)
-      ? value.roleNotifications
-      : initialState.roleNotifications,
-    tasks: Array.isArray(value.tasks) ? value.tasks : initialState.tasks,
-    events: Array.isArray(value.events) ? value.events : initialState.events,
-    documents: Array.isArray(value.documents) ? value.documents : initialState.documents,
-    auditEvents: Array.isArray(value.auditEvents) ? value.auditEvents : initialState.auditEvents
-  };
-}
-
-function canUseLocalStorage(): boolean {
-  return Platform.OS === "web" && typeof window !== "undefined" && typeof window.localStorage !== "undefined";
 }
 
 const styles = StyleSheet.create({

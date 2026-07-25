@@ -1,15 +1,15 @@
 # RelayCare MVP 进度跟踪
 
 > 项目总负责人视角的实时状态文件。
-> 最后更新：2026-07-24
+> 最后更新：2026-07-24（本轮：web 移除 + bug 修复）
 
 ## 当前阶段
 
-方案 C（Supabase 后端 + 云同步 + 完整 UI）**已完成并验证**。app 现支持：注册/登录 -> 创建/加入家庭 -> 完整照护协同 UI -> 多设备实时同步 -> 数据云端持久化（换手机/删 app 不丢）。
+方案 C（Supabase 后端 + 云同步 + 完整 UI）**已完成并验证**。app 现支持：注册/登录 -> 创建/加入家庭 -> 完整照护协同 UI -> 多设备实时同步 -> 数据云端持久化（换手机/删 app 不丢）。web 能力已彻底移除，交付物为纯原生 RN app。
 
 ## 交付约束（已落实）
 
-- **无网页端**：交付物为 RN app；`web-build/` gitignore 不交付；`expo export` 仅作 headless 冒烟。
+- **无网页端**：交付物为 RN app；web 能力已彻底移除（顶层依赖/app.json 配置/web 脚本/localStorage 持久化死代码全部删除）。
 - **设置全在 app 内**：角色/邀请/通知/审计入口全在 Settings。
 - **权限差异化**：`canAccessTab` 按 role 过滤；coordinator 见审计，caregiver 不见，viewer 仅 home/timeline/settings。
 - **云同步**：Supabase Realtime 多设备实时同步；RLS 家庭隔离。
@@ -53,25 +53,32 @@
 - `tsc --noEmit`：0 错误。
 - `eslint .`：0 error 0 warning。
 - `prettier --check`：全部通过。
-- `expo export --platform web`：构建通过。
-- Headless Chrome：cloud 模式渲染 AuthScreen（.env 注入生效）。
 - **auth 全链路**（curl）：signup -> create_household RPC -> RLS 读 household/members/audit -> anon 隔离 ✅。
 - **端到端多用户**（curl）：A 建家庭 -> A 邀请 caregiver -> B 注册 -> B accept_invite -> B 看到同家庭成员/household -> anon 看不到 ✅。
 
-## 待办（剩余 ~1-2h）
+## 待办
 
-- [ ] 运行时 UI 交互验证（浏览器/模拟器：登录/建家庭/操作任务/多设备同步）。
-- [ ] 文档：QA_Log/AUDIT_REPORT 更新方案 C。
-- [ ] double check + 交付报告。
+- [ ] 运行时 UI 交互验证（iOS/Android 模拟器或真机：登录/建家庭/操作任务/多设备同步/推送）。
+- [ ] 试点前门禁：开启 email confirmation + 隐私政策/ToS + 真机设备矩阵 QA。
+- [ ] OCR/AI 真实接入：已决策推迟到试点后（决策 1B），试点前在 UI 标注“OCR 为演示数据”。
 
 ## 待用户决策
 
 - 汇报机制：方案 A（会话内按里程碑）。
-- 是否彻底移除 web 能力：当前保留作开发冒烟，不交付。
+- web 能力：已决策彻底移除（2026-07-24）。
+- OCR/AI 时机：已决策试点后再投入（决策 1B，2026-07-24）。
+
+## 本轮修复（2026-07-24）
+
+- **修复 cloud 通知 titleKey bug**：`actions.ts` 的 createTask/confirmDocumentAndCreateTask 用了 i18n 不存在的 `notification.title.taskCreated`，导致 cloud 模式推送与通知列表显示原始 key；已对齐 domain.ts（criticalTask/newTask）。
+- **统一 uniqueId**：domain.ts 复用 `lib/id.ts`，消除重复实现。
+- **推送语言持久化**：新增 `lib/language.ts`，CloudApp 推送按用户选择语言渲染（原硬编码 en）。
+- **彻底移除 web**：删除 react-dom/react-native-web 顶层依赖、app.json web 配置、web 脚本、localStorage 持久化死代码、showMessage web 分支、README web 运行说明。
+- 全绿：tsc 0 错误 · vitest 17/17 · eslint 0/0 · prettier 全过。
 
 ## 风险与备注
 
 - Supabase 项目 email confirmation 已关闭（开发测试）；上线前需开启 + 配邮件。
 - 邀请流程：当前 invite 生成 pending member（member_id 作为邀请码）；生产可加邀请链接/deep link。
-- 原生 app 持久化：cloud 模式数据在 Supabase（不丢）；本地 demo 模式仅 web localStorage。
+- 原生 app 持久化：cloud 模式数据在 Supabase（不丢）；本地 demo 模式不持久化（纯内存，web localStorage 已随 web 能力移除）。
 - `node_modules/.bin` 执行位曾丢失（已修复 target +x）；如再现 `npm rebuild` 或重装。

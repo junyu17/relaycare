@@ -477,4 +477,27 @@ Verification:
 
 Supabase config note: email confirmation disabled for dev testing; re-enable + configure email before production.
 
-Open items: runtime UI interactive verification (browser/simulator); whether to fully remove web capability.
+Open items: runtime UI interactive verification (iOS/Android); web capability removed (decision logged 2026-07-24).
+
+---
+
+## 2026-07-24 — Web removal + cloud notification bug fix
+
+Context: User approved decision 1B (OCR/AI deferred to post-pilot) and decision 2B (fix all issues + fully remove web).
+
+Changes:
+
+- Fixed cloud notification titleKey bug: actions.ts createTask/confirmDocumentAndCreateTask used non-existent i18n key `notification.title.taskCreated`, causing cloud push + notification list to render the raw key. Aligned with domain.ts (criticalTask/newTask).
+- Unified uniqueId: domain.ts now imports from lib/id.ts (was a duplicated private impl).
+- Push notification language persistence: new lib/language.ts; CloudApp push renders in user-selected language (was hardcoded en).
+- Fully removed web: dropped react-dom/react-native-web top-level deps, app.json web config, web npm script, localStorage persistence dead code, showMessage web branch, README web run instructions. react-dom/react-native-web remain only as expo transitive peers (do not affect native builds).
+- Docs: PROGRESS/AUDIT_REPORT/QA_Log updated.
+
+Verification (double check after npm install):
+
+- tsc --noEmit: 0 errors.
+- vitest run: 17/17 passed.
+- eslint .: 0 error 0 warning.
+- prettier --check: all pass.
+
+Open items: runtime UI interactive verification (iOS/Android simulator or device); pilot gating (email confirmation + privacy policy/ToS + device matrix QA); OCR/AI real integration deferred to post-pilot (decision 1B).

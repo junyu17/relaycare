@@ -113,7 +113,7 @@ const translations: Record<Language, Record<string, string>> = {
     "documents.safetyConfirm":
       "I confirm this upload is redacted or non-PHI and contains no diagnosis, medication, or private identifiers.",
     "documents.uploadedBy": "Uploaded by {name} - {date}",
-    "documents.ocr": "OCR confidence candidate (demo): {confidence}%. No field is written automatically.",
+    "documents.ocr": "OCR confidence candidate: {confidence}%. No field is written automatically.",
     "documents.ocrDemoNotice": "OCR confidence is demo data. Real OCR extraction will be enabled after the pilot.",
     "documents.suggestedAction": "Suggested action: {action}",
     "documents.confirmCreateTask": "Confirm and create task",
@@ -415,7 +415,7 @@ const translations: Record<Language, Record<string, string>> = {
     "documents.notice": "{name} 在此 MVP 中只能上传已脱敏或非 PHI 文件。候选行动必须人工确认。",
     "documents.safetyConfirm": "我确认此文件已脱敏或不含 PHI，且不包含诊断、用药或私人标识信息。",
     "documents.uploadedBy": "由 {name} 上传 - {date}",
-    "documents.ocr": "OCR 候选置信度（演示）：{confidence}%。不会自动写入任何字段。",
+    "documents.ocr": "OCR 候选置信度：{confidence}%。不会自动写入任何字段。",
     "documents.ocrDemoNotice": "OCR 置信度为演示数据。真实 OCR 提取将在试点后启用。",
     "documents.suggestedAction": "建议行动：{action}",
     "documents.confirmCreateTask": "确认并创建任务",
@@ -715,7 +715,7 @@ const translations: Record<Language, Record<string, string>> = {
     "documents.safetyConfirm":
       "Confirmo que este archivo está redactado o no contiene PHI, diagnóstico, medicación ni identificadores privados.",
     "documents.uploadedBy": "Subido por {name} - {date}",
-    "documents.ocr": "Confianza OCR candidata (demo): {confidence}%. Ningún campo se escribe automáticamente.",
+    "documents.ocr": "Confianza OCR candidata: {confidence}%. Ningún campo se escribe automáticamente.",
     "documents.ocrDemoNotice":
       "La confianza OCR es un dato de demostración. La extracción OCR real se habilitará después del piloto.",
     "documents.suggestedAction": "Acción sugerida: {action}",

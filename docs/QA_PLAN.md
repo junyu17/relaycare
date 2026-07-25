@@ -56,7 +56,7 @@ Covered by `.github/workflows/ci.yml`:
 ### 3.4 Documents
 
 - [ ] Confirm safety toggle before upload is enforced.
-- [ ] Upload a document; metadata + demo OCR confidence shown with "demo" banner.
+- [ ] Upload a document; on-device OCR extracts candidate fields + confidence (device mode); mock mode shows demo banner.
 - [ ] Confirm document candidate; a claimable task is created.
 - [ ] Storage upload succeeds (Supabase Storage private bucket).
 
@@ -89,7 +89,7 @@ Covered by `.github/workflows/ci.yml`:
 
 - [ ] Switch EN / 中文 / ES; all screens localize; invite member names re-localize per language.
 - [ ] Font scaling (Dynamic Type) works; screen-reader labels present.
-- [ ] OCR demo banner visible in Documents.
+- [ ] OCR runs on-device in device mode (native build); demo banner only in mock mode (Expo Go dev).
 
 ## 4. iOS Simulator Smoke (this environment)
 
@@ -98,7 +98,7 @@ Covered by `.github/workflows/ci.yml`:
 - iOS bundle compilation: ✅ (Metro `index.bundle?platform=ios`, 873 modules).
 - App launch + UI render: ✅ Expo Go installed via GitHub-release mirror (ghproxy.net,断点续传); app renders LocalApp (demo mode) on iPhone 17 simulator.
 - Tab navigation: ✅ idb-driven taps verified Home / Tasks / Timeline / Docs / Settings all render.
-- OCR demo labeling: ✅ Docs tab shows the demo banner ("OCR confidence is demo data...") and "(demo)" confidence, confirming task-5 labeling at runtime.
+- OCR: ✅ on-device OCR implemented (@dariyd/react-native-text-recognition, image+PDF+Chinese). In mock mode (Expo Go dev) the demo banner shows; in device mode (native build) real OCR runs. Native-build OCR verification pending prebuild.
 - Screenshots: `docs/qa-ios-home.png`, `qa-ios-Tasks.png`, `qa-ios-Timeline.png`, `qa-ios-Docs.png`, `qa-ios-Settings.png`.
 
 Repro (local demo mode, no Supabase needed):

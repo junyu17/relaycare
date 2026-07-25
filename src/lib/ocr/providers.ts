@@ -1,3 +1,5 @@
+import { recognizeText } from "@dariyd/react-native-text-recognition";
+import { extractCandidateFields, computeConfidence, deriveSuggestedAction } from "./heuristics";
 import type { OcrInput, OcrResult, OcrProvider, OcrProviderName } from "./types";
 
 // ============ Mock（试点期，演示置信度） ============
@@ -12,20 +14,36 @@ export class MockOcrProvider implements OcrProvider {
   }
 }
 
-// ============ On-device（试点后，方案 A 主力） ============
-// 推荐库：@zhanziyang/expo-text-extractor（Apple Vision + Google ML Kit，支持中文/日文/韩文）。
-// 数据不离开设备 -> 无 PHI 合规风险、无需 BAA、离线可用（符合立项 §5.3 与韧性要求）。
-// 实现要点：
-//   1. textExtractor.recognize({ uri: input.fileUri }) -> 文本块 + bounding box
-//   2. 启发式识别候选字段（药物名、预约日期、随访要求）+ 按文本块密度算字段置信度
-//   3. 返回 OcrResult { confidence, suggestedAction, fields, rawText }
+// ============ On-device（已实施，方案 A 主力） ============
+// 用 @dariyd/react-native-text-recognition（iOS Apple Vision + Android Google ML Kit；
+// 支持 image + PDF + 100+ 语言含中文）。数据不离开设备 -> 无 PHI 合规风险、无需 BAA、
+// 离线可用（符合立项 §5.3 与韧性要求）。需 prebuild/EAS Build（原生模块，Expo Go 不可用）。
+// 候选字段 + 置信度由 heuristics.ts 启发式生成（OCR 库只返回纯文本 + bounding box）。
 export class DeviceOcrProvider implements OcrProvider {
   readonly name = "device" as const;
-  async extract(_input: OcrInput): Promise<OcrResult> {
-    throw new Error(
-      "DeviceOcrProvider not implemented yet (decision 1B: post-pilot). " +
-        "Wire @zhanziyang/expo-text-extractor here and set EXPO_PUBLIC_OCR_MODE=device."
-    );
+  async extract(input: OcrInput): Promise<OcrResult> {
+    if (!input.fileUri) {
+      // sample 无文件（演示按钮），回退演示值
+      return { confidence: 0.72, provider: "device" };
+    }
+    const result = await recognizeText(input.fileUri, {
+      languages: ["en", "zh", "es"],
+      recognitionLevel: "line",
+      maxPages: 5
+    });
+    if (!result.success || !result.fullText) {
+      return { confidence: 0.3, provider: "device", rawText: result.errorMessage ?? "" };
+    }
+    const fields = extractCandidateFields(result.fullText);
+    const confidence = computeConfidence(result, fields);
+    const suggestedAction = deriveSuggestedAction(fields);
+    return {
+      confidence,
+      suggestedAction,
+      fields,
+      rawText: result.fullText,
+      provider: "device"
+    };
   }
 }
 

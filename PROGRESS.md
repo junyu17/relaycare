@@ -60,14 +60,14 @@
 
 - [ ] 运行时 UI 交互验证（iOS/Android 模拟器或真机：登录/建家庭/操作任务/多设备同步/推送）。
 - [ ] 试点前门禁：开启 email confirmation + 隐私政策/ToS + 真机设备矩阵 QA。
-- [ ] OCR/AI 真实接入：已决策推迟到试点后（决策 1B），试点前在 UI 标注“OCR 为演示数据”。
+- [x] OCR 真实接入：on-device 已实施（@dariyd/react-native-text-recognition，image+PDF+中文）；需 prebuild/EAS Build 验证真机。
 
 ## 待用户决策
 
 - 汇报机制：方案 A（会话内按里程碑）。
 - web 能力：已决策彻底移除（2026-07-24）。
-- OCR/AI 时机：已决策试点后再投入（决策 1B，2026-07-24）。
-- OCR 技术路线：已决策方案 A（on-device 优先，Apple Vision + Google ML Kit）+ 预留云端兜底（Textract/Document AI，需 BAA）；`src/lib/ocr/` provider 抽象已就位，切换只需 `EXPO_PUBLIC_OCR_MODE`（2026-07-24）。
+- OCR 时机：原决策 1B（试点后），2026-07-24 更新为现在实施（on-device 已上线）。
+- OCR 技术路线：方案 A 已实施（on-device，@dariyd/react-native-text-recognition，image+PDF+中文，无 PHI 风险）；云端兜底（Textract/Document AI，需 BAA）已预留 stub，切换 `EXPO_PUBLIC_OCR_MODE=cloud`。
 
 ## 本轮修复（2026-07-24）
 

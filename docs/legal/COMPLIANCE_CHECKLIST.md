@@ -42,7 +42,7 @@ This checklist tracks the pre-launch compliance items required by the project ch
 | Expo / EAS                                       | Build & OTA updates               | App bundle, update metadata                               | Expo terms                      |
 | Apple APNs / Google FCM (via expo-notifications) | Push notifications                | Notification title/body (i18n key-rendered), device token | Provider terms                  |
 
-**No external AI/OCR vendor** in MVP/pilot (decision 1B). Future AI/OCR vendors require BAA + legal review before integration.
+**No external AI/OCR vendor** - on-device OCR runs locally (no data leaves the device), so no vendor processes content. Cloud OCR (if enabled later) and any LLM vendor require BAA + legal review before integration.
 
 ## 4. Information Security Policy (Baseline)
 

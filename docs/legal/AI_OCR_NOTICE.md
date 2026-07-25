@@ -1,26 +1,26 @@
 # AI / OCR Usage Notice (DRAFT)
 
-> **Status:** Draft v0.1 — 2026-07-24. Requires review by US privacy/medical legal counsel before any real AI/OCR integration is enabled. Per project decision 1B (2026-07-24), real OCR/AI integration is deferred until after the pilot.
+> **Status:** Draft v0.2 - 2026-07-24. Requires review by US privacy/medical legal counsel before any production use. On-device OCR is implemented (2026-07-24; decision updated from 1B "defer" to "implement now"); AI summaries remain template-based.
 
 ## 1. Current State (MVP / Pilot)
 
 During the MVP and pilot phase:
 
-- **OCR is demonstration-only.** The confidence values shown on documents are demo data, not the result of real OCR extraction. The app UI clearly labels this (`documents.ocrDemoNotice`).
-- **AI summaries are template-based.** The weekly family report is generated from deterministic templates, not a large language model.
+- **On-device OCR is implemented.** Document uploads run real text recognition on-device via `@dariyd/react-native-text-recognition` (iOS Apple Vision + Android Google ML Kit; supports images, PDFs, and 100+ languages including Chinese). Data never leaves the device. The "demo" notice is shown only when running in mock mode (e.g., Expo Go development without a native build).
+- **AI summaries are template-based.** The weekly family report is generated from deterministic templates, not a large language model. LLM summaries remain a future enhancement.
 - **No PHI is sent to any external AI or OCR provider.**
 
-This is intentional: the pilot's purpose is to validate that care responsibility is genuinely shared across family members, not to validate OCR or AI accuracy.
+The pilot's purpose remains to validate that care responsibility is genuinely shared across family members; OCR accuracy is a means, not the goal.
 
-**Architecture is pre-wired for real OCR.** `src/lib/ocr/` defines an `OcrProvider` interface with three implementations: `MockOcrProvider` (current), `DeviceOcrProvider` (on-device, post-pilot), and `CloudOcrProvider` (cloud fallback, requires BAA). Switching is a single env var (`EXPO_PUBLIC_OCR_MODE`); the caller (`actions.addDocument`) needs no changes.
+**Architecture.** `src/lib/ocr/` defines an `OcrProvider` interface with three implementations: `MockOcrProvider` (Expo Go dev fallback), `DeviceOcrProvider` (on-device, current production default), and `CloudOcrProvider` (cloud fallback, requires BAA). The active provider is selected by `EXPO_PUBLIC_OCR_MODE` (default `device`); the caller (`actions.addDocument`) needs no changes when switching.
 
-## 2. Future Design (When Real OCR/AI Is Enabled)
+## 2. Design & Safeguards
 
-When real OCR/AI is introduced (post-pilot), the following safeguards apply, consistent with the project charter (§5.3):
+The following safeguards apply to all OCR/AI processing, consistent with the project charter (§5.3):
 
 ### OCR
 
-- **Primary (post-pilot, decision A): on-device.** iOS Apple Vision framework + Android Google ML Kit Text Recognition v2, via `@zhanziyang/expo-text-extractor` (supports Chinese/Japanese/Korean, matching the app's trilingual UI). Data never leaves the device -> no PHI compliance risk, no BAA required, works offline (meets charter §5.3 and resilience requirements).
+- **Primary (implemented, decision A): on-device.** iOS Apple Vision framework + Android Google ML Kit Text Recognition v2, via `@dariyd/react-native-text-recognition` (supports images + PDFs + 100+ languages including Chinese/Japanese/Korean, matching the app's trilingual UI). Data never leaves the device -> no PHI compliance risk, no BAA required, works offline (meets charter §5.3 and resilience requirements). Requires a native build (prebuild/EAS Build; not loadable in Expo Go).
 - **Fallback (complex documents only): cloud.** AWS Textract AnalyzeDocument (Forms/Tables) or Google Document AI, invoked via a Supabase Edge Function (server-side signed, anon key never exposed). Requires a signed BAA before any PHI-capable document is processed.
 - Outputs only **candidate structured fields** with a **field-level confidence score**; production accuracy on real documents typically runs 80-95% (below curated benchmarks), so human confirmation remains mandatory.
 - **No field is written automatically.** A user must confirm candidate fields before they become a task or record.
@@ -52,14 +52,14 @@ Users can review OCR candidates and AI summaries before any action. Low-confiden
 
 ## 5. Technology Roadmap & Cost (Decision A, 2026-07-24)
 
-**Decision:** Start with on-device OCR (Plan A); keep cloud fallback pre-wired but deferred until real data shows on-device is insufficient.
+**Decision (updated 2026-07-24):** On-device OCR is implemented now (Plan A). Cloud fallback remains pre-wired but deferred until real pilot data shows on-device is insufficient.
 
-| Phase                                  | OCR approach                                     | Operating cost           | Dev cost                               |
-| -------------------------------------- | ------------------------------------------------ | ------------------------ | -------------------------------------- |
-| Pilot (10 families, decision 1B)       | on-device (mock until wired)                     | ~$0/month                | ~1-2 weeks to wire `DeviceOcrProvider` |
-| Post-pilot scale                       | on-device primary + cloud fallback (<5% of docs) | <$10/month               | included                               |
-| At scale (thousands of families)       | hybrid, cloud share rises                        | $50-200/month (per-page) | tune confidence thresholds             |
-| AI summaries (LLM, independent of OCR) | OpenAI/Anthropic + JSON Schema + BAA             | ~$0.01-0.05/summary      | 1-2 weeks                              |
+| Phase                                  | OCR approach                                     | Operating cost           | Dev cost                   |
+| -------------------------------------- | ------------------------------------------------ | ------------------------ | -------------------------- |
+| Pilot (10 families)                    | on-device (implemented)                          | ~$0/month                | done                       |
+| Post-pilot scale                       | on-device primary + cloud fallback (<5% of docs) | <$10/month               | included                   |
+| At scale (thousands of families)       | hybrid, cloud share rises                        | $50-200/month (per-page) | tune confidence thresholds |
+| AI summaries (LLM, independent of OCR) | OpenAI/Anthropic + JSON Schema + BAA             | ~$0.01-0.05/summary      | 1-2 weeks                  |
 
 **Why on-device first:**
 

@@ -6,6 +6,7 @@ import { Alert, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, Toucha
 
 import { uniqueId } from "./lib/id";
 import { getStoredLanguage, initStoredLanguage, setStoredLanguage } from "./lib/language";
+import { ocrProviderName } from "./lib/ocr";
 import { initialState } from "./data";
 import { AuthProvider, useAuth } from "./auth/AuthContext";
 import { AuthScreen, OnboardingScreen } from "./auth/AuthScreen";
@@ -1261,12 +1262,14 @@ function renderDocuments(
           {t("documents.notice", { name: actor.name })}
         </Text>
       </View>
-      <View style={styles.notice}>
-        <Ionicons name="flask-outline" size={20} color={palette.amber} />
-        <Text style={styles.noticeText} allowFontScaling>
-          {t("documents.ocrDemoNotice")}
-        </Text>
-      </View>
+      {ocrProviderName === "mock" && (
+        <View style={styles.notice}>
+          <Ionicons name="flask-outline" size={20} color={palette.amber} />
+          <Text style={styles.noticeText} allowFontScaling>
+            {t("documents.ocrDemoNotice")}
+          </Text>
+        </View>
+      )}
       <TouchableOpacity
         style={[styles.safetyToggle, documentSafetyConfirmed && styles.safetyToggleActive]}
         accessibilityRole="button"

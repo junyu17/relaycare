@@ -500,4 +500,30 @@ Verification (double check after npm install):
 - eslint .: 0 error 0 warning.
 - prettier --check: all pass.
 
-Open items: runtime UI interactive verification (iOS/Android simulator or device); pilot gating (email confirmation + privacy policy/ToS + device matrix QA); OCR/AI real integration deferred to post-pilot (decision 1B).
+Open items: runtime UI interactive verification (iOS/Android simulator or device); pilot gating (email confirmation + privacy policy/ToS + device matrix QA). OCR on-device implemented 2026-07-24 (decision updated from 1B).
+
+---
+
+## 2026-07-24 - On-device OCR implemented (decision updated from 1B to "now")
+
+Context: User updated decision - implement on-device OCR now (not post-pilot). Library: @dariyd/react-native-text-recognition (image + PDF + 100+ languages incl. Chinese; iOS Apple Vision + Android Google ML Kit).
+
+Changes:
+
+- npm install @dariyd/react-native-text-recognition (native module; requires prebuild/EAS Build, not Expo Go).
+- src/lib/ocr/heuristics.ts: candidate-field extraction (date/medication/followup, trilingual regex), confidence (iOS element avg / Android heuristic), suggestedAction.
+- src/lib/ocr/providers.ts: DeviceOcrProvider.extract() implemented (calls recognizeText + heuristics). No longer a stub.
+- src/lib/ocr/index.ts: export ocrProviderName for UI conditional demo banner.
+- App.tsx: demo banner now shows only in mock mode (ocrProviderName === "mock"); i18n documents.ocr dropped "(demo)" suffix (real OCR).
+- .env.example: EXPO_PUBLIC_OCR_MODE default = device (mock is Expo Go dev fallback).
+- Docs: AI_OCR_NOTICE / PROGRESS / QA_PLAN / COMPLIANCE_CHECKLIST updated to reflect implemented on-device OCR.
+
+Verification:
+
+- tsc --noEmit: 0 errors.
+- eslint .: 0 error 0 warning.
+- prettier --check: all pass.
+- vitest run: 17/17 passed.
+- Runtime: requires prebuild (native module); Expo Go falls back to mock. Native-build OCR verification pending prebuild.
+
+Open items: prebuild + native-build runtime OCR verification; email confirmation (user in progress); pilot gating.

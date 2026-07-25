@@ -60,7 +60,7 @@
 
 - [ ] 运行时 UI 交互验证（iOS/Android 模拟器或真机：登录/建家庭/操作任务/多设备同步/推送）。
 - [ ] 试点前门禁：开启 email confirmation + 隐私政策/ToS + 真机设备矩阵 QA。
-- [x] OCR 真实接入：on-device 已实施（@dariyd/react-native-text-recognition，image+PDF+中文）；需 prebuild/EAS Build 验证真机。
+- [x] OCR 真实接入：on-device 已实施 + 原生 build 验证通过（expo prebuild + pod install 92 pods + xcodebuild BUILD SUCCEEDED；dariyd 编译链接 OK；node_modules .sh 执行位已 chmod 修复）。真机 OCR 端到端（上传文档→识别）待 cloud 登录交互测试。
 
 ## 待用户决策
 

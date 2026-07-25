@@ -527,3 +527,26 @@ Verification:
 - Runtime: requires prebuild (native module); Expo Go falls back to mock. Native-build OCR verification pending prebuild.
 
 Open items: prebuild + native-build runtime OCR verification; email confirmation (user in progress); pilot gating.
+
+---
+
+## 2026-07-24 - On-device OCR native build verified (BUILD SUCCEEDED)
+
+Context: User chose plan B (local cocoapods mirror + pod install + xcodebuild) to verify the on-device OCR native integration.
+
+Steps & results:
+
+- expo prebuild --platform ios: success (ios/ generated, dariyd autolinked).
+- pod install: success after fixing create-stub-xcframework.sh permission (chmod +x). 93 dependencies, 92 pods installed; `react-native-text-recognition iOS 13.0` in the install list (dariyd autolinked). Hermes downloaded from Maven (CDN specs reachable; RN C++ deps prebuilt).
+- xcodebuild (iphonesimulator Debug): **BUILD SUCCEEDED** after `find node_modules -name '*.sh' -exec chmod +x {} +` (npm had dropped exec bits on react-native/scripts/xcode/with-environment.sh etc., same class of issue previously noted in PROGRESS).
+- App artifact: RelayCareMVP.app built; dariyd compiled and linked.
+
+Root cause of the permission failures: npm install did not preserve exec bits on some .sh scripts (node_modules/.bin, expo-modules-jsi, react-native/scripts). Fixed by chmod +x all node_modules .sh.
+
+Verification status:
+
+- Code: tsc/eslint/prettier/vitest all green.
+- Native integration: prebuild + pod install + xcodebuild BUILD SUCCEEDED.
+- Runtime OCR end-to-end (upload doc -> recognizeText -> candidate fields): pending cloud-mode login interaction (app starts at AuthScreen with Supabase configured).
+
+Open items: runtime OCR end-to-end test (needs cloud login + doc upload); email confirmation (user in progress); pilot gating.

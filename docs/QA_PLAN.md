@@ -93,20 +93,22 @@ Covered by `.github/workflows/ci.yml`:
 
 ## 4. iOS Simulator Smoke (this environment)
 
-**Result (2026-07-24):**
+**Result (2026-07-24): ✅ passed**
 
-- iOS bundle compilation: ✅ passed (Metro `index.bundle?platform=ios`, 4.6 MB, HTTP 200). Confirms the app packages into a native bundle after web removal (all native modules resolve).
-- UI render screenshot: ⏳ blocked - Expo Go download timed out in this network environment; no `idb` installed for scripted taps. Run via `expo run:ios` (dev build) or a network with Expo Go access.
+- iOS bundle compilation: ✅ (Metro `index.bundle?platform=ios`, 873 modules).
+- App launch + UI render: ✅ Expo Go installed via GitHub-release mirror (ghproxy.net,断点续传); app renders LocalApp (demo mode) on iPhone 17 simulator.
+- Tab navigation: ✅ idb-driven taps verified Home / Tasks / Timeline / Docs / Settings all render.
+- OCR demo labeling: ✅ Docs tab shows the demo banner ("OCR confidence is demo data...") and "(demo)" confidence, confirming task-5 labeling at runtime.
+- Screenshots: `docs/qa-ios-home.png`, `qa-ios-Tasks.png`, `qa-ios-Timeline.png`, `qa-ios-Docs.png`, `qa-ios-Settings.png`.
 
-Command to reproduce the bundle smoke (local demo mode, no Supabase needed):
+Repro (local demo mode, no Supabase needed):
 
 ```bash
 xcrun simctl boot "iPhone 17" && open -a Simulator
-EXPO_PUBLIC_SUPABASE_URL="" EXPO_PUBLIC_SUPABASE_ANON_KEY="" npx expo start --port 8083 &
-sleep 30
-curl -s -o /tmp/ios-bundle.js -w "%{http_code}\n" "http://localhost:8083/index.bundle?platform=ios&dev=false"
+EXPO_PUBLIC_SUPABASE_URL="" EXPO_PUBLIC_SUPABASE_ANON_KEY="" npx expo start --ios --port 8089
+# in another shell, with idb (brew install idb-companion; pip3 install fb-idb):
+idb screenshot --udid <udid> docs/qa-ios-home.png
+idb ui tap --udid <udid> 128 816   # Tasks tab; then screenshot, etc.
 ```
 
-To capture UI screenshots, install Expo Go (or use `expo run:ios` for a dev build) and run `xcrun simctl io "iPhone 17" screenshot <path>`; scripted taps require `idb`.
-
-> Cloud-mode interactive flows (3.1, 3.7) require a live Supabase project and manual or `idb`-driven taps; they are not automatable with `simctl` alone.
+> Cloud-mode interactive flows (3.1, 3.7) still require a live Supabase project + manual/idb auth taps; local-demo tab navigation and rendering are verified.

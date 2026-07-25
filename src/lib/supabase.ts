@@ -9,6 +9,6 @@ export const isSupabaseConfigured = Boolean(supabaseUrl && supabaseAnonKey);
 
 // 用 placeholder 创建客户端以保证类型完整；未配置时所有调用前都由 isSupabaseConfigured 拦截。
 export const supabase: SupabaseClient = createClient(
-  supabaseUrl ?? "https://placeholder.supabase.co",
-  supabaseAnonKey ?? "placeholder-anon-key"
+  supabaseUrl || "https://placeholder.supabase.co",
+  supabaseAnonKey || "placeholder-anon-key"
 );

@@ -13,3 +13,7 @@ docs/static-server.pid
 coverage/
 .eslintcache
 .env
+
+# Native (CNG - regenerated via `expo prebuild`)
+ios/
+android/

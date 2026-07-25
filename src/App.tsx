@@ -1262,6 +1262,12 @@ function renderDocuments(
           {t("documents.notice", { name: actor.name })}
         </Text>
       </View>
+      <View style={styles.notice}>
+        <Ionicons name="flask-outline" size={20} color={palette.amber} />
+        <Text style={styles.noticeText} allowFontScaling>
+          {t("documents.ocrDemoNotice")}
+        </Text>
+      </View>
       <TouchableOpacity
         style={[styles.safetyToggle, documentSafetyConfirmed && styles.safetyToggleActive]}
         accessibilityRole="button"

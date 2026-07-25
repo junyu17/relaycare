@@ -1,0 +1,44 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  quality:
+    name: Typecheck · Lint · Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm run test
+
+  # Security scans run as informational (non-blocking) until the Expo SDK is
+  # upgraded to clear the known transitive vulnerabilities. Before pilot
+  # launch, review the findings, fix high+ issues, and drop `continue-on-error`.
+  security:
+    name: Dependency audit · SAST
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: Dependency audit (production, high+)
+        run: npm audit --omit=dev --audit-level=high
+        continue-on-error: true
+      - name: SAST (semgrep)
+        uses: returntocorp/semgrep-action@v1
+        with:
+          config: auto
+        continue-on-error: true

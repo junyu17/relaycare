@@ -1,0 +1,67 @@
+# Terms of Service (DRAFT)
+
+> **Status:** Draft v0.1 — 2026-07-24. Requires review by US legal counsel before production use or public release.
+
+## 1. Acceptance
+
+By creating an account or using RelayCare, you agree to these Terms. If you do not agree, do not use the service.
+
+## 2. Service Description
+
+RelayCare is a family care coordination and information-organization tool. It helps families distribute care tasks, share timelines and documents, and coordinate notifications. **RelayCare is not a medical device, medical service, emergency service, or a substitute for professional medical advice.**
+
+## 3. Eligibility
+
+You must be 18 or older, or use the service as an authorized representative (e.g., a primary caregiver acting on behalf of a care recipient).
+
+## 4. Accounts and Households
+
+- You are responsible for maintaining the security of your credentials.
+- You are responsible for the accuracy of information you enter.
+- You control who you invite to your household and their roles.
+- Invite links expire after a defined window (48 hours in the MVP).
+
+## 5. Acceptable Use
+
+You agree not to:
+
+- Upload PHI or identifiable medical records unless you have confirmed they are de-identified and you are authorized to share them.
+- Use the service for diagnosis, prescription, emergency triage, or clinical decision-making.
+- Attempt to access data outside your household.
+- Abuse, reverse-engineer, or disrupt the service.
+
+## 6. Non-Medical Nature and Disclaimers
+
+RelayCare provides coordination and organization only. It does not diagnose, treat, cure, or prevent any condition. Always seek the advice of qualified medical professionals. In an emergency, contact your local emergency services (e.g., 911 in the US) immediately. See `CLINICAL_DISCLAIMER.md` for details.
+
+## 7. Documents and AI/OCR
+
+Uploaded documents are metadata and candidate-field coordination aids, not verified medical records. OCR confidence and AI summaries are assistive only and require human confirmation before any action. See `AI_OCR_NOTICE.md`.
+
+## 8. Fees
+
+The MVP is offered at no charge during the pilot. Future subscription plans (e.g., family Plus) will be disclosed before any charge.
+
+## 9. Intellectual Property
+
+You retain ownership of the content you submit. You grant RelayCare a limited license to process your content solely to provide the service.
+
+## 10. Termination
+
+You may delete your household data at any time. We may suspend or terminate access for violations of these Terms or to protect safety and security.
+
+## 11. Limitation of Liability
+
+To the maximum extent permitted by law, RelayCare is provided "as is" without warranties, and our liability is limited as permitted by applicable law. The service is not liable for medical decisions, missed care actions, or outcomes based on coordination content.
+
+## 12. Dispute Resolution
+
+Disputes are resolved per the governing law and jurisdiction to be finalized before pilot launch (US jurisdiction expected).
+
+## 13. Changes
+
+We may update these Terms and will notify users of material changes.
+
+## 14. Contact
+
+Contact the product lead for questions about these Terms (channel to be published before pilot launch).

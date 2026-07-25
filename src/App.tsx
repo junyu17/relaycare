@@ -313,7 +313,7 @@ function LocalApp(props: { cloud?: CloudProps } = {}) {
           actor,
           name,
           source: "manual_upload",
-          confidence: 0.7,
+          fileUri: asset?.uri,
           fileBody,
           storagePath: fileBody ? storagePath : undefined
         });
@@ -339,8 +339,7 @@ function LocalApp(props: { cloud?: CloudProps } = {}) {
         householdId: cloud.householdId,
         actor,
         name: t("document.sampleName"),
-        source: "sample",
-        confidence: 0.72
+        source: "sample"
       });
     } else {
       setState((current) => addDocument(current, actor, t("document.sampleName"), "sample", t));

@@ -1,4 +1,5 @@
 import { supabase } from "./supabase";
+import { getOcrProvider } from "./ocr";
 import type { Member, Role, AuditAction } from "../types";
 
 // 写操作层：每个操作对应 domain.ts 的纯函数，但写 Supabase（而非本地 state）。
@@ -334,8 +335,7 @@ export async function addDocument(args: {
   actor: Member;
   name: string;
   source: "manual_upload" | "sample";
-  confidence: number;
-  suggestedAction?: string;
+  fileUri?: string;
   fileBody?: Blob;
   storagePath?: string;
 }) {
@@ -343,6 +343,13 @@ export async function addDocument(args: {
     const { error: upErr } = await supabase.storage.from("documents").upload(args.storagePath, args.fileBody);
     if (upErr) throw upErr;
   }
+  // OCR 候选字段 + 置信度。试点期 mock（演示值）；试点后 device；兜底 cloud（见 lib/ocr）。
+  const ocr = await getOcrProvider().extract({
+    fileUri: args.fileUri,
+    fileBody: args.fileBody,
+    fileName: args.name,
+    source: args.source
+  });
   const { data, error } = await supabase
     .from("documents")
     .insert({
@@ -351,9 +358,9 @@ export async function addDocument(args: {
       uploaded_by_id: args.actor.id,
       status: "pending_confirmation",
       contains_phi: false,
-      confidence: args.confidence,
+      confidence: ocr.confidence,
       source: args.source,
-      suggested_action: args.suggestedAction ?? null,
+      suggested_action: ocr.suggestedAction ?? null,
       storage_path: args.storagePath ?? null
     })
     .select("id")

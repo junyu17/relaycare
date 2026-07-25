@@ -67,6 +67,7 @@
 - 汇报机制：方案 A（会话内按里程碑）。
 - web 能力：已决策彻底移除（2026-07-24）。
 - OCR/AI 时机：已决策试点后再投入（决策 1B，2026-07-24）。
+- OCR 技术路线：已决策方案 A（on-device 优先，Apple Vision + Google ML Kit）+ 预留云端兜底（Textract/Document AI，需 BAA）；`src/lib/ocr/` provider 抽象已就位，切换只需 `EXPO_PUBLIC_OCR_MODE`（2026-07-24）。
 
 ## 本轮修复（2026-07-24）
 

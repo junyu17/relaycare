@@ -4,6 +4,23 @@ This file records delivery checks for the local MVP scaffold.
 
 ## 2026-07-26
 
+### Stage: GitHub Pages production deployment
+
+Original requirement match:
+
+- Connected the project to `junyu17/relaycare`, retained its prior history, and deployed the TaskKin Care static site from the intended `site/` directory.
+- Removed eight root-level duplicate website files after verifying they were byte-for-byte identical to the managed `site/` source, leaving one authoritative public-site source.
+
+Independent quality review:
+
+- Confirmed the remote default branch is `main`, GitHub Pages uses the workflow publishing source, and HTTPS is enforced for `https://junyu17.github.io/relaycare/`.
+- The deployment used the expected merge commit `4c5bf2818c40fcd7f833323ee636bb9c466f2c20` and completed both build and deploy jobs successfully.
+
+Actual artifact verification:
+
+- GitHub Actions run `30202402382` completed successfully: static artifact upload and GitHub Pages deployment both passed.
+- Direct HTTP verification from this workspace was blocked by repeated GitHub Pages edge connection resets; browser navigation from this workspace timed out. The Pages API and completed deployment are authoritative deployment evidence, but a final human browser read of the public URL remains an external-network check.
+
 ### Stage: GitHub Pages deployment workflow
 
 Original requirement match:

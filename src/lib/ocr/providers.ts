@@ -49,7 +49,7 @@ export class DeviceOcrProvider implements OcrProvider {
 
 // ============ Cloud（兜底，复杂文档） ============
 // 推荐：AWS Textract AnalyzeDocument（Forms/Tables）或 Google Document AI。
-// 合规前置：必须签 BAA 才能处理含 PHI 文档；MVP 非 PHI 路径也建议带 BAA 以防边界。
+// 合规前置：必须签 BAA 才能处理含 PHI 文档；非 PHI 路径也建议带 BAA 以防边界。
 // 架构要点：走 Supabase Edge Function 调用（避免 anon key 泄露 + 服务端签名请求），
 //   文件已上传至 Supabase Storage，Edge Function 用 storage_path 取文件 -> 调云端 OCR ->
 //   返回结构化字段 + 置信度。

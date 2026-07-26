@@ -1,0 +1,270 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>TaskKin Care · 家庭照护协同平台</title>
+    <meta
+      name="description"
+      content="TaskKin Care 把家庭照护中的资料、待办、责任人、完成状态和周报串成可追踪闭环，让远程亲属能真正接手具体行动。"
+    />
+    <link rel="stylesheet" href="styles.css" />
+    <link rel="icon" href="icons/icon-1.svg" type="image/svg+xml" />
+  </head>
+  <body>
+    <nav>
+      <div class="container">
+        <a href="index-zh.html" class="brand"><img src="icons/icon-1.svg" alt="" />TaskKin Care</a>
+        <ul>
+          <li><a href="#why">设计初衷</a></li>
+          <li><a href="#features">功能</a></li>
+          <li><a href="#how">使用流程</a></li>
+          <li><a href="#shots">截图</a></li>
+          <li><a href="#faq">FAQ</a></li>
+          <li><a href="privacy-zh.html">隐私政策</a></li>
+        </ul>
+        <div class="language-switcher" aria-label="选择语言">
+          <a href="index.html" lang="en">EN</a
+          ><a class="active" href="index-zh.html" lang="zh-CN" aria-current="page">中文</a
+          ><a href="index-es.html" lang="es">ES</a>
+        </div>
+      </div>
+    </nav>
+
+    <header class="hero">
+      <div class="container hero-layout">
+        <div class="hero-copy">
+          <div class="badges">
+            <span class="badge">非 PHI 设计</span>
+            <span class="badge">iOS + Android</span>
+            <span class="badge">EN / 中文 / ES</span>
+            <span class="badge">关键操作可追溯</span>
+          </div>
+          <h1>照护不该压在<span class="accent">一个人</span>身上</h1>
+          <p class="lead">
+            TaskKin Care
+            把家庭照护中的资料、待办、责任人、完成状态和周报串成可追踪的闭环，让远程亲属能够真正接手具体行动，而不是只看通知。
+          </p>
+          <div class="cta">
+            <a class="btn btn-primary" href="#features">了解功能</a>
+            <a class="btn btn-ghost" href="#contact">提建议</a>
+          </div>
+        </div>
+        <figure class="hero-preview">
+          <img src="screenshots/ios-home.png" alt="TaskKin Care iOS 家庭照护首页" />
+        </figure>
+      </div>
+    </header>
+
+    <section id="why">
+      <div class="container">
+        <h2>我们为什么做 TaskKin Care</h2>
+        <p class="sub">
+          很多家庭照护者被迫成为"中间的记忆中枢"——一个人维护所有信息的最新版，还要调度、催办、执行。TaskKin Care
+          不做又一个共享日历或药物列表，而是让信息自然变成可分配的行动。
+        </p>
+        <div class="grid">
+          <div class="card">
+            <div class="ico">🔁</div>
+            <h3>行动放在记录之前</h3>
+            <p>任何新增资料都提示"是否需要行动"，每项行动有明确 Owner、截止时间与状态，避免"大家都以为别人会做"。</p>
+          </div>
+          <div class="card">
+            <div class="ico">👋</div>
+            <h3>允许拒绝和交接</h3>
+            <p>任务可认领、可拒绝、可交接，减少隐性失约。被拒绝的任务回到可认领池或升级给协调人。</p>
+          </div>
+          <div class="card">
+            <div class="ico">🔕</div>
+            <h3>消息克制且按角色</h3>
+            <p>按角色和事件订阅通知，关键到期提醒锁定常开，非关键摘要可切换，杜绝无差别轰炸。</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section
+      id="features"
+      style="background: var(--surface); border-top: 1px solid var(--line); border-bottom: 1px solid var(--line)"
+    >
+      <div class="container">
+        <h2>功能模块</h2>
+        <p class="sub">围绕"资料 → 行动 → 负责人 → 完成 → 周报"的事件驱动闭环，TaskKin Care 提供以下能力：</p>
+        <div class="grid">
+          <div class="card">
+            <div class="ico">🏠</div>
+            <h3>家庭与权限</h3>
+            <p>家庭/被照护者档案、48 小时有效邀请、三种角色（协调人/照护者/查看者）按权限隔离。</p>
+          </div>
+          <div class="card">
+            <div class="ico">✅</div>
+            <h3>任务与认领</h3>
+            <p>任务池、负责人、截止时间、子任务、拒绝、交接与完成证明，让每一项行动都有明确状态。</p>
+          </div>
+          <div class="card">
+            <div class="ico">📅</div>
+            <h3>照护时间线</h3>
+            <p>预约、运输、探视、提醒按类型与成员筛选，同一事件不出现多版本。</p>
+          </div>
+          <div class="card">
+            <div class="ico">🔔</div>
+            <h3>通知控制</h3>
+            <p>按角色展示协同通知，支持设备端提醒和静默时段偏好，避免无关信息打扰成员。</p>
+          </div>
+          <div class="card">
+            <div class="ico">📊</div>
+            <h3>家庭周报</h3>
+            <p>汇总本周完成、待处理和下周预约，可从 App 生成并分享家庭协调周报。</p>
+          </div>
+          <div class="card">
+            <div class="ico">📄</div>
+            <h3>文档与 OCR</h3>
+            <p>上传 PDF/图片后，设备端 OCR 提取候选字段与置信度；仅在人工确认后创建协同任务。</p>
+          </div>
+          <div class="card">
+            <div class="ico">🛡️</div>
+            <h3>审计优先</h3>
+            <p>关键协同写操作写入审计轨迹，协调人可查看任务、成员与报告相关的变更记录。</p>
+          </div>
+          <div class="card">
+            <div class="ico">🌐</div>
+            <h3>三语与无障碍</h3>
+            <p>EN / 中文 / 西班牙语，大字号、屏幕阅读器标签、多时区支持。</p>
+          </div>
+          <div class="card">
+            <div class="ico">☁️</div>
+            <h3>多设备实时同步</h3>
+            <p>云端持久化和实时同步支持家庭多设备协作；设备在离线时可读取最近缓存，并在恢复连接后刷新。</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="how">
+      <div class="container">
+        <h2>使用流程</h2>
+        <p class="sub">从出院到家庭接力，四步建立可追踪的照护闭环。</p>
+        <div class="steps">
+          <div class="step">
+            <h4>建立照护圈</h4>
+            <p>主照护者创建家庭，邀请亲属加入并分配角色。</p>
+          </div>
+          <div class="step">
+            <h4>添加资料与任务</h4>
+            <p>上传出院说明/预约，OCR 提取候选，确认后生成可认领任务。</p>
+          </div>
+          <div class="step">
+            <h4>认领与接力</h4>
+            <p>远程亲属认领、交接或拒绝任务，系统按角色通知。</p>
+          </div>
+          <div class="step">
+            <h4>周报复盘</h4>
+            <p>每周生成简报，看清谁在承担、哪些待办，责任真正被分担。</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section
+      id="shots"
+      style="background: var(--surface); border-top: 1px solid var(--line); border-bottom: 1px solid var(--line)"
+    >
+      <div class="container">
+        <h2>产品截图</h2>
+        <p class="sub">iOS 与 Android 原生应用，围绕日常协作提供一致的家庭数据视图。</p>
+        <div class="shots">
+          <div class="shot">
+            <img src="screenshots/ios-home.png" alt="TaskKin Care iOS 家庭首页" loading="lazy" />
+            <div class="cap">iOS · 首页（照护圈、下一步行动、通知控制）</div>
+          </div>
+          <div class="shot">
+            <img src="screenshots/android-home.png" alt="TaskKin Care Android 家庭首页" loading="lazy" />
+            <div class="cap">Android · 首页（下一步行动与角色通知）</div>
+          </div>
+          <div class="shot">
+            <img src="screenshots/android.png" alt="TaskKin Care Android 登录页" loading="lazy" />
+            <div class="cap">Android · 登录与注册</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="faq">
+      <div class="container">
+        <h2 style="text-align: center">常见问题</h2>
+        <div class="faq">
+          <details>
+            <summary>TaskKin Care 是医疗应用吗？</summary>
+            <p>
+              不是。TaskKin Care
+              是家庭照护协同与信息整理工具，不提供诊断、处方、临床建议或紧急服务。紧急情况请联系当地急救服务（美国
+              911）。
+            </p>
+          </details>
+          <details>
+            <summary>我的健康数据（PHI）安全吗？</summary>
+            <p>
+              TaskKin Care 不面向 PHI 使用，且当前 OCR 在设备端运行。请勿上传诊断、处方或其他 PHI；任何 PHI
+              处理或机构合作前，须先完成 HIPAA/BAA 合规评估。
+            </p>
+          </details>
+          <details>
+            <summary>家庭成员看不到彼此的任务怎么办？</summary>
+            <p>同一家庭的数据通过行级安全策略隔离，家庭成员间实时同步。不同家庭之间数据完全隔离。</p>
+          </details>
+          <details>
+            <summary>支持哪些语言？</summary>
+            <p>英语、中文、西班牙语，界面与通知均按所选语言本地化。</p>
+          </details>
+          <details>
+            <summary>离线能用吗？</summary>
+            <p>断网时 app 读取本地缓存，联网后自动重新同步云端数据。</p>
+          </details>
+        </div>
+      </div>
+    </section>
+
+    <section id="contact">
+      <div class="container">
+        <div class="contact">
+          <h2>联系我们 / 提建议</h2>
+          <p class="small">请告诉我们功能建议、可用性问题，或你希望 TaskKin Care 支持的家庭照护场景。</p>
+          <p class="email"><a href="mailto:Billy.yu@me.com">Billy.yu@me.com</a></p>
+          <p class="small">也可以在邮件里告诉我们：你正在为谁照护、最希望被分担的是哪件事。</p>
+          <div class="cta" style="margin-top: 16px">
+            <a class="btn btn-primary" href="mailto:Billy.yu@me.com?subject=TaskKin%20Care%20反馈">发送反馈</a>
+            <a class="btn btn-ghost" href="privacy-zh.html">隐私政策</a>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <footer>
+      <div class="container">
+        <div class="col">
+          <h5>TaskKin Care</h5>
+          <a href="#">家庭照护协同平台</a>
+          <a href="#features">非 PHI 设计 · 关键操作可追溯</a>
+        </div>
+        <div class="col">
+          <h5>产品</h5>
+          <a href="#features">功能模块</a>
+          <a href="#shots">截图</a>
+          <a href="#faq">FAQ</a>
+        </div>
+        <div class="col">
+          <h5>法律</h5>
+          <a href="privacy-zh.html">隐私政策</a>
+          <a href="privacy-zh.html">数据与安全</a>
+        </div>
+        <div class="col">
+          <h5>联系</h5>
+          <a href="mailto:Billy.yu@me.com">Billy.yu@me.com</a>
+        </div>
+      </div>
+      <div class="container" style="margin-top: 24px; font-size: 12px; color: #7d8c87">
+        © 2026 TaskKin Care · 产品名称仍需完成商标检索
+      </div>
+    </footer>
+  </body>
+</html>

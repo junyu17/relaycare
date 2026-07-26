@@ -1,4 +1,4 @@
--- RelayCare MVP - RLS policies, helper function, RPCs, realtime
+-- TaskKin Care MVP - RLS policies, helper function, RPCs, realtime
 -- 依赖 0001_init_schema.sql 已建表。
 
 -- ============ RLS 启用 ============

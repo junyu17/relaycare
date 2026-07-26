@@ -59,67 +59,25 @@ export async function createTask(args: {
   eventId?: string;
   documentId?: string;
 }) {
-  const { data, error } = await supabase
-    .from("tasks")
-    .insert({
-      household_id: args.householdId,
-      title: args.title,
-      expected_minutes: args.expectedMinutes,
-      due_at: args.dueAt,
-      priority: args.priority,
-      status: "open",
-      requested_by_id: args.actor.id,
-      event_id: args.eventId ?? null,
-      document_id: args.documentId ?? null,
-      subtasks: args.subtasks
-    })
-    .select("id")
-    .single();
+  const { error } = await supabase.rpc("create_task_with_activity", {
+    p_household_id: args.householdId,
+    p_title: args.title,
+    p_expected_minutes: args.expectedMinutes,
+    p_due_at: args.dueAt,
+    p_priority: args.priority,
+    p_subtasks: args.subtasks,
+    p_event_id: args.eventId ?? null,
+    p_document_id: args.documentId ?? null
+  });
   if (error) throw error;
-  await insertAudit({
-    householdId: args.householdId,
-    actorId: args.actor.id,
-    action: "task.created",
-    entityType: "task",
-    entityId: data.id,
-    detail: `${args.actor.name} created task "${args.title}".`
-  });
-  await insertNotification({
-    householdId: args.householdId,
-    audience: "caregiver",
-    severity: args.priority === "critical" ? "critical" : "info",
-    titleKey: args.priority === "critical" ? "notification.title.criticalTask" : "notification.title.newTask",
-    bodyKey: "notification.body.claimableTask",
-    values: { task: args.title, priority: args.priority },
-    entityType: "task",
-    entityId: data.id
-  });
 }
 
 export async function claimTask(args: { householdId: string; taskId: string; actor: Member; taskTitle: string }) {
-  const { error } = await supabase
-    .from("tasks")
-    .update({ status: "claimed", owner_id: args.actor.id, handoff_to_id: null, rejection_reason: null })
-    .eq("id", args.taskId);
+  const { error } = await supabase.rpc("transition_task_with_activity", {
+    p_task_id: args.taskId,
+    p_action: "claim"
+  });
   if (error) throw error;
-  await insertAudit({
-    householdId: args.householdId,
-    actorId: args.actor.id,
-    action: "task.claimed",
-    entityType: "task",
-    entityId: args.taskId,
-    detail: `${args.actor.name} claimed "${args.taskTitle}".`
-  });
-  await insertNotification({
-    householdId: args.householdId,
-    audience: "coordinator",
-    severity: "info",
-    titleKey: "notification.title.taskClaimed",
-    bodyKey: "notification.body.taskClaimed",
-    values: { task: args.taskTitle, name: args.actor.name },
-    entityType: "task",
-    entityId: args.taskId
-  });
 }
 
 export async function rejectTask(args: {
@@ -129,19 +87,12 @@ export async function rejectTask(args: {
   taskTitle: string;
   reason: string;
 }) {
-  const { error } = await supabase
-    .from("tasks")
-    .update({ status: "rejected", rejection_reason: args.reason, owner_id: null })
-    .eq("id", args.taskId);
-  if (error) throw error;
-  await insertAudit({
-    householdId: args.householdId,
-    actorId: args.actor.id,
-    action: "task.rejected",
-    entityType: "task",
-    entityId: args.taskId,
-    detail: `${args.actor.name} declined "${args.taskTitle}": ${args.reason}`
+  const { error } = await supabase.rpc("transition_task_with_activity", {
+    p_task_id: args.taskId,
+    p_action: "reject",
+    p_rejection_reason: args.reason
   });
+  if (error) throw error;
 }
 
 export async function requestHandoff(args: {
@@ -151,29 +102,12 @@ export async function requestHandoff(args: {
   target: Member;
   taskTitle: string;
 }) {
-  const { error } = await supabase
-    .from("tasks")
-    .update({ status: "handoff_requested", handoff_to_id: args.target.id })
-    .eq("id", args.taskId);
+  const { error } = await supabase.rpc("transition_task_with_activity", {
+    p_task_id: args.taskId,
+    p_action: "handoff",
+    p_handoff_to_id: args.target.id
+  });
   if (error) throw error;
-  await insertAudit({
-    householdId: args.householdId,
-    actorId: args.actor.id,
-    action: "task.handoff_requested",
-    entityType: "task",
-    entityId: args.taskId,
-    detail: `${args.actor.name} requested handoff of "${args.taskTitle}" to ${args.target.name}.`
-  });
-  await insertNotification({
-    householdId: args.householdId,
-    audience: args.target.role,
-    severity: "info",
-    titleKey: "notification.title.handoffRequested",
-    bodyKey: "notification.body.handoffRequested",
-    values: { task: args.taskTitle, name: args.target.name },
-    entityType: "task",
-    entityId: args.taskId
-  });
 }
 
 export async function completeTask(args: {
@@ -183,29 +117,12 @@ export async function completeTask(args: {
   taskTitle: string;
   proof: string;
 }) {
-  const { error } = await supabase
-    .from("tasks")
-    .update({ status: "completed", proof: args.proof })
-    .eq("id", args.taskId);
+  const { error } = await supabase.rpc("transition_task_with_activity", {
+    p_task_id: args.taskId,
+    p_action: "complete",
+    p_proof: args.proof
+  });
   if (error) throw error;
-  await insertAudit({
-    householdId: args.householdId,
-    actorId: args.actor.id,
-    action: "task.completed",
-    entityType: "task",
-    entityId: args.taskId,
-    detail: `${args.actor.name} completed "${args.taskTitle}".`
-  });
-  await insertNotification({
-    householdId: args.householdId,
-    audience: "coordinator",
-    severity: "info",
-    titleKey: "notification.title.taskCompleted",
-    bodyKey: "notification.body.taskCompleted",
-    values: { task: args.taskTitle, name: args.actor.name },
-    entityType: "task",
-    entityId: args.taskId
-  });
 }
 
 export async function addTimelineEvent(args: {

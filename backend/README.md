@@ -1,4 +1,4 @@
-# RelayCare Backend (Supabase)
+# TaskKin Care Backend (Supabase)
 
 方案 C 的后端：Supabase（Postgres + Auth + Realtime）。解决"换手机/删 app 数据还在"和"家庭多成员共享"。
 
@@ -9,6 +9,9 @@ backend/supabase/migrations/
   0001_init_schema.sql     # 表结构（households/members/tasks/events/documents/audit 等）
   0002_rls_and_rpc.sql     # RLS 家庭隔离 + current_household_id + create_household/accept_invite RPC + realtime
   0003_seed_roles.sql      # coordinator/caregiver/viewer 角色权限种子
+  0004_storage.sql         # 私有文档 bucket 与存储路径
+  0005_role_rbac.sql       # 数据库层三角色最小权限策略
+  0006_task_activity_rpc.sql # P0 任务流、审计、通知原子事务 RPC
 ```
 
 ## 数据模型 → Postgres 映射
@@ -27,14 +30,16 @@ backend/supabase/migrations/
 
 ## 安全分层（重要）
 
-- **DB 层（RLS）**：按 `household_id` 隔离。用户只能读写自己所属家庭的数据。家庭 A 绝对看不到家庭 B。
-- **App 层（hasPermission）**：角色权限（coordinator 能改角色、viewer 只读等）在 app 端 `domain.ts` 强制。
-- MVP 取舍：DB 层不做角色级 RLS（策略会过于复杂），靠 app 层 + RLS 家庭隔离组合。后续如需更强可加 DB 角色策略。
+- **DB 层（RLS）**：按 `household_id` 隔离，并在 `0005` 强制 coordinator / caregiver / viewer 的最小读写边界。家庭 A 绝对看不到家庭 B；Viewer 不能通过 API 读取任务、文件或审计记录。
+- **App 层（hasPermission）**：提供对应的界面与交互保护；不是唯一的授权边界。
+- P0 任务创建、认领、拒绝、交接、完成由 `0006` 的事务 RPC 写入任务、审计和通知，避免该核心闭环出现部分写入。文档确认与任务创建仍是后续应收敛的路径。
 
 ## 关键 RPC
 
 - `create_household(...)`：注册用户一次性建家庭 + 自己的 coordinator 成员 + 通知偏好 + 审计。绕过 RLS 解决"首条 member 写入"问题。
 - `accept_invite(p_member_id, p_display_name)`：被邀请人注册后凭邀请链接加入家庭，校验 pending + 未过期。
+- `create_task_with_activity(...)`：原子创建任务、审计记录和照护者通知。
+- `transition_task_with_activity(...)`：原子认领、拒绝、交接或完成任务，并生成对应审计和角色通知。
 
 ## 实时同步
 
@@ -48,7 +53,7 @@ npx supabase login
 npx supabase link --project-ref <your-project-ref>
 npx supabase db push            # 执行 migrations
 
-# 方式二：Supabase Dashboard → SQL Editor → 依次粘贴执行 0001/0002/0003
+# 方式二：Supabase Dashboard → SQL Editor → 按编号依次执行 0001 到 0006
 ```
 
-> migrations **尚未在任何实例上执行验证**（开发实例待定，见 PROGRESS.md）。实例就绪后需跑一次并核对无报错。
+> 新 Supabase 项目已完成 `0001` 到 `0006` 的迁移与角色 API 验收。不要只执行旧版 `all_in_one.sql`，它没有包含 storage、RBAC 或原子任务 RPC。

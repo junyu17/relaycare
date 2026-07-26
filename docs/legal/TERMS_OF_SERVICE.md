@@ -4,11 +4,13 @@
 
 ## 1. Acceptance
 
-By creating an account or using RelayCare, you agree to these Terms. If you do not agree, do not use the service.
+By creating an account or using TaskKin Care, you agree to these Terms. If you do not agree, do not use the service.
 
 ## 2. Service Description
 
-RelayCare is a family care coordination and information-organization tool. It helps families distribute care tasks, share timelines and documents, and coordinate notifications. **RelayCare is not a medical device, medical service, emergency service, or a substitute for professional medical advice.**
+TaskKin Care is a family care coordination and information-organization tool. It helps families distribute care tasks, share timelines and documents, and coordinate notifications. **TaskKin Care is not a medical device, medical service, emergency service, or a substitute for professional medical advice.**
+
+TaskKin Care is developed and operated by Jun Yu, an independent developer.
 
 ## 3. Eligibility
 
@@ -32,7 +34,7 @@ You agree not to:
 
 ## 6. Non-Medical Nature and Disclaimers
 
-RelayCare provides coordination and organization only. It does not diagnose, treat, cure, or prevent any condition. Always seek the advice of qualified medical professionals. In an emergency, contact your local emergency services (e.g., 911 in the US) immediately. See `CLINICAL_DISCLAIMER.md` for details.
+TaskKin Care provides coordination and organization only. It does not diagnose, treat, cure, or prevent any condition. Always seek the advice of qualified medical professionals. In an emergency, contact your local emergency services (e.g., 911 in the US) immediately. See `CLINICAL_DISCLAIMER.md` for details.
 
 ## 7. Documents and AI/OCR
 
@@ -44,7 +46,7 @@ The MVP is offered at no charge during the pilot. Future subscription plans (e.g
 
 ## 9. Intellectual Property
 
-You retain ownership of the content you submit. You grant RelayCare a limited license to process your content solely to provide the service.
+You retain ownership of the content you submit. You grant TaskKin Care a limited license to process your content solely to provide the service.
 
 ## 10. Termination
 
@@ -52,7 +54,7 @@ You may delete your household data at any time. We may suspend or terminate acce
 
 ## 11. Limitation of Liability
 
-To the maximum extent permitted by law, RelayCare is provided "as is" without warranties, and our liability is limited as permitted by applicable law. The service is not liable for medical decisions, missed care actions, or outcomes based on coordination content.
+To the maximum extent permitted by law, TaskKin Care is provided "as is" without warranties, and our liability is limited as permitted by applicable law. The service is not liable for medical decisions, missed care actions, or outcomes based on coordination content.
 
 ## 12. Dispute Resolution
 
@@ -64,4 +66,4 @@ We may update these Terms and will notify users of material changes.
 
 ## 14. Contact
 
-Contact the product lead for questions about these Terms (channel to be published before pilot launch).
+For questions about these Terms, email [Billy.yu@me.com](mailto:Billy.yu@me.com).

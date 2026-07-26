@@ -1,20 +1,22 @@
 {
   "expo": {
-    "name": "RelayCare MVP",
-    "slug": "relaycare-mvp",
+    "name": "TaskKin Care",
+    "slug": "taskkin-care",
     "version": "0.1.0",
+    "icon": "./assets/icon.png",
     "orientation": "portrait",
-    "scheme": "relaycare",
+    "scheme": "taskkin-care",
     "userInterfaceStyle": "light",
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "care.relay.mvp"
+      "bundleIdentifier": "cd.cc.relaycare"
     },
     "android": {
       "adaptiveIcon": {
+        "foregroundImage": "./assets/icon.png",
         "backgroundColor": "#f7faf7"
       },
-      "package": "care.relay.mvp"
+      "package": "care.taskkincare.app"
     }
   }
 }

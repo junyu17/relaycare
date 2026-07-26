@@ -35,7 +35,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(isSupabaseConfigured);
   const [pendingInviteId, setPendingInviteId] = useState<string | null>(null);
 
-  // Deep link: relaycare://invite?member=<id> -> 捕获邀请 member_id，登录/注册后加入
+  // Deep link: taskkin-care://invite?member=<id> -> 捕获邀请 member_id，登录/注册后加入
   useEffect(() => {
     const handleUrl = (url: string | null) => {
       if (!url) return;

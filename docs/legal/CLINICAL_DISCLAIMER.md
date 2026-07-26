@@ -4,7 +4,7 @@
 
 ## 1. Not a Medical Service
 
-RelayCare is a **family care coordination and information-organization tool**. It is not:
+TaskKin Care is a **family care coordination and information-organization tool**. It is not:
 
 - A medical device or diagnostic tool.
 - A telehealth or medical advice service.
@@ -12,13 +12,13 @@ RelayCare is a **family care coordination and information-organization tool**. I
 - An emergency or triage service.
 - A substitute for physicians, nurses, pharmacists, caregivers, or emergency responders.
 
-RelayCare does not diagnose conditions, recommend treatments, interpret symptoms, or make clinical decisions.
+TaskKin Care does not diagnose conditions, recommend treatments, interpret symptoms, or make clinical decisions.
 
 ## 2. Emergency Guidance
 
-**In a medical emergency, contact your local emergency services immediately (911 in the US) or go to the nearest emergency facility. Do not rely on RelayCare for urgent situations.**
+**In a medical emergency, contact your local emergency services immediately (911 in the US) or go to the nearest emergency facility. Do not rely on TaskKin Care for urgent situations.**
 
-RelayCare tasks, reminders, and notifications are coordination aids. A missed or delayed notification must never be treated as clinical guidance. If you are unsure whether a situation is urgent, contact a qualified medical professional or emergency services.
+TaskKin Care tasks, reminders, and notifications are coordination aids. A missed or delayed notification must never be treated as clinical guidance. If you are unsure whether a situation is urgent, contact a qualified medical professional or emergency services.
 
 ## 3. Information Accuracy
 
@@ -30,7 +30,7 @@ Uploaded documents are shared for family coordination. OCR-extracted candidate f
 
 ## 5. Third-Party Information
 
-Appointment details, instructions, or documents originating from clinics, pharmacies, or other third parties may be mis-transcribed or outdated when entered into RelayCare. Verify with the original source before acting.
+Appointment details, instructions, or documents originating from clinics, pharmacies, or other third parties may be mis-transcribed or outdated when entered into TaskKin Care. Verify with the original source before acting.
 
 ## 6. Boundary Statement (MVP Scope)
 

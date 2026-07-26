@@ -1,6 +1,154 @@
-# RelayCare MVP QA Log
+# TaskKin Care MVP QA Log
 
 This file records delivery checks for the local MVP scaffold.
+
+## 2026-07-26
+
+### Stage: GitHub Pages deployment workflow
+
+Original requirement match:
+
+- Added a GitHub Pages workflow that publishes only the public static site in `site/` after changes to that site or the workflow itself reach `main`.
+- Used the official GitHub Pages configure, artifact-upload, and deploy actions. It does not publish the React Native source, Supabase migrations, or environment files.
+
+Independent quality review:
+
+- Restricted deployment triggers to the public-site scope while retaining a manual dispatch option for a deliberate republish.
+- Used a separate build and deployment job, the `github-pages` environment, and the permissions required by the official deployment action.
+
+Actual artifact verification:
+
+- Prettier formatting, Ruby YAML parsing, deployment-action and `site/`-path checks, and `git diff --check` all passed.
+- The local repository has no configured Git remote, so a real GitHub Actions deployment has not yet been run.
+
+### Stage: Apple identifier and individual-developer identity
+
+Original requirement match:
+
+- Set the iOS Bundle Identifier to the Apple-registered identifier supplied by the operator: `cd.cc.relaycare`. The legacy technical namespace remains valid and is not public brand copy.
+- Identified the operator as Jun Yu, an independent developer, in the public privacy notices and legal drafts; retained `Billy.yu@me.com` as the public privacy contact.
+- Removed the unsupported requirement to publish a personal mailing address for the current California-focused release preparation. The pages still require an effective date and legal review before public release.
+
+Independent quality review:
+
+- Kept the Android package identifier unchanged because no Android registration identifier was supplied.
+- Kept public notices clear that this is an independent developer operation and did not invent a company name or postal address.
+- A separate release decision remains necessary before enabling EU distribution as a DSA trader, where Apple may require trader contact information to be displayed.
+
+Actual artifact verification:
+
+- `npx expo config --type public --json` confirmed the iOS Bundle Identifier is exactly `cd.cc.relaycare`; the Android package remains `care.taskkincare.app`.
+- The six public HTML pages passed local-link, language-switcher, public-contact, operator-name, and obsolete-address-requirement checks.
+- `npx expo export --platform web` completed successfully. `npm run format:check`, `npm run typecheck`, `npm run lint`, `npm test` (17 tests), and `git diff --check` all passed.
+
+### Stage: narrow-screen authentication layout
+
+Original requirement match:
+
+- Corrected a narrow-screen overflow found during visual QA so the sign-in and onboarding form controls use the available viewport width.
+
+Independent quality review:
+
+- Added explicit stretching and a centered maximum content width without changing authentication behavior, controls, or accessibility labels.
+
+Actual artifact verification:
+
+- Reloaded the local web app at a 319 px viewport and visually confirmed the TaskKin Care title, subtitle, sign-in/sign-up control, both inputs, and primary action are fully visible without horizontal clipping.
+- Re-ran formatting, TypeScript, lint, unit tests (17 tests), and whitespace-diff checks after the layout change.
+
+### Stage: TaskKin Care product rename
+
+Original requirement match:
+
+- Renamed all current product-facing copy and maintained documentation from RelayCare to `TaskKin Care` after App Store name registration.
+- Updated Expo display name, slug, URI scheme, iOS bundle identifier, Android package identifier, package name, localized report/activity text, storage keys, deep-link documentation, website metadata, three-language privacy pages, and public screenshots.
+- Kept the original charter PDF filename and the existing repository path unchanged where they are historical filesystem references, so those documented source links do not break.
+
+Independent quality review:
+
+- Verified product screenshots show `TaskKin Care` in their app headers and preserve the original non-PHI state and layout.
+- Verified feedback `mailto:` subjects use percent-encoded spaces after the name change.
+
+Actual artifact verification:
+
+- Re-ran the source scan to confirm that remaining RelayCare text is limited to historical source-file or workspace paths.
+- Re-ran application, static-site, formatting, and Expo configuration checks after the rename.
+
+### Stage: external contact and independent-developer wording
+
+Original requirement match:
+
+- Replaced every public-site and public legal-document contact address with `Billy.yu@me.com`, including feedback, privacy requests, California privacy requests, and Terms contact.
+- Clarified that TaskKin Care is developed and operated by an independent developer. The privacy notice no longer implies that a registered company is required; it requests the independent developer's legal name or a registered business name before public launch.
+
+Independent quality review:
+
+- Confirmed the six public HTML pages retain their language links and localized privacy wording after the contact changes.
+- Kept the requirement for a legal name, mailing address, effective date, and legal review. An independent developer can publish, but a privacy notice should still identify the responsible operator and a lawful contact address.
+
+Actual artifact verification:
+
+- Searched all public pages and public legal documents for the prior public email address after replacement.
+- Re-ran formatting, TypeScript, lint, test, and static public-site validation after the content update.
+
+### Stage: public-site and release-identity preparation
+
+Original requirement match:
+
+- Set the default public home page and privacy notice to English, with dedicated Chinese and Spanish versions linked by a persistent `EN / 中文 / ES` control on every public page.
+- Adopted `site/icons/icon-1.svg` as the public brand icon and generated `assets/icon.png` from the same asset for Expo's iOS and Android app icon configuration.
+- Removed user-visible MVP labeling from app header copy, localized strings, public site copy, product screenshots, display name, Expo slug, and unregistered mobile package identifiers. The non-PHI product boundary remains explicit.
+- Added a California Privacy Notice and Notice at Collection in English, Chinese, and Spanish. It describes categories, purposes, no sale/share statement, request path, authorized-agent handling, non-discrimination, and the sensitive-information limitation statement.
+- Kept the required formal-release placeholders visible: legal operator name, business mailing address, effective date, and legal review. No diagnosis, prescription, payment, or deep EHR feature was added.
+
+Independent quality review:
+
+- Verified all six public pages contain exactly one three-language switcher, and that local links and in-page anchors resolve.
+- Replaced the old product screenshots that showed the removed MVP label with the same product states using `Non-PHI` wording; visually inspected both replacement assets.
+- Rendered the English home, English privacy notice, Chinese home, and Spanish home with WebKit Quick Look at 1440 px. Confirmed navigation, language control, icon, hero screenshot, text wrapping, and first content section have no clipping or overlap.
+- Reviewed the generated 1024x1024 app icon and Expo public configuration. The final iOS/Android package identifier remains a pre-submission configuration item to validate against the operator's registered namespace.
+
+Actual artifact verification:
+
+- `npm run typecheck` passed.
+- `npm run lint` passed.
+- `npm test` passed: 17/17 tests.
+- `npm run format:check` passed.
+- `npx expo export --platform web --output-dir /tmp/relaycare-web-export-20260726` passed.
+- `git diff --check` passed.
+- The public-site link/anchor/language-control validator passed for `index.html`, `index-zh.html`, `index-es.html`, `privacy.html`, `privacy-zh.html`, and `privacy-es.html`.
+
+Remaining formal-release gates:
+
+- Legal operator name, business mailing address, privacy-notice effective date, and legal review are required before public launch.
+- Confirm the final App Store/Google Play bundle namespace is owned and available before creating store records; the current identifier is a non-final placeholder.
+
+### Stage: PM audit, reliability fixes, and native release revalidation
+
+Original requirement match:
+
+- Re-read the project charter and verified the requested non-PHI MVP boundary: household and role permissions, task claim/reject/handoff/complete, timeline, role-aware notifications, weekly report, basic document upload, and audit trail.
+- Confirmed no diagnosis, prescription, payment, emergency triage, or deep EMR/EHR workflow was added.
+- Added a native system-share action to the weekly report so a coordinator or caregiver can forward the generated coordination-only report from the same App.
+
+Independent quality review:
+
+- Found and fixed unhandled cloud-action failures. Task, document, role, invitation, timeline, notification-preference, and report audit writes now surface a localized retry message instead of failing silently; a handoff picker remains open until the cloud write succeeds.
+- Found the prior RLS implementation enforced household isolation only. Added migration `0005_role_rbac.sql` to enforce coordinator/caregiver/viewer least privilege at the database and storage boundaries; Viewers cannot query tasks, documents, object storage, notification preferences for other members, or audit data through the API.
+- Updated the backend guide and deprecated the stale `all_in_one.sql` entry point, which ends at migration 0003 and omits storage and RBAC protection.
+- Aligned Expo SDK packages with SDK 57 and refreshed iOS Pods. Fixed a local Hermes compiler executable-bit issue that blocked Release bundling.
+- Remaining release gate: document confirmation, task creation, audit, and notification are still composed as multiple client requests. The P0 task lifecycle itself is now covered by atomic RPCs and live RLS acceptance.
+
+Actual artifact verification:
+
+- `npm run typecheck` passed.
+- `npm run lint` passed.
+- `npm test` passed: 17/17 tests.
+- `npm run format:check` passed.
+- `npx expo install --check` passed.
+- iOS Release build passed with `npx expo run:ios --configuration Release --device "iPhone 17"` after restoring the Hermes compiler execute permission.
+- Verified the installed Release app contains `main.jsbundle`, cold-launches on an iPhone 17 simulator, renders the default-English sign-in screen, and has no application-level error/exception log entries. Screenshot: `docs/qa-pm-audit-ios-release-final.png`.
+- `npm audit` remains unverified because the configured npm mirror does not implement the audit endpoint; this is an environment limitation, not a clean security result.
 
 ## 2026-07-22
 
@@ -388,7 +536,7 @@ Actual artifact verification after fix:
 - `npx tsc --noEmit`: **0 errors** (was failing before fix).
 - `npx expo export --platform web --output-dir web-build`: **passed**, bundle `_expo/static/js/web/index-...js` = 984KB, `index.html` + `metadata.json` emitted.
 - Static build served at `http://127.0.0.1:8082/` (python `http.server`), HTTP 200.
-- Headless Chrome (`--headless=new`) render smoke test: DOM dump 24,767 bytes; rendered text contains `RelayCare`, `Non-PHI family coordination MVP`, care circle with all four members and roles (Maya/coordinator, Eli/caregiver, Sam/caregiver, Aunt Lee/viewer), non-PHI boundary copy, metrics (`3 Open tasks`, `0 Completed`, `33% Owner rate`, `1 Critical open`), `Next actions`, and `Claim open task: Arrange transport for follow-up appointment`. Desktop 1280x900 and mobile 390x844 screenshots captured to `/tmp/relaycare-qa/`.
+- Headless Chrome (`--headless=new`) render smoke test: DOM dump 24,767 bytes; rendered text contains `TaskKin Care`, `Non-PHI family coordination MVP`, care circle with all four members and roles (Maya/coordinator, Eli/caregiver, Sam/caregiver, Aunt Lee/viewer), non-PHI boundary copy, metrics (`3 Open tasks`, `0 Completed`, `33% Owner rate`, `1 Critical open`), `Next actions`, and `Claim open task: Arrange transport for follow-up appointment`. Desktop 1280x900 and mobile 390x844 screenshots captured to `/tmp/relaycare-qa/`.
 - i18n key presence check: all newly referenced keys (`audit.detail.report.generated`, `notification.title.reportGenerated`, `notification.body.reportGenerated`, `home.actionAcceptHandoff`, `home.nextActions`, `member.invitedCaregiver/invitedViewer`, `tasks.acceptHandoff/declineHandoff`, `handoff.title/empty`) exist; sample key verified across en/zh/es.
 - Static server stopped after testing.
 
@@ -424,8 +572,8 @@ Actual artifact verification:
 - `npx eslint .`: 0 errors, 0 warnings.
 - `npx prettier --check .`: all files pass.
 - `npx expo export --platform web --output-dir web-build`: passed, bundle 987KB, `index.html` + `metadata.json` emitted.
-- Headless Chrome (`--headless=new --virtual-time-budget=6000`) render smoke: DOM 24,767 bytes; rendered text contains `RelayCare`, `Non-PHI`, `coordinator`, `Maya`, `Next actions`; desktop 1280x900 screenshot captured to `/tmp/relaycare-qa/desktop.png` (91KB). Hydration lazy initializer confirmed working at runtime.
-- `git log --oneline -1`: `469ff27 chore: initial commit of RelayCare MVP (A2+B3+C1 baseline)`; working tree clean.
+- Headless Chrome (`--headless=new --virtual-time-budget=6000`) render smoke: DOM 24,767 bytes; rendered text contains `TaskKin Care`, `Non-PHI`, `coordinator`, `Maya`, `Next actions`; desktop 1280x900 screenshot captured to `/tmp/relaycare-qa/desktop.png` (91KB). Hydration lazy initializer confirmed working at runtime.
+- `git log --oneline -1`: `469ff27 chore: initial commit of TaskKin Care MVP (A2+B3+C1 baseline)`; working tree clean.
 
 Double self-check:
 
@@ -539,7 +687,7 @@ Steps & results:
 - expo prebuild --platform ios: success (ios/ generated, dariyd autolinked).
 - pod install: success after fixing create-stub-xcframework.sh permission (chmod +x). 93 dependencies, 92 pods installed; `react-native-text-recognition iOS 13.0` in the install list (dariyd autolinked). Hermes downloaded from Maven (CDN specs reachable; RN C++ deps prebuilt).
 - xcodebuild (iphonesimulator Debug): **BUILD SUCCEEDED** after `find node_modules -name '*.sh' -exec chmod +x {} +` (npm had dropped exec bits on react-native/scripts/xcode/with-environment.sh etc., same class of issue previously noted in PROGRESS).
-- App artifact: RelayCareMVP.app built; dariyd compiled and linked.
+- App artifact: TaskKinCare.app built; dariyd compiled and linked.
 
 Root cause of the permission failures: npm install did not preserve exec bits on some .sh scripts (node_modules/.bin, expo-modules-jsi, react-native/scripts). Fixed by chmod +x all node_modules .sh.
 
@@ -550,3 +698,68 @@ Verification status:
 - Runtime OCR end-to-end (upload doc -> recognizeText -> candidate fields): pending cloud-mode login interaction (app starts at AuthScreen with Supabase configured).
 
 Open items: runtime OCR end-to-end test (needs cloud login + doc upload); email confirmation (user in progress); pilot gating.
+
+---
+
+## 2026-07-26 - New Supabase project configuration and migration verification
+
+Scope: replace the mobile client endpoint with the newly supplied Supabase project while keeping database credentials and secret keys out of the application bundle; repair the failed storage migration by applying its prerequisites.
+
+Requirement match:
+
+- Updated the ignored local `.env` with the new project URL and publishable client key only.
+- Kept the secret key and database password out of source control, `.env.example`, and all `EXPO_PUBLIC_` settings.
+- Documented that `0004_storage.sql` depends on the `public.documents` table created by `0001_init_schema.sql`.
+- Deployed migrations in required order: `0001_init_schema.sql`, `0002_rls_and_rpc.sql`, `0003_seed_roles.sql`, `0004_storage.sql`, `0005_role_rbac.sql`.
+
+Independent verification:
+
+- New project was empty before deployment; each migration executed in its own database transaction and completed successfully.
+- Confirmed all 9 application tables have RLS enabled, 22 public policies and 3 `storage.objects` policies exist, and the private `documents` storage bucket exists.
+- Confirmed the required household, invitation, and role helper functions exist.
+- REST smoke test using the mobile publishable key returned HTTP 200 and the three expected roles: `caregiver`, `coordinator`, `viewer`.
+- Rebuilt, installed, and cold-launched the iPhone 17 Release app. The embedded `main.jsbundle` contains the new project endpoint and does not contain the supplied server secret; the rendered cloud sign-in screen is captured in `docs/qa-new-supabase-release.png`.
+
+Role-session RLS acceptance:
+
+- Created verified temporary Coordinator, Caregiver, and Viewer accounts through the server-side admin interface for testing only; this avoids sending synthetic email and keeps the service key out of the mobile application.
+- Coordinator successfully created a household, added pending Caregiver/Viewer members, and created a task.
+- Caregiver successfully read and claimed the task.
+- Viewer successfully read household members and timeline data, returned no task records, and was denied task creation.
+- Deleted the temporary household and all temporary accounts after the test; a follow-up database query confirmed zero temporary users and households remained.
+
+Atomic task workflow acceptance:
+
+- Deployed `0006_task_activity_rpc.sql`. The RPCs run as `SECURITY INVOKER`, so existing role RLS remains the authorization boundary.
+- Verified an entire task lifecycle through real JWT sessions: create, claim, reject, claim, handoff, accept handoff, and complete.
+- Confirmed the completed task retained the expected owner and proof and that all 7 lifecycle audit records plus role notifications were committed. Temporary test accounts and household data were deleted after verification.
+- Rebuilt, installed, and cold-launched the iPhone 17 Release app with the RPC client code. The embedded bundle contains the new RPC name and Supabase endpoint but not the supplied server secret. Screenshot: `docs/qa-atomic-rpc-release.png`.
+
+Residual acceptance gate:
+
+- Verify real-email sign-up, confirmation, and delivery on physical devices before pilot. The new project rate-limited synthetic registration requests, which is expected service protection but means email delivery is not covered by this automated audit.
+- Make document confirmation and document-derived task creation atomic before a pilot; file upload itself cannot share the database transaction and needs compensating cleanup on a database-write failure.
+
+---
+
+## 2026-07-26 - Website, icon, and privacy-content audit
+
+Requirement match:
+
+- Reviewed all five supplied SVG icon candidates, the public homepage, and the privacy statement.
+- Removed the opening effective-date/draft sentence from both `site/privacy.html` and its Markdown source.
+- Replaced the homepage's generic brand swatch with the selected heart-and-care-path icon and added a real, error-free iOS App preview in the first viewport.
+
+Independent usability and content review:
+
+- Removed two unusable screenshots that exposed an Expo console error or an unrelated Android launcher. The homepage now uses only reviewed iOS home, Android home, and Android authentication screenshots.
+- Kept mobile navigation accessible through horizontal scrolling rather than hiding every navigation link.
+- Reduced interface card/button corner radii to 8px and added visible keyboard focus treatment.
+- Rewrote claims about PHI, OCR, audit logs, notifications, and data handling to match the implementation. The policy now says the MVP is not intended for PHI, does not claim automatic PHI detection, identifies Supabase as the infrastructure provider, and limits audit language to key coordination writes.
+- This remains a pre-launch policy draft requiring qualified legal review; the California Attorney General and FTC both stress that privacy notices must accurately describe actual collection, use, sharing, and consumer-request practices.
+
+Actual artifact verification:
+
+- Prettier and `git diff --check` passed.
+- Every local HTML asset reference resolves; both local pages returned HTTP 200 during preview.
+- Rendered desktop previews showed no clipping or overlap and no debug-error imagery.

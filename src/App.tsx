@@ -2,7 +2,18 @@ import { Ionicons } from "@expo/vector-icons";
 import * as DocumentPicker from "expo-document-picker";
 import { StatusBar } from "expo-status-bar";
 import { useEffect, useMemo, useState } from "react";
-import { Alert, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import {
+  Alert,
+  Modal,
+  Platform,
+  Pressable,
+  ScrollView,
+  Share,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View
+} from "react-native";
 
 import { uniqueId } from "./lib/id";
 import { getStoredLanguage, initStoredLanguage, setStoredLanguage } from "./lib/language";
@@ -219,10 +230,20 @@ function LocalApp(props: { cloud?: CloudProps } = {}) {
     action();
   };
 
+  const reportCloudActionFailure = () => {
+    showMessage(t("alerts.actionFailedTitle"), t("alerts.actionFailedBody"));
+  };
+
+  const runCloudAction = (action: Promise<unknown>) => {
+    void action.catch(reportCloudActionFailure);
+  };
+
   const onClaim = (task: Task) => {
     runIfAllowed("task:claim", () => {
       if (cloud) {
-        cloudActions.claimTask({ householdId: cloud.householdId, taskId: task.id, actor, taskTitle: task.title });
+        runCloudAction(
+          cloudActions.claimTask({ householdId: cloud.householdId, taskId: task.id, actor, taskTitle: task.title })
+        );
       } else {
         setState((current) => claimTask(current, task.id, actor, t));
       }
@@ -232,13 +253,15 @@ function LocalApp(props: { cloud?: CloudProps } = {}) {
   const onReject = (task: Task) => {
     runIfAllowed("task:claim", () => {
       if (cloud) {
-        cloudActions.rejectTask({
-          householdId: cloud.householdId,
-          taskId: task.id,
-          actor,
-          taskTitle: task.title,
-          reason: "Declined"
-        });
+        runCloudAction(
+          cloudActions.rejectTask({
+            householdId: cloud.householdId,
+            taskId: task.id,
+            actor,
+            taskTitle: task.title,
+            reason: "Declined"
+          })
+        );
       } else {
         setState((current) => rejectTask(current, task.id, actor, t));
       }
@@ -256,30 +279,35 @@ function LocalApp(props: { cloud?: CloudProps } = {}) {
 
     runIfAllowed("task:handoff", () => {
       if (cloud) {
-        cloudActions.requestHandoff({
-          householdId: cloud.householdId,
-          taskId: handoffTask.id,
-          actor,
-          target,
-          taskTitle: handoffTask.title
-        });
+        void cloudActions
+          .requestHandoff({
+            householdId: cloud.householdId,
+            taskId: handoffTask.id,
+            actor,
+            target,
+            taskTitle: handoffTask.title
+          })
+          .then(() => setHandoffTaskId(null))
+          .catch(reportCloudActionFailure);
       } else {
         setState((current) => requestHandoff(current, handoffTask.id, actor, target, t));
+        setHandoffTaskId(null);
       }
-      setHandoffTaskId(null);
     });
   };
 
   const onComplete = (task: Task) => {
     runIfAllowed("task:complete", () => {
       if (cloud) {
-        cloudActions.completeTask({
-          householdId: cloud.householdId,
-          taskId: task.id,
-          actor,
-          taskTitle: task.title,
-          proof: "Completed"
-        });
+        runCloudAction(
+          cloudActions.completeTask({
+            householdId: cloud.householdId,
+            taskId: task.id,
+            actor,
+            taskTitle: task.title,
+            proof: "Completed"
+          })
+        );
       } else {
         setState((current) => completeTask(current, task.id, actor, t));
       }
@@ -297,30 +325,36 @@ function LocalApp(props: { cloud?: CloudProps } = {}) {
       return;
     }
 
-    const result = await DocumentPicker.getDocumentAsync({
-      copyToCacheDirectory: false,
-      multiple: false,
-      type: ["application/pdf", "image/*"]
-    });
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        copyToCacheDirectory: false,
+        multiple: false,
+        type: ["application/pdf", "image/*"]
+      });
 
-    if (!result.canceled) {
-      const asset = result.assets[0];
-      const name = asset?.name ?? t("task.dynamic.uploadedReview");
-      if (cloud) {
-        const storagePath = `${cloud.householdId}/${uniqueId()}-${name}`;
-        const fileBody = asset?.uri ? await (await fetch(asset.uri)).blob() : undefined;
-        cloudActions.addDocument({
-          householdId: cloud.householdId,
-          actor,
-          name,
-          source: "manual_upload",
-          fileUri: asset?.uri,
-          fileBody,
-          storagePath: fileBody ? storagePath : undefined
-        });
-      } else {
-        setState((current) => addDocument(current, actor, name, "manual_upload", t));
+      if (!result.canceled) {
+        const asset = result.assets[0];
+        const name = asset?.name ?? t("task.dynamic.uploadedReview");
+        if (cloud) {
+          const storagePath = `${cloud.householdId}/${uniqueId()}-${name}`;
+          const fileBody = asset?.uri ? await (await fetch(asset.uri)).blob() : undefined;
+          runCloudAction(
+            cloudActions.addDocument({
+              householdId: cloud.householdId,
+              actor,
+              name,
+              source: "manual_upload",
+              fileUri: asset?.uri,
+              fileBody,
+              storagePath: fileBody ? storagePath : undefined
+            })
+          );
+        } else {
+          setState((current) => addDocument(current, actor, name, "manual_upload", t));
+        }
       }
+    } catch {
+      reportCloudActionFailure();
     }
   };
 
@@ -336,12 +370,14 @@ function LocalApp(props: { cloud?: CloudProps } = {}) {
     }
 
     if (cloud) {
-      cloudActions.addDocument({
-        householdId: cloud.householdId,
-        actor,
-        name: t("document.sampleName"),
-        source: "sample"
-      });
+      runCloudAction(
+        cloudActions.addDocument({
+          householdId: cloud.householdId,
+          actor,
+          name: t("document.sampleName"),
+          source: "sample"
+        })
+      );
     } else {
       setState((current) => addDocument(current, actor, t("document.sampleName"), "sample", t));
     }
@@ -351,15 +387,17 @@ function LocalApp(props: { cloud?: CloudProps } = {}) {
     runIfAllowed("document:upload", () => {
       if (cloud) {
         const doc = state.documents.find((d) => d.id === documentId);
-        cloudActions.confirmDocumentAndCreateTask({
-          householdId: cloud.householdId,
-          actor,
-          documentId,
-          documentName: doc?.name ?? "",
-          taskTitle: doc?.suggestedAction ?? "Confirm document requirements",
-          dueAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
-          subtasks: ["Review document", "Add result to timeline"]
-        });
+        runCloudAction(
+          cloudActions.confirmDocumentAndCreateTask({
+            householdId: cloud.householdId,
+            actor,
+            documentId,
+            documentName: doc?.name ?? "",
+            taskTitle: doc?.suggestedAction ?? "Confirm document requirements",
+            dueAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+            subtasks: ["Review document", "Add result to timeline"]
+          })
+        );
       } else {
         setState((current) => confirmDocumentAndCreateTask(current, documentId, actor, t));
       }
@@ -376,17 +414,31 @@ function LocalApp(props: { cloud?: CloudProps } = {}) {
         es: buildLocalizedReportText(snapshot, "es", makeTranslator("es"))
       };
       if (cloud) {
-        cloudActions.recordReportGenerated({
-          householdId: cloud.householdId,
-          actor,
-          openCount: snapshot.tasks.filter((task) => task.status !== "completed").length
-        });
+        runCloudAction(
+          cloudActions.recordReportGenerated({
+            householdId: cloud.householdId,
+            actor,
+            openCount: snapshot.tasks.filter((task) => task.status !== "completed").length
+          })
+        );
       } else {
         setState(snapshot);
       }
       setReportText(localized);
       setReportVisible(true);
     });
+  };
+
+  const onShareReport = async () => {
+    if (!report) {
+      return;
+    }
+
+    try {
+      await Share.share({ title: t("report.modalTitle"), message: report });
+    } catch {
+      reportCloudActionFailure();
+    }
   };
 
   const onUpdateMemberRole = (memberId: string, role: Role) => {
@@ -398,13 +450,15 @@ function LocalApp(props: { cloud?: CloudProps } = {}) {
 
       if (cloud) {
         const member = state.members.find((m) => m.id === memberId);
-        cloudActions.updateMemberRole({
-          householdId: cloud.householdId,
-          actor,
-          memberId,
-          memberName: member?.name ?? "",
-          role
-        });
+        runCloudAction(
+          cloudActions.updateMemberRole({
+            householdId: cloud.householdId,
+            actor,
+            memberId,
+            memberName: member?.name ?? "",
+            role
+          })
+        );
       } else {
         setState((current) => updateMemberRole(current, memberId, role, actor, t));
       }
@@ -429,7 +483,7 @@ function LocalApp(props: { cloud?: CloudProps } = {}) {
             const link = Linking.createURL("invite", { queryParams: { member: memberId } });
             showMessage("Invite link", link);
           })
-          .catch(() => {});
+          .catch(reportCloudActionFailure);
       } else {
         setState((current) => inviteMember(current, actor, templateKey, t));
       }
@@ -440,15 +494,17 @@ function LocalApp(props: { cloud?: CloudProps } = {}) {
     runIfAllowed("task:create", () => {
       const input = taskTemplateInput(templateKey, t);
       if (cloud) {
-        cloudActions.createTask({
-          householdId: cloud.householdId,
-          actor,
-          title: input.title,
-          expectedMinutes: input.expectedMinutes,
-          dueAt: input.dueAt,
-          priority: input.priority,
-          subtasks: input.subtasks
-        });
+        runCloudAction(
+          cloudActions.createTask({
+            householdId: cloud.householdId,
+            actor,
+            title: input.title,
+            expectedMinutes: input.expectedMinutes,
+            dueAt: input.dueAt,
+            priority: input.priority,
+            subtasks: input.subtasks
+          })
+        );
       } else {
         setState((current) => createTask(current, actor, input, t));
       }
@@ -459,14 +515,16 @@ function LocalApp(props: { cloud?: CloudProps } = {}) {
     runIfAllowed("timeline:add", () => {
       const input = timelineTemplateInput(templateKey, t);
       if (cloud) {
-        cloudActions.addTimelineEvent({
-          householdId: cloud.householdId,
-          actor,
-          type: input.type,
-          title: input.title,
-          startsAt: input.startsAt,
-          location: input.location
-        });
+        runCloudAction(
+          cloudActions.addTimelineEvent({
+            householdId: cloud.householdId,
+            actor,
+            type: input.type,
+            title: input.title,
+            startsAt: input.startsAt,
+            location: input.location
+          })
+        );
       } else {
         setState((current) => addTimelineEvent(current, actor, input, t));
       }
@@ -505,13 +563,13 @@ function LocalApp(props: { cloud?: CloudProps } = {}) {
         </View>
         <View style={styles.brandText}>
           <Text style={styles.productName} allowFontScaling>
-            RelayCare
+            TaskKin Care
           </Text>
           <Text style={styles.productMeta} allowFontScaling>
             {t("app.subtitle")}
           </Text>
         </View>
-        <Pill tone="safe" text="MVP" />
+        <Pill tone="safe" text="Non-PHI" />
         <TouchableOpacity
           style={styles.languageButton}
           accessibilityRole="button"
@@ -595,12 +653,14 @@ function LocalApp(props: { cloud?: CloudProps } = {}) {
 
               if (cloud) {
                 const pref = state.notificationPreferences.find((p) => p.memberId === memberId);
-                cloudActions.toggleDigest({
-                  householdId: cloud.householdId,
-                  actor,
-                  memberId,
-                  enabled: !(pref?.taskDigest ?? true)
-                });
+                runCloudAction(
+                  cloudActions.toggleDigest({
+                    householdId: cloud.householdId,
+                    actor,
+                    memberId,
+                    enabled: !(pref?.taskDigest ?? true)
+                  })
+                );
               } else {
                 setState((current) => toggleDigest(current, memberId, actor, t));
               }
@@ -677,6 +737,7 @@ function LocalApp(props: { cloud?: CloudProps } = {}) {
               <Text style={styles.modalTitle} allowFontScaling>
                 {t("report.modalTitle")}
               </Text>
+              <IconButton icon="share-outline" label={t("report.share")} onPress={onShareReport} />
               <IconButton icon="close-outline" label={t("report.close")} onPress={() => setReportVisible(false)} />
             </View>
             <ScrollView style={styles.modalReportScroll}>
@@ -848,7 +909,7 @@ function CloudApp() {
 
   useEffect(() => {
     if (!householdId) return;
-    Notifications.requestPermissionsAsync({ ios: { allowAlert: true, allowSound: true } });
+    void Notifications.requestPermissionsAsync({ ios: { allowAlert: true, allowSound: true } }).catch(() => {});
     const noteChannel = subscribeRoleNotifications(householdId, (n) => {
       const t = makeTranslator(getStoredLanguage());
       Notifications.scheduleNotificationAsync({
@@ -2039,7 +2100,7 @@ function eventLocation(event: CareEvent, t: Translate): string {
     return t("event.location.sharedDocuments");
   }
 
-  if (event.location === "RelayCare activity") {
+  if (event.location === "TaskKin Care activity") {
     return t("event.location.activity");
   }
 

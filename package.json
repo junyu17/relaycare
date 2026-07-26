@@ -1,5 +1,5 @@
 {
-  "name": "relaycare-mvp",
+  "name": "taskkin-care",
   "version": "0.1.0",
   "private": true,
   "main": "index.ts",
@@ -19,9 +19,9 @@
   "dependencies": {
     "@dariyd/react-native-text-recognition": "^2.0.20",
     "@expo/vector-icons": "^15.1.1",
-    "@react-native-async-storage/async-storage": "^3.1.1",
+    "@react-native-async-storage/async-storage": "2.2.0",
     "@supabase/supabase-js": "^2.110.8",
-    "expo": "^57.0.7",
+    "expo": "~57.0.8",
     "expo-document-picker": "^57.0.1",
     "expo-linking": "^57.0.4",
     "expo-notifications": "^57.0.7",

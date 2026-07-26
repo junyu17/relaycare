@@ -1,4 +1,4 @@
-// ESLint flat config for RelayCare MVP.
+// ESLint flat config for TaskKin Care MVP.
 // Composes the Expo base config (JSX + TypeScript + platform globals) with
 // project-local ignores. The Expo base already configures @typescript-eslint,
 // React, and import rules; we keep customizations minimal to stay on the

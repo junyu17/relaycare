@@ -310,7 +310,7 @@ export function completeTask(state: AppState, taskId: string, actor: Member, t?:
       title: task?.title ?? "Task"
     }),
     startsAt: new Date().toISOString(),
-    location: text(t, "event.location.activity", "RelayCare activity"),
+    location: text(t, "event.location.activity", "TaskKin Care activity"),
     ownerId: actor.id,
     taskId
   };

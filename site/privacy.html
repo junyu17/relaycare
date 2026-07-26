@@ -1,85 +1,117 @@
-<!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>隐私政策 · RelayCare</title>
-<link rel="stylesheet" href="styles.css">
-<link rel="icon" href="icons/icon-1.svg" type="image/svg+xml">
-</head>
-<body>
-<nav>
-  <div class="container">
-    <a href="index.html" class="brand"><span class="dot"></span>RelayCare</a>
-    <ul>
-      <li><a href="index.html#features">功能</a></li>
-      <li><a href="index.html#faq">FAQ</a></li>
-      <li><a href="index.html#contact">联系</a></li>
-    </ul>
-  </div>
-</nav>
-<div class="prose">
-  <h1>隐私政策</h1>
-  <p style="color:var(--amber);font-size:14px">生效日期：2026-07-25 · 本政策为草稿，上线前需经美国隐私/医疗法务审核。</p>
-  <p>RelayCare 是一款<strong>家庭照护协同与信息整理工具</strong>，帮助家庭分配照护任务、共享时间线与文档、协调通知。RelayCare <strong>不是</strong>医疗器械、医疗服务或紧急响应服务。</p>
-
-  <h2>1. 我们处理的信息</h2>
-  <ul>
-    <li><strong>账户信息</strong>：邮箱地址与认证凭据（由认证服务管理，不存储明文密码）。</li>
-    <li><strong>家庭与成员信息</strong>：家庭名称、被照护者称呼、成员姓名、关系、角色、时区、可用性。</li>
-    <li><strong>照护协同内容</strong>：任务、时间线事件、文档元数据（文件名、上传时间、OCR 置信度）、通知偏好、审计记录。</li>
-    <li><strong>文档文件</strong>：你上传用于家庭协同的文件。你需确保上传文件已脱敏或不含 PHI。</li>
-  </ul>
-
-  <h2>2. 我们不收集的信息</h2>
-  <p>MVP 阶段<strong>不收集</strong>诊断、处方、保险、支付或精确位置数据。这是有意为之的数据最小化设计。</p>
-
-  <h2>3. PHI 与 HIPAA</h2>
-  <p>MVP 设计为<strong>不处理 PHI</strong>。RelayCare 是否属于 HIPAA 受监管实体取决于与 Covered Entity 的具体关系，不可自行假定不适用。任何机构合作、PHI 处理或 AI/OCR 集成前，须由美国隐私/医疗法务确认合规路径（含 BAA）。</p>
-
-  <h2>4. 信息使用</h2>
-  <ul>
-    <li>提供家庭照护协同功能。</li>
-    <li>发送基于角色的通知与周报。</li>
-    <li>维护敏感操作的审计轨迹（访问、所有权变更、报告生成）。</li>
-    <li>改善可靠性与安全。</li>
-  </ul>
-
-  <h2>5. 共享</h2>
-  <ul>
-    <li><strong>家庭内</strong>：同家庭成员可见家庭范围数据，家庭间数据库隔离。</li>
-    <li><strong>我们不出售你的信息。</strong></li>
-    <li><strong>服务提供商</strong>：基础设施供应商在合规协议下处理数据。无 BAA 不向外部 AI/OCR 发送 PHI。</li>
-  </ul>
-
-  <h2>6. 存储与安全</h2>
-  <ul>
-    <li>传输加密 TLS 1.2+。</li>
-    <li>数据库与对象存储加密。</li>
-    <li>每个家庭的数据通过行级安全策略隔离。</li>
-    <li>敏感操作写入不可变审计日志。</li>
-    <li>访问遵循最小权限角色控制。</li>
-  </ul>
-
-  <h2>7. 保留与删除</h2>
-  <p>你可请求删除家庭数据。删除内容后审计记录可能按策略保留以备安全与问责。</p>
-
-  <h2>8. 你的权利</h2>
-  <p>你可请求访问、更正、删除或导出你的数据。联系 <a href="mailto:jun.yu@live.com">jun.yu@live.com</a> 行使权利。</p>
-
-  <h2>9. 未成年人</h2>
-  <p>RelayCare 面向成人或授权代理人使用。未成年人可作为授权代理人录入的被照护对象，非直接账户持有人。</p>
-
-  <h2>10. 跨境</h2>
-  <p>家庭常跨多个时区与司法辖区。数据处理支持跨成员协同，成员应知悉其他成员可能处于不同司法辖区。</p>
-
-  <h2>11. 变更</h2>
-  <p>我们会就本政策的重大变更通知用户。</p>
-
-  <h2>12. 联系</h2>
-  <p>隐私问题或数据请求请联系：<a href="mailto:jun.yu@live.com">jun.yu@live.com</a></p>
-
-  <p style="margin-top:32px"><a href="index.html">← 返回首页</a></p>
-</div>
-</body>
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Privacy Notice | TaskKin Care</title>
+    <meta name="description" content="TaskKin Care privacy notice for its non-PHI family care coordination service." />
+    <link rel="stylesheet" href="styles.css" />
+    <link rel="icon" href="icons/icon-1.svg" type="image/svg+xml" />
+  </head>
+  <body>
+    <nav>
+      <div class="container">
+        <a href="index.html" class="brand"><img src="icons/icon-1.svg" alt="" />TaskKin Care</a>
+        <ul>
+          <li><a href="index.html#features">Features</a></li>
+          <li><a href="index.html#faq">FAQ</a></li>
+          <li><a href="index.html#contact">Contact</a></li>
+        </ul>
+        <div class="language-switcher" aria-label="Select language">
+          <a class="active" href="privacy.html" lang="en" aria-current="page">EN</a
+          ><a href="privacy-zh.html" lang="zh-CN">中文</a><a href="privacy-es.html" lang="es">ES</a>
+        </div>
+      </div>
+    </nav>
+    <main class="prose">
+      <h1>Privacy Notice</h1>
+      <p>
+        TaskKin Care is a family care coordination and information-organizing tool. It is not a medical device, medical
+        service, or emergency-response service.
+      </p>
+      <p>TaskKin Care is developed and operated by Jun Yu, an independent developer.</p>
+      <h2>1. Information we process</h2>
+      <ul>
+        <li>
+          <strong>Account information:</strong> email address and authentication credentials. TaskKin Care does not
+          store plaintext passwords.
+        </li>
+        <li>
+          <strong>Family and member information:</strong> household name, care-recipient label, member name,
+          relationship, role, time zone, and availability.
+        </li>
+        <li>
+          <strong>Coordination content:</strong> tasks, timeline events, document metadata, notification preferences,
+          reports, and audit records.
+        </li>
+        <li>
+          <strong>Files you choose to upload:</strong> content and metadata for files used in family coordination.
+        </li>
+      </ul>
+      <h2>2. Non-PHI use</h2>
+      <p>
+        TaskKin Care does not ask for and must not be used to submit diagnoses, prescriptions, insurance, payment,
+        precise location, or other protected health information (PHI). It does not currently include automatic PHI
+        detection or redaction. Please remove or avoid PHI before uploading a file.
+      </p>
+      <h2>3. How we use information</h2>
+      <ul>
+        <li>Provide family coordination features and role-based access.</li>
+        <li>Show in-app role-aware coordination updates and generate shareable weekly summaries.</li>
+        <li>
+          Maintain an audit trail for key coordination writes, such as tasks, role changes, and report generation.
+        </li>
+        <li>Maintain reliability and security.</li>
+      </ul>
+      <h2>4. Sharing and service providers</h2>
+      <ul>
+        <li>Household members may access only the family information their role permits.</li>
+        <li>We do not sell personal information or share it for cross-context behavioral advertising.</li>
+        <li>
+          We use Supabase for authentication, database, object storage, and realtime synchronization. TaskKin Care does
+          not send uploaded content to external AI or OCR providers.
+        </li>
+      </ul>
+      <h2>5. Security</h2>
+      <ul>
+        <li>Data is transmitted through encrypted connections supported by our service providers.</li>
+        <li>Row-level security separates households and role-based access limits what members can access.</li>
+        <li>Key coordination writes are recorded in append-only audit records.</li>
+      </ul>
+      <h2>6. Retention, deletion, and your requests</h2>
+      <p>
+        You may request access, correction, export, or deletion of household data by emailing
+        <a href="mailto:Billy.yu@me.com">Billy.yu@me.com</a>. Before production launch, TaskKin Care will publish
+        retention periods, deletion procedures, and audit-record retention rules.
+      </p>
+      <h2>7. California Privacy Notice and Notice at Collection</h2>
+      <p>
+        This section applies only where the California Consumer Privacy Act and California Privacy Rights Act apply to
+        TaskKin Care. We collect the categories described in Section 1 for the purposes described in Section 3. We do
+        not sell or share personal information as those terms are defined by California law.
+      </p>
+      <p>
+        At or before collection, California users receive this notice describing the categories of personal information
+        collected, the purposes for collection, and the retention and deletion request process. We do not collect or use
+        sensitive personal information for purposes that require a right to limit under California law.
+      </p>
+      <p>
+        California residents may request to know, correct, or delete eligible personal information, and may use an
+        authorized agent where permitted by law. Send requests to <a href="mailto:Billy.yu@me.com">Billy.yu@me.com</a>;
+        we may request information needed to verify the request and will respond as required by applicable law. We will
+        not discriminate against you for exercising applicable privacy rights.
+      </p>
+      <h2>8. Children, changes, and contact</h2>
+      <p>
+        TaskKin Care is for adults and authorized representatives, not child-directed accounts. We will describe
+        material changes when this notice is updated. For privacy questions or requests, email
+        <a href="mailto:Billy.yu@me.com">Billy.yu@me.com</a>.
+      </p>
+      <p>
+        <strong>Pre-launch requirement:</strong> add an effective date and complete a legal review of this notice before
+        public launch.
+      </p>
+      <p class="back-link"><a href="index.html">Back to home</a></p>
+    </main>
+  </body>
 </html>

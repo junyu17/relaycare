@@ -186,7 +186,7 @@ export const initialState: AppState = {
       type: "appointment",
       title: "Follow-up appointment",
       startsAt: "2026-07-24T10:30:00-07:00",
-      location: "Clinic - address hidden for MVP demo",
+      location: "Clinic - address hidden in this demo",
       ownerId: "m-maya",
       taskId: "t-transport"
     },
@@ -229,7 +229,7 @@ export const initialState: AppState = {
       entityType: "household",
       entityId: "hh-chen",
       createdAt: "2026-07-22T08:00:00-07:00",
-      detail: "Created household with non-PHI MVP mode enabled."
+      detail: "Created household with non-PHI mode enabled."
     },
     {
       id: "a-002",

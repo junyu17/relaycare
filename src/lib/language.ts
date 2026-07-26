@@ -5,7 +5,7 @@ import type { Language } from "../i18n";
 // language synchronously via getStoredLanguage(); LocalApp keeps it in sync via
 // setStoredLanguage on every switch and seeds it from AsyncStorage on mount.
 let currentLanguage: Language = "en";
-const LANGUAGE_STORAGE_KEY = "relaycare.language";
+const LANGUAGE_STORAGE_KEY = "taskkin-care.language";
 
 export async function initStoredLanguage(): Promise<Language> {
   try {

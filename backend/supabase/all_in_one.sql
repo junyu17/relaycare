@@ -1,6 +1,8 @@
--- RelayCare MVP: all-in-one SQL (run once in Supabase Dashboard -> SQL Editor)
+-- DEPRECATED: this historical aggregate ends at migration 0003 and does not
+-- contain document-storage or role-RBAC hardening. Do not run it on a new or
+-- existing project. Apply the numbered files in migrations/ through 0005.
 -- ============ 0001 schema ============
--- RelayCare MVP - initial schema for Supabase (Postgres)
+-- TaskKin Care MVP - initial schema for Supabase (Postgres)
 -- 设计要点：
 --   1. 所有业务表带 household_id，RLS 按家庭隔离（家庭 A 看不到家庭 B 的数据）。
 --   2. members.user_id 关联 auth.users；为空表示待邀请（pending）。
@@ -142,7 +144,7 @@ create index on public.audit_events (household_id);
 create index on public.audit_events (created_at desc);
 
 -- ============ 0002 rls + rpc + realtime ============
--- RelayCare MVP - RLS policies, helper function, RPCs, realtime
+-- TaskKin Care MVP - RLS policies, helper function, RPCs, realtime
 -- 依赖 0001_init_schema.sql 已建表。
 
 -- ============ RLS 启用 ============
@@ -287,7 +289,7 @@ alter publication supabase_realtime add table public.role_notifications;
 alter publication supabase_realtime add table public.notification_preferences;
 
 -- ============ 0003 seed roles ============
--- RelayCare MVP - seed role definitions
+-- TaskKin Care MVP - seed role definitions
 -- 与 src/data.ts initialState.roleDefinitions 保持一致；app 端 hasPermission 也读这份权限。
 
 insert into public.role_definitions (role, label, permissions) values

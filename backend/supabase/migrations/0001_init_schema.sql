@@ -1,4 +1,4 @@
--- RelayCare MVP - initial schema for Supabase (Postgres)
+-- TaskKin Care MVP - initial schema for Supabase (Postgres)
 -- 设计要点：
 --   1. 所有业务表带 household_id，RLS 按家庭隔离（家庭 A 看不到家庭 B 的数据）。
 --   2. members.user_id 关联 auth.users；为空表示待邀请（pending）。

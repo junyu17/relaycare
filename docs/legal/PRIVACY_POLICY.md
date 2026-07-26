@@ -1,12 +1,14 @@
 # Privacy Policy (DRAFT)
 
-> **Status:** Draft v0.1 — 2026-07-24. Requires review by US privacy/medical legal counsel before any production use, public release, or institutional partnership. RelayCare is a working name; final branding pending USPTO clearance.
+> **Status:** Draft v0.1 — 2026-07-24. Requires review by US privacy/medical legal counsel before any production use, public release, or institutional partnership. TaskKin Care is the current product name; legal and trademark review remain required.
 
 ## 1. Overview
 
-RelayCare is a family care coordination and information-organization tool. It helps families share care tasks, timelines, documents, and notifications so that care responsibility is distributed rather than carried by one person. RelayCare is **not** a medical device, a medical service provider, or an emergency response service.
+TaskKin Care is a family care coordination and information-organization tool. It helps families share care tasks, timelines, documents, and notifications so that care responsibility is distributed rather than carried by one person. TaskKin Care is **not** a medical device, a medical service provider, or an emergency response service.
 
-This policy explains what information RelayCare processes, how it is used, and the choices you have.
+TaskKin Care is developed and operated by Jun Yu, an independent developer. For privacy questions or data requests, contact [Billy.yu@me.com](mailto:Billy.yu@me.com).
+
+This policy explains what information TaskKin Care processes, how it is used, and the choices you have.
 
 ## 2. Information We Process
 
@@ -24,7 +26,7 @@ By design, the MVP does **not** collect diagnoses, prescriptions, insurance data
 
 ## 4. PHI and HIPAA
 
-The MVP is designed to operate **without** processing PHI. Whether RelayCare is a HIPAA-covered entity or business associate depends on the specific relationship with covered entities and the data actually processed; we do not assume HIPAA does not apply. Before any institutional partnership, PHI handling, or AI/OCR integration that involves PHI, a US privacy/medical legal counsel must confirm the compliance path (including BAA where required).
+The MVP is designed to operate **without** processing PHI. Whether TaskKin Care is a HIPAA-covered entity or business associate depends on the specific relationship with covered entities and the data actually processed; we do not assume HIPAA does not apply. Before any institutional partnership, PHI handling, or AI/OCR integration that involves PHI, a US privacy/medical legal counsel must confirm the compliance path (including BAA where required).
 
 ## 5. How We Use Information
 
@@ -53,11 +55,11 @@ You can request deletion of your household data. Deletion/audit-retention timeli
 
 ## 9. Your Rights
 
-You may request access to, correction of, deletion of, or export of your data. Contact the product lead to exercise these rights.
+You may request access to, correction of, deletion of, or export of your data by emailing [Billy.yu@me.com](mailto:Billy.yu@me.com).
 
 ## 10. Minors and Authorized Representatives
 
-RelayCare is intended for use by adults or authorized representatives (e.g., a primary caregiver acting for a care recipient). Minors may be the subject of care information entered by an authorized representative, not direct account holders, in the MVP.
+TaskKin Care is intended for use by adults or authorized representatives (e.g., a primary caregiver acting for a care recipient). Minors may be the subject of care information entered by an authorized representative, not direct account holders, in the MVP.
 
 ## 11. Cross-Border (Multi-Time-Zone Families)
 
@@ -69,4 +71,4 @@ We will notify users of material changes to this policy.
 
 ## 13. Contact
 
-For privacy questions or data requests, contact the product lead (contact channel to be published before pilot launch).
+For privacy questions or data requests, email [Billy.yu@me.com](mailto:Billy.yu@me.com).

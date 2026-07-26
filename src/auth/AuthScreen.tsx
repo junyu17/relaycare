@@ -25,7 +25,7 @@ export function AuthScreen() {
 
   return (
     <ScrollView contentContainerStyle={s.container}>
-      <Text style={s.title}>RelayCare</Text>
+      <Text style={s.title}>TaskKin Care</Text>
       <Text style={s.subtitle}>Family care coordination</Text>
       <View style={s.tabs}>
         <TouchableOpacity style={[s.tab, mode === "signin" && s.tabActive]} onPress={() => setMode("signin")}>
@@ -157,15 +157,32 @@ export function OnboardingScreen() {
 }
 
 const s = StyleSheet.create({
-  container: { flexGrow: 1, padding: 24, justifyContent: "center", backgroundColor: "#f7faf7" },
-  title: { fontSize: 26, fontWeight: "700", color: "#0f766e", marginBottom: 4 },
-  subtitle: { fontSize: 14, color: "#64748b", marginBottom: 24 },
-  tabs: { flexDirection: "row", marginBottom: 16, borderRadius: 8, overflow: "hidden", backgroundColor: "#e2e8f0" },
+  container: {
+    flexGrow: 1,
+    width: "100%",
+    maxWidth: 520,
+    alignSelf: "center",
+    padding: 24,
+    justifyContent: "center",
+    backgroundColor: "#f7faf7"
+  },
+  title: { alignSelf: "stretch", flexShrink: 1, fontSize: 26, fontWeight: "700", color: "#0f766e", marginBottom: 4 },
+  subtitle: { alignSelf: "stretch", flexShrink: 1, fontSize: 14, color: "#64748b", marginBottom: 24 },
+  tabs: {
+    alignSelf: "stretch",
+    flexDirection: "row",
+    marginBottom: 16,
+    borderRadius: 8,
+    overflow: "hidden",
+    backgroundColor: "#e2e8f0"
+  },
   tab: { flex: 1, paddingVertical: 10, alignItems: "center" },
   tabActive: { backgroundColor: "#0f766e" },
   tabText: { color: "#475569" },
   tabTextActive: { color: "#fff", fontWeight: "600" },
   input: {
+    alignSelf: "stretch",
+    width: "100%",
     borderWidth: 1,
     borderColor: "#cbd5e1",
     borderRadius: 8,
@@ -174,7 +191,14 @@ const s = StyleSheet.create({
     marginBottom: 12,
     backgroundColor: "#fff"
   },
-  button: { backgroundColor: "#0f766e", paddingVertical: 12, borderRadius: 8, alignItems: "center" },
+  button: {
+    alignSelf: "stretch",
+    width: "100%",
+    backgroundColor: "#0f766e",
+    paddingVertical: 12,
+    borderRadius: 8,
+    alignItems: "center"
+  },
   buttonText: { color: "#fff", fontWeight: "600" },
   hint: { fontSize: 12, color: "#64748b", marginTop: 8 },
   link: { color: "#0f766e", marginTop: 16, textAlign: "center" }

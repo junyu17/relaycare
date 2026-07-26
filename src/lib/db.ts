@@ -255,7 +255,7 @@ export async function fetchHouseholdState(householdId: string): Promise<AppState
 
 export async function cacheHouseholdState(householdId: string, state: AppState): Promise<void> {
   try {
-    await AsyncStorage.setItem(`relaycare:household:${householdId}`, JSON.stringify(state));
+    await AsyncStorage.setItem(`taskkin-care:household:${householdId}`, JSON.stringify(state));
   } catch {
     // best-effort cache
   }
@@ -263,7 +263,7 @@ export async function cacheHouseholdState(householdId: string, state: AppState):
 
 export async function getCachedHouseholdState(householdId: string): Promise<AppState | null> {
   try {
-    const raw = await AsyncStorage.getItem(`relaycare:household:${householdId}`);
+    const raw = await AsyncStorage.getItem(`taskkin-care:household:${householdId}`);
     return raw ? (JSON.parse(raw) as AppState) : null;
   } catch {
     return null;

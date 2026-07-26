@@ -1,4 +1,4 @@
--- RelayCare MVP - seed role definitions
+-- TaskKin Care MVP - seed role definitions
 -- 与 src/data.ts initialState.roleDefinitions 保持一致；app 端 hasPermission 也读这份权限。
 
 insert into public.role_definitions (role, label, permissions) values

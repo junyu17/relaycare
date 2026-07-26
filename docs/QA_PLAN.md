@@ -34,7 +34,7 @@ Covered by `.github/workflows/ci.yml`:
 - [ ] Sign in.
 - [ ] Create household (name, your name, relation); land on Home.
 - [ ] Sign out; sign back in; household persists.
-- [ ] Invite a caregiver; receive invite member ID / deep link `relaycare://invite?member=<id>`.
+- [ ] Invite a caregiver; receive invite member ID / deep link `taskkin-care://invite?member=<id>`.
 - [ ] Second user signs up, accepts invite, joins same household, sees members.
 - [ ] Expired invite (>48h) is rejected.
 

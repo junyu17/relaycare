@@ -1,4 +1,4 @@
-# RelayCare MVP
+# TaskKin Care MVP
 
 React Native + TypeScript MVP scaffold for a non-PHI family care coordination platform.
 

@@ -20,6 +20,7 @@ interface AuthState {
   configured: boolean;
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (email: string, password: string) => Promise<void>;
+  resetPassword: (email: string) => Promise<void>;
   signOut: () => Promise<void>;
   createHousehold: (args: CreateHouseholdArgs) => Promise<void>;
   acceptInvite: (memberId: string, displayName?: string) => Promise<void>;
@@ -100,6 +101,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const { error } = await supabase.auth.signUp({ email, password });
     if (error) throw error;
   };
+  const resetPassword = async (email: string) => {
+    const { error } = await supabase.auth.resetPasswordForEmail(email);
+    if (error) throw error;
+  };
   const signOut = async () => {
     await supabase.auth.signOut();
     setUser(null);
@@ -126,6 +131,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         configured: isSupabaseConfigured,
         signIn,
         signUp,
+        resetPassword,
         signOut,
         createHousehold,
         acceptInvite,

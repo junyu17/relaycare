@@ -11,15 +11,37 @@ function parseInviteToken(input: string): string {
   return trimmed;
 }
 
-// 未登录时显示：登录 / 注册
+const ROLE_LABEL: Record<"coordinator" | "caregiver" | "viewer", string> = {
+  coordinator: "Coordinator",
+  caregiver: "Caregiver",
+  viewer: "Viewer"
+};
+const ROLE_OPTIONS: ("coordinator" | "caregiver" | "viewer")[] = ["coordinator", "caregiver", "viewer"];
+
+// 未登录时显示：登录 / 注册 / 重置密码
 export function AuthScreen() {
-  const { signIn, signUp } = useAuth();
-  const [mode, setMode] = useState<"signin" | "signup">("signin");
+  const { signIn, signUp, resetPassword } = useAuth();
+  const [mode, setMode] = useState<"signin" | "signup" | "reset">("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
 
   const submit = async () => {
+    if (mode === "reset") {
+      if (!email) return;
+      setBusy(true);
+      try {
+        await resetPassword(email);
+        Alert.alert("Check your email", "If an account exists for that email, a password reset link has been sent.");
+        setMode("signin");
+      } catch (e) {
+        Alert.alert("Error", e instanceof Error ? e.message : String(e));
+      } finally {
+        setBusy(false);
+      }
+      return;
+    }
+
     if (!email || !password) return;
     setBusy(true);
     try {
@@ -32,18 +54,28 @@ export function AuthScreen() {
     }
   };
 
+  const submitLabel = busy
+    ? "..."
+    : mode === "signin"
+      ? "Sign in"
+      : mode === "signup"
+        ? "Create account"
+        : "Send reset link";
+
   return (
     <ScrollView contentContainerStyle={s.container}>
       <Text style={s.title}>TaskKin Care</Text>
       <Text style={s.subtitle}>Family care coordination</Text>
-      <View style={s.tabs}>
-        <TouchableOpacity style={[s.tab, mode === "signin" && s.tabActive]} onPress={() => setMode("signin")}>
-          <Text style={mode === "signin" ? s.tabTextActive : s.tabText}>Sign in</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={[s.tab, mode === "signup" && s.tabActive]} onPress={() => setMode("signup")}>
-          <Text style={mode === "signup" ? s.tabTextActive : s.tabText}>Sign up</Text>
-        </TouchableOpacity>
-      </View>
+      {mode !== "reset" && (
+        <View style={s.tabs}>
+          <TouchableOpacity style={[s.tab, mode === "signin" && s.tabActive]} onPress={() => setMode("signin")}>
+            <Text style={mode === "signin" ? s.tabTextActive : s.tabText}>Sign in</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={[s.tab, mode === "signup" && s.tabActive]} onPress={() => setMode("signup")}>
+            <Text style={mode === "signup" ? s.tabTextActive : s.tabText}>Sign up</Text>
+          </TouchableOpacity>
+        </View>
+      )}
       <TextInput
         style={s.input}
         placeholder="Email"
@@ -52,12 +84,29 @@ export function AuthScreen() {
         autoCapitalize="none"
         keyboardType="email-address"
       />
-      <TextInput style={s.input} placeholder="Password" value={password} onChangeText={setPassword} secureTextEntry />
+      {mode !== "reset" && (
+        <TextInput style={s.input} placeholder="Password" value={password} onChangeText={setPassword} secureTextEntry />
+      )}
+      {mode === "signup" && <Text style={s.hint}>Password must be at least 6 characters.</Text>}
       <TouchableOpacity style={s.button} onPress={submit} disabled={busy}>
-        <Text style={s.buttonText}>{busy ? "..." : mode === "signin" ? "Sign in" : "Create account"}</Text>
+        <Text style={s.buttonText}>{submitLabel}</Text>
       </TouchableOpacity>
+      {mode === "signin" && (
+        <TouchableOpacity onPress={() => setMode("reset")}>
+          <Text style={s.link}>Forgot password?</Text>
+        </TouchableOpacity>
+      )}
+      {mode === "reset" && (
+        <TouchableOpacity onPress={() => setMode("signin")}>
+          <Text style={s.link}>Back to sign in</Text>
+        </TouchableOpacity>
+      )}
       <Text style={s.hint}>
-        {mode === "signup" ? "After signup, confirm via email if required, then sign in." : ""}
+        {mode === "signup"
+          ? "After signup, confirm via email if required, then sign in."
+          : mode === "reset"
+            ? "Enter your account email and we'll send a reset link."
+            : ""}
       </Text>
     </ScrollView>
   );
@@ -140,6 +189,25 @@ export function OnboardingScreen() {
             value={relation}
             onChangeText={setRelation}
           />
+          <Text style={s.fieldLabel}>Your role (3 roles available)</Text>
+          <View style={s.roleRow}>
+            {ROLE_OPTIONS.map((r) => {
+              const selected = r === "coordinator";
+              return (
+                <View
+                  key={r}
+                  style={[s.roleChip, selected && s.roleChipActive, s.roleChipDisabled]}
+                  accessibilityState={{ selected, disabled: true }}
+                >
+                  <Text style={selected ? s.roleChipTextActive : s.roleChipText}>{ROLE_LABEL[r]}</Text>
+                </View>
+              );
+            })}
+          </View>
+          <Text style={s.hint}>
+            The first member of a household is always the Coordinator. You can invite Caregivers and Viewers later from
+            Settings.
+          </Text>
           <TouchableOpacity style={s.button} onPress={onCreate} disabled={busy}>
             <Text style={s.buttonText}>{busy ? "..." : "Create household"}</Text>
           </TouchableOpacity>
@@ -202,13 +270,29 @@ const s = StyleSheet.create({
     marginBottom: 12,
     backgroundColor: "#fff"
   },
+  fieldLabel: { alignSelf: "stretch", fontSize: 13, fontWeight: "600", color: "#334155", marginBottom: 8 },
+  roleRow: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 8 },
+  roleChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#cbd5e1",
+    backgroundColor: "#fff",
+    opacity: 0.55
+  },
+  roleChipActive: { backgroundColor: "#0f766e", borderColor: "#0f766e", opacity: 1 },
+  roleChipDisabled: {},
+  roleChipText: { color: "#475569", fontWeight: "600" },
+  roleChipTextActive: { color: "#fff", fontWeight: "700" },
   button: {
     alignSelf: "stretch",
     width: "100%",
     backgroundColor: "#0f766e",
     paddingVertical: 12,
     borderRadius: 8,
-    alignItems: "center"
+    alignItems: "center",
+    marginTop: 8
   },
   buttonText: { color: "#fff", fontWeight: "600" },
   hint: { fontSize: 12, color: "#64748b", marginTop: 8 },

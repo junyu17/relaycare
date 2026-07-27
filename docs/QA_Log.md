@@ -4,6 +4,25 @@ This file records delivery checks for the local MVP scaffold.
 
 ## 2026-07-26
 
+### Stage: second-review remediation and release readiness
+
+Original requirement match:
+
+- Added `0007_invite_tokens.sql` for one-time, expiring invite tokens and updated the app to create, share, copy, parse, and accept invite tokens.
+- Kept the five legal documents transparent: they have effective dates and operator review, but state that independent legal counsel review has not been obtained. Public Privacy and Terms pages use the same wording.
+- Kept Expo on the current stable SDK 57 line, aligned SDK dependencies, and added the missing `expo-font` peer dependency rather than forcing an unsupported cross-major upgrade.
+
+Independent quality review:
+
+- Verified the application source, consent gate, legal links, cloud/local Settings copy, invite flow, OCR default, and storage cleanup changes against the second-review findings.
+- Confirmed the package audit reports 11 build-chain vulnerabilities (1 high, 10 moderate, 0 critical) from the official npm registry; no `npm audit --force` was applied.
+
+Actual artifact verification:
+
+- `npm run format:check`, `npm run typecheck`, `npm run lint`, `npm test` (20 tests), `npx expo-doctor` (20/20), Expo web export, and `git diff --check` passed.
+- Commit `66c7d37` was pushed to `junyu17/relaycare`.
+- Supabase migration execution remains pending because the logged-in SQL Editor could not be controlled reliably from this session; Android OCR device E2E remains pending because the local Android SDK and `adb` are not installed.
+
 ### Stage: GitHub Pages production deployment
 
 Original requirement match:

@@ -26,7 +26,8 @@ import {
   subscribeHouseholdState,
   subscribeRoleNotifications,
   cacheHouseholdState,
-  getCachedHouseholdState
+  getCachedHouseholdState,
+  setHouseholdPlus
 } from "./lib/db";
 import * as Notifications from "expo-notifications";
 import * as Clipboard from "expo-clipboard";
@@ -35,6 +36,8 @@ import * as Linking from "expo-linking";
 import { isSupabaseConfigured } from "./lib/supabase";
 import { ConsentGate } from "./legal/ConsentGate";
 import { openLegal } from "./legal/consent";
+import { Paywall } from "./paywall/Paywall";
+import { effectivePlan, checkTaskQuota, checkMemberQuota, checkOcrQuota, checkFileSize } from "./lib/entitlement";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 import {
   addDocument,
@@ -78,6 +81,7 @@ import {
   EventType,
   Member,
   Permission,
+  Plan,
   Role,
   RoleNotification,
   Task
@@ -150,8 +154,11 @@ function LocalApp(props: { cloud?: CloudProps } = {}) {
   const [roleEditorMemberId, setRoleEditorMemberId] = useState<string | null>(null);
   const [handoffTaskId, setHandoffTaskId] = useState<string | null>(null);
   const [documentSafetyConfirmed, setDocumentSafetyConfirmed] = useState(false);
+  const [paywallVisible, setPaywallVisible] = useState(false);
 
   const t = useMemo(() => makeTranslator(language), [language]);
+
+  const plan = effectivePlan(state.household);
 
   const report = reportText ? reportText[language] : "";
 
@@ -338,6 +345,20 @@ function LocalApp(props: { cloud?: CloudProps } = {}) {
       if (!result.canceled) {
         const asset = result.assets[0];
         const name = asset?.name ?? t("task.dynamic.uploadedReview");
+        // 单文件 25MB 预检（服务端 RPC 也会校验）。
+        if (asset?.size && !checkFileSize(asset.size)) {
+          Alert.alert(t("quota.fileSizeTitle"), t("quota.fileSizeBody"));
+          return;
+        }
+        // OCR 月配额预检（sample 不计配额，仅真实上传计）。
+        const ocrQuota = checkOcrQuota(state);
+        if (!ocrQuota.ok) {
+          Alert.alert(t("quota.ocrTitle"), t("quota.ocrBody"), [
+            { text: t("quota.upgrade"), onPress: () => setPaywallVisible(true) },
+            { style: "cancel", text: t("paywall.close") }
+          ]);
+          return;
+        }
         if (cloud) {
           const storagePath = `${cloud.householdId}/${uniqueId()}-${name}`;
           const fileBody = asset?.uri ? await (await fetch(asset.uri)).blob() : undefined;
@@ -474,6 +495,14 @@ function LocalApp(props: { cloud?: CloudProps } = {}) {
         showMessage(t("alerts.inviteExpiredTitle"), t("alerts.inviteExpiredBody"));
         return;
       }
+      const quota = checkMemberQuota(state);
+      if (!quota.ok) {
+        Alert.alert(t("quota.memberTitle"), t("quota.memberBody"), [
+          { text: t("quota.upgrade"), onPress: () => setPaywallVisible(true) },
+          { text: t("paywall.close"), style: "cancel" as const }
+        ]);
+        return;
+      }
       if (cloud) {
         cloudActions
           .inviteMember({
@@ -502,6 +531,14 @@ function LocalApp(props: { cloud?: CloudProps } = {}) {
 
   const onCreateTaskFromTemplate = (templateKey: TaskTemplateKey) => {
     runIfAllowed("task:create", () => {
+      const quota = checkTaskQuota(state);
+      if (!quota.ok) {
+        Alert.alert(t("quota.taskTitle"), t("quota.taskBody"), [
+          { text: t("quota.upgrade"), onPress: () => setPaywallVisible(true) },
+          { style: "cancel", text: t("paywall.close") }
+        ]);
+        return;
+      }
       const input = taskTemplateInput(templateKey, t);
       if (cloud) {
         runCloudAction(
@@ -539,6 +576,23 @@ function LocalApp(props: { cloud?: CloudProps } = {}) {
         setState((current) => addTimelineEvent(current, actor, input, t));
       }
     });
+  };
+
+  // dev 测试切换套餐（上线前移除/隐藏；第二步换成真实 IAP）。
+  const onDevSetPlus = (nextPlan: "free" | "monthly" | "yearly") => {
+    if (cloud) {
+      runCloudAction(setHouseholdPlus(cloud.householdId, nextPlan, actor.id));
+    } else {
+      setState((current) => ({
+        ...current,
+        household: {
+          ...current.household,
+          plusPlan: nextPlan,
+          plusUntil: nextPlan === "free" ? undefined : new Date(Date.now() + 365 * 86400000).toISOString(),
+          plusOwnerId: nextPlan === "free" ? undefined : actor.id
+        }
+      }));
+    }
   };
 
   const metrics = useMemo(() => {
@@ -580,6 +634,17 @@ function LocalApp(props: { cloud?: CloudProps } = {}) {
           </Text>
         </View>
         <Pill tone="safe" text="Non-PHI" />
+        <TouchableOpacity
+          style={styles.languageButton}
+          accessibilityRole="button"
+          accessibilityLabel={t("settings.plan")}
+          onPress={() => setPaywallVisible(true)}
+        >
+          <Ionicons name={plan === "free" ? "ribbon-outline" : "ribbon"} size={16} color={palette.teal} />
+          <Text style={styles.languageButtonText} allowFontScaling>
+            {plan === "free" ? t("plan.badge.free") : t("plan.badge.plus")}
+          </Text>
+        </TouchableOpacity>
         <TouchableOpacity
           style={styles.languageButton}
           accessibilityRole="button"
@@ -720,7 +785,9 @@ function LocalApp(props: { cloud?: CloudProps } = {}) {
             isHouseholdInviteExpired(state),
             () => setActiveTab("audit"),
             !!cloud,
-            (kind) => void openLegal(kind, language)
+            (kind) => void openLegal(kind, language),
+            plan,
+            () => setPaywallVisible(true)
           )}
         {activeTab === "audit" && can("audit:read") && renderAudit(state, language, t, () => setActiveTab("settings"))}
       </ScrollView>
@@ -760,6 +827,15 @@ function LocalApp(props: { cloud?: CloudProps } = {}) {
           </View>
         </View>
       </Modal>
+
+      <Paywall
+        visible={paywallVisible}
+        onClose={() => setPaywallVisible(false)}
+        t={t}
+        currentPlan={plan}
+        isCoordinator={actor.role === "coordinator"}
+        onDevSetPlus={onDevSetPlus}
+      />
 
       <Modal
         visible={roleEditorMember != null}
@@ -1467,7 +1543,9 @@ function renderSettings(
   inviteExpired: boolean,
   onViewAllAudit: () => void,
   isCloud: boolean,
-  onOpenLegal: (kind: "privacy" | "terms") => void
+  onOpenLegal: (kind: "privacy" | "terms") => void,
+  plan: Plan,
+  onOpenPaywall: () => void
 ) {
   const canManageRoles = hasPermission(state, actor.role, "member:role_update");
   const canInviteMembers = hasPermission(state, actor.role, "member:invite");
@@ -1492,6 +1570,27 @@ function renderSettings(
         <Text style={styles.noticeText} allowFontScaling>
           {isCloud ? t("settings.cloudSync") : t("settings.localSave")}
         </Text>
+      </View>
+
+      <SectionTitle icon="ribbon-outline" title={t("settings.plan")} />
+      <View style={styles.panel}>
+        <View style={styles.panelHeader}>
+          <View style={styles.listText}>
+            <Text style={styles.itemTitle} allowFontScaling>
+              {plan === "free" ? t("plan.free") : t("plan.plus")}
+            </Text>
+            <Text style={styles.itemMeta} allowFontScaling>
+              {t("paywall.currentPlan")}
+            </Text>
+          </View>
+          <Ionicons name={plan === "free" ? "ribbon-outline" : "ribbon"} size={22} color={palette.teal} />
+        </View>
+        <ActionButton
+          icon={plan === "free" ? "star-outline" : "settings-outline"}
+          label={plan === "free" ? t("settings.upgrade") : t("settings.managePlan")}
+          tone="primary"
+          onPress={onOpenPaywall}
+        />
       </View>
 
       {canInviteMembers && (

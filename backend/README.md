@@ -13,6 +13,7 @@ backend/supabase/migrations/
   0005_role_rbac.sql       # 数据库层三角色最小权限策略
   0006_task_activity_rpc.sql # P0 任务流、审计、通知原子事务 RPC
   0007_invite_tokens.sql   # 邀请 token 安全（独立 invites 表 + accept_invite 凭 token）
+  0008_paywall.sql         # Family Plus 付费墙：entitlement 列 + 服务端硬配额 RPC
 ```
 
 ## 数据模型 → Postgres 映射
@@ -54,7 +55,7 @@ npx supabase login
 npx supabase link --project-ref <your-project-ref>
 npx supabase db push            # 执行 migrations
 
-# 方式二：Supabase Dashboard → SQL Editor → 按编号依次执行 0001 到 0007
+# 方式二：Supabase Dashboard → SQL Editor → 按编号依次执行 0001 到 0008
 ```
 
 > 新 Supabase 项目已完成 `0001` 到 `0006` 的迁移与角色 API 验收。上线前需补执行 `0007_invite_tokens.sql`（邀请 token 安全）。不要只执行旧版 `all_in_one.sql`，它没有包含 storage、RBAC、原子任务 RPC 或邀请 token。

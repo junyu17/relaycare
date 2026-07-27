@@ -38,12 +38,17 @@ export type AuditAction =
   | "document.task_created"
   | "report.generated";
 
+export type Plan = "free" | "monthly" | "yearly";
+
 export interface Household {
   id: string;
   name: string;
   timezone: string;
   inviteExpiresAt: string;
   careRecipientLabel: string;
+  plusPlan: Plan;
+  plusUntil?: string;
+  plusOwnerId?: string;
 }
 
 export interface NotificationPreference {
@@ -125,6 +130,7 @@ export interface DocumentRecord {
   source: "manual_upload" | "sample";
   suggestedAction?: string;
   storagePath?: string;
+  sizeBytes: number;
 }
 
 export interface AuditEvent {

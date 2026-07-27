@@ -6,7 +6,8 @@ export const initialState: AppState = {
     name: "Chen Family Care Circle",
     timezone: "America/Los_Angeles",
     inviteExpiresAt: "2026-07-24T08:30:00-07:00",
-    careRecipientLabel: "Care recipient"
+    careRecipientLabel: "Care recipient",
+    plusPlan: "free"
   },
   members: [
     {
@@ -217,7 +218,8 @@ export const initialState: AppState = {
       containsPhi: false,
       confidence: 0.72,
       source: "sample",
-      suggestedAction: "Confirm paperwork requirements for the follow-up appointment"
+      suggestedAction: "Confirm paperwork requirements for the follow-up appointment",
+      sizeBytes: 0
     }
   ],
   auditEvents: [

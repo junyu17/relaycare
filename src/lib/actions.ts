@@ -1,5 +1,6 @@
 import { supabase } from "./supabase";
 import { getOcrProvider } from "./ocr";
+import { inviteMemberRpc, createDocumentRpc } from "./db";
 import type { Member, Role, AuditAction } from "../types";
 
 // 写操作层：每个操作对应 domain.ts 的纯函数，但写 Supabase（而非本地 state）。
@@ -212,42 +213,11 @@ export async function updateMemberRole(args: {
 }
 
 export async function inviteMember(args: { householdId: string; actor: Member; role: Role; householdName: string }) {
-  const inviteName = args.role === "caregiver" ? "New caregiver invite" : "New viewer invite";
-  const { data, error } = await supabase
-    .from("members")
-    .insert({
-      household_id: args.householdId,
-      name: inviteName,
-      role: args.role,
-      invite_status: "pending",
-      invite_expires_at: new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString()
-    })
-    .select("id")
-    .single();
-  if (error) throw error;
-  await supabase.from("notification_preferences").insert({ household_id: args.householdId, member_id: data.id });
-  // 生成独立 invite token（存于 invites 表，不经 API 可读），用于邀请链接；accept_invite 凭 token 加入。
-  const { data: token, error: invErr } = await supabase.rpc("create_invite", { p_member_id: data.id });
-  if (invErr) throw invErr;
-  await insertAudit({
-    householdId: args.householdId,
-    actorId: args.actor.id,
-    action: "member.invited",
-    entityType: "member",
-    entityId: data.id,
-    detail: `${args.actor.name} invited a new ${args.role} to ${args.householdName}.`
-  });
-  await insertNotification({
-    householdId: args.householdId,
-    audience: args.role,
-    severity: "info",
-    titleKey: "notification.title.memberInvited",
-    bodyKey: "notification.body.memberInvited",
-    values: { role: args.role },
-    entityType: "member",
-    entityId: data.id
-  });
-  return token as string; // 邀请 token，用于生成邀请链接（不暴露 member id）
+  if (args.role !== "caregiver" && args.role !== "viewer") {
+    throw new Error("Only caregiver or viewer can be invited");
+  }
+  // 原子 RPC：建 member + pref + invite token + 审计 + 通知，含成员数配额校验。返回 invite token。
+  return inviteMemberRpc(args.householdId, args.role);
 }
 
 export async function addDocument(args: {
@@ -270,40 +240,29 @@ export async function addDocument(args: {
     fileName: args.name,
     source: args.source
   });
-  const { data, error } = await supabase
-    .from("documents")
-    .insert({
-      household_id: args.householdId,
+  const sizeBytes = args.fileBody ? args.fileBody.size : 0;
+  try {
+    // 原子 RPC：单文件 25MB + OCR 月配额校验 + 插入 + 审计 + 通知。返回 document id。
+    return await createDocumentRpc({
+      householdId: args.householdId,
       name: args.name,
-      uploaded_by_id: args.actor.id,
-      status: "pending_confirmation",
-      contains_phi: false,
-      confidence: ocr.confidence,
+      uploadedById: args.actor.id,
       source: args.source,
-      suggested_action: ocr.suggestedAction ?? null,
-      storage_path: args.storagePath ?? null
-    })
-    .select("id")
-    .single();
-  if (error) {
-    // DB 插入失败但文件已上传 -> 清理孤儿文件，避免存储泄漏。
+      sizeBytes,
+      confidence: ocr.confidence,
+      suggestedAction: ocr.suggestedAction ?? null,
+      storagePath: args.storagePath ?? null
+    });
+  } catch (e) {
+    // RPC 拒绝（配额/大小）或失败 -> 清理已上传的孤儿文件。
     if (args.fileBody && args.storagePath) {
       await supabase.storage
         .from("documents")
         .remove([args.storagePath])
         .catch(() => {});
     }
-    throw error;
+    throw e;
   }
-  await insertAudit({
-    householdId: args.householdId,
-    actorId: args.actor.id,
-    action: "document.uploaded",
-    entityType: "document",
-    entityId: data.id,
-    detail: `${args.actor.name} uploaded "${args.name}"; manual confirmation required.`
-  });
-  return data.id;
 }
 
 export async function confirmDocumentAndCreateTask(args: {

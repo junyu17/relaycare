@@ -502,7 +502,8 @@ export function addDocument(
       t,
       "task.dynamic.documentReview",
       "Review and decide whether this creates a family coordination task"
-    )
+    ),
+    sizeBytes: 0
   };
 
   const event: CareEvent = {

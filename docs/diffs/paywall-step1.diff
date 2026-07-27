@@ -1,0 +1,665 @@
+diff --git a/backend/README.md b/backend/README.md
+index 8abe477..2ef9cb5 100644
+--- a/backend/README.md
++++ b/backend/README.md
+@@ -13,6 +13,7 @@ backend/supabase/migrations/
+   0005_role_rbac.sql       # 数据库层三角色最小权限策略
+   0006_task_activity_rpc.sql # P0 任务流、审计、通知原子事务 RPC
+   0007_invite_tokens.sql   # 邀请 token 安全（独立 invites 表 + accept_invite 凭 token）
++  0008_paywall.sql         # Family Plus 付费墙：entitlement 列 + 服务端硬配额 RPC
+ ```
+ 
+ ## 数据模型 → Postgres 映射
+@@ -54,7 +55,7 @@ npx supabase login
+ npx supabase link --project-ref <your-project-ref>
+ npx supabase db push            # 执行 migrations
+ 
+-# 方式二：Supabase Dashboard → SQL Editor → 按编号依次执行 0001 到 0007
++# 方式二：Supabase Dashboard → SQL Editor → 按编号依次执行 0001 到 0008
+ ```
+ 
+ > 新 Supabase 项目已完成 `0001` 到 `0006` 的迁移与角色 API 验收。上线前需补执行 `0007_invite_tokens.sql`（邀请 token 安全）。不要只执行旧版 `all_in_one.sql`，它没有包含 storage、RBAC、原子任务 RPC 或邀请 token。
+diff --git a/src/App.tsx b/src/App.tsx
+index b2e7951..0043683 100644
+--- a/src/App.tsx
++++ b/src/App.tsx
+@@ -26,7 +26,8 @@ import {
+   subscribeHouseholdState,
+   subscribeRoleNotifications,
+   cacheHouseholdState,
+-  getCachedHouseholdState
++  getCachedHouseholdState,
++  setHouseholdPlus
+ } from "./lib/db";
+ import * as Notifications from "expo-notifications";
+ import * as Clipboard from "expo-clipboard";
+@@ -35,6 +36,8 @@ import * as Linking from "expo-linking";
+ import { isSupabaseConfigured } from "./lib/supabase";
+ import { ConsentGate } from "./legal/ConsentGate";
+ import { openLegal } from "./legal/consent";
++import { Paywall } from "./paywall/Paywall";
++import { effectivePlan, checkTaskQuota, checkMemberQuota, checkOcrQuota, checkFileSize } from "./lib/entitlement";
+ import type { RealtimeChannel } from "@supabase/supabase-js";
+ import {
+   addDocument,
+@@ -78,6 +81,7 @@ import {
+   EventType,
+   Member,
+   Permission,
++  Plan,
+   Role,
+   RoleNotification,
+   Task
+@@ -150,9 +154,12 @@ function LocalApp(props: { cloud?: CloudProps } = {}) {
+   const [roleEditorMemberId, setRoleEditorMemberId] = useState<string | null>(null);
+   const [handoffTaskId, setHandoffTaskId] = useState<string | null>(null);
+   const [documentSafetyConfirmed, setDocumentSafetyConfirmed] = useState(false);
++  const [paywallVisible, setPaywallVisible] = useState(false);
+ 
+   const t = useMemo(() => makeTranslator(language), [language]);
+ 
++  const plan = effectivePlan(state.household);
++
+   const report = reportText ? reportText[language] : "";
+ 
+   useEffect(() => {
+@@ -338,6 +345,20 @@ function LocalApp(props: { cloud?: CloudProps } = {}) {
+       if (!result.canceled) {
+         const asset = result.assets[0];
+         const name = asset?.name ?? t("task.dynamic.uploadedReview");
++        // 单文件 25MB 预检（服务端 RPC 也会校验）。
++        if (asset?.size && !checkFileSize(asset.size)) {
++          Alert.alert(t("quota.fileSizeTitle"), t("quota.fileSizeBody"));
++          return;
++        }
++        // OCR 月配额预检（sample 不计配额，仅真实上传计）。
++        const ocrQuota = checkOcrQuota(state);
++        if (!ocrQuota.ok) {
++          Alert.alert(t("quota.ocrTitle"), t("quota.ocrBody"), [
++            { text: t("quota.upgrade"), onPress: () => setPaywallVisible(true) },
++            { style: "cancel", text: t("paywall.close") }
++          ]);
++          return;
++        }
+         if (cloud) {
+           const storagePath = `${cloud.householdId}/${uniqueId()}-${name}`;
+           const fileBody = asset?.uri ? await (await fetch(asset.uri)).blob() : undefined;
+@@ -474,6 +495,14 @@ function LocalApp(props: { cloud?: CloudProps } = {}) {
+         showMessage(t("alerts.inviteExpiredTitle"), t("alerts.inviteExpiredBody"));
+         return;
+       }
++      const quota = checkMemberQuota(state);
++      if (!quota.ok) {
++        Alert.alert(t("quota.memberTitle"), t("quota.memberBody"), [
++          { text: t("quota.upgrade"), onPress: () => setPaywallVisible(true) },
++          { text: t("paywall.close"), style: "cancel" as const }
++        ]);
++        return;
++      }
+       if (cloud) {
+         cloudActions
+           .inviteMember({
+@@ -502,6 +531,14 @@ function LocalApp(props: { cloud?: CloudProps } = {}) {
+ 
+   const onCreateTaskFromTemplate = (templateKey: TaskTemplateKey) => {
+     runIfAllowed("task:create", () => {
++      const quota = checkTaskQuota(state);
++      if (!quota.ok) {
++        Alert.alert(t("quota.taskTitle"), t("quota.taskBody"), [
++          { text: t("quota.upgrade"), onPress: () => setPaywallVisible(true) },
++          { style: "cancel", text: t("paywall.close") }
++        ]);
++        return;
++      }
+       const input = taskTemplateInput(templateKey, t);
+       if (cloud) {
+         runCloudAction(
+@@ -541,6 +578,23 @@ function LocalApp(props: { cloud?: CloudProps } = {}) {
+     });
+   };
+ 
++  // dev 测试切换套餐（上线前移除/隐藏；第二步换成真实 IAP）。
++  const onDevSetPlus = (nextPlan: "free" | "monthly" | "yearly") => {
++    if (cloud) {
++      runCloudAction(setHouseholdPlus(cloud.householdId, nextPlan, actor.id));
++    } else {
++      setState((current) => ({
++        ...current,
++        household: {
++          ...current.household,
++          plusPlan: nextPlan,
++          plusUntil: nextPlan === "free" ? undefined : new Date(Date.now() + 365 * 86400000).toISOString(),
++          plusOwnerId: nextPlan === "free" ? undefined : actor.id
++        }
++      }));
++    }
++  };
++
+   const metrics = useMemo(() => {
+     const open = state.tasks.filter((task) => task.status !== "completed");
+     const ownerRate = state.tasks.length
+@@ -580,6 +634,17 @@ function LocalApp(props: { cloud?: CloudProps } = {}) {
+           </Text>
+         </View>
+         <Pill tone="safe" text="Non-PHI" />
++        <TouchableOpacity
++          style={styles.languageButton}
++          accessibilityRole="button"
++          accessibilityLabel={t("settings.plan")}
++          onPress={() => setPaywallVisible(true)}
++        >
++          <Ionicons name={plan === "free" ? "ribbon-outline" : "ribbon"} size={16} color={palette.teal} />
++          <Text style={styles.languageButtonText} allowFontScaling>
++            {plan === "free" ? t("plan.badge.free") : t("plan.badge.plus")}
++          </Text>
++        </TouchableOpacity>
+         <TouchableOpacity
+           style={styles.languageButton}
+           accessibilityRole="button"
+@@ -720,7 +785,9 @@ function LocalApp(props: { cloud?: CloudProps } = {}) {
+             isHouseholdInviteExpired(state),
+             () => setActiveTab("audit"),
+             !!cloud,
+-            (kind) => void openLegal(kind, language)
++            (kind) => void openLegal(kind, language),
++            plan,
++            () => setPaywallVisible(true)
+           )}
+         {activeTab === "audit" && can("audit:read") && renderAudit(state, language, t, () => setActiveTab("settings"))}
+       </ScrollView>
+@@ -761,6 +828,15 @@ function LocalApp(props: { cloud?: CloudProps } = {}) {
+         </View>
+       </Modal>
+ 
++      <Paywall
++        visible={paywallVisible}
++        onClose={() => setPaywallVisible(false)}
++        t={t}
++        currentPlan={plan}
++        isCoordinator={actor.role === "coordinator"}
++        onDevSetPlus={onDevSetPlus}
++      />
++
+       <Modal
+         visible={roleEditorMember != null}
+         transparent
+@@ -1467,7 +1543,9 @@ function renderSettings(
+   inviteExpired: boolean,
+   onViewAllAudit: () => void,
+   isCloud: boolean,
+-  onOpenLegal: (kind: "privacy" | "terms") => void
++  onOpenLegal: (kind: "privacy" | "terms") => void,
++  plan: Plan,
++  onOpenPaywall: () => void
+ ) {
+   const canManageRoles = hasPermission(state, actor.role, "member:role_update");
+   const canInviteMembers = hasPermission(state, actor.role, "member:invite");
+@@ -1494,6 +1572,27 @@ function renderSettings(
+         </Text>
+       </View>
+ 
++      <SectionTitle icon="ribbon-outline" title={t("settings.plan")} />
++      <View style={styles.panel}>
++        <View style={styles.panelHeader}>
++          <View style={styles.listText}>
++            <Text style={styles.itemTitle} allowFontScaling>
++              {plan === "free" ? t("plan.free") : t("plan.plus")}
++            </Text>
++            <Text style={styles.itemMeta} allowFontScaling>
++              {t("paywall.currentPlan")}
++            </Text>
++          </View>
++          <Ionicons name={plan === "free" ? "ribbon-outline" : "ribbon"} size={22} color={palette.teal} />
++        </View>
++        <ActionButton
++          icon={plan === "free" ? "star-outline" : "settings-outline"}
++          label={plan === "free" ? t("settings.upgrade") : t("settings.managePlan")}
++          tone="primary"
++          onPress={onOpenPaywall}
++        />
++      </View>
++
+       {canInviteMembers && (
+         <>
+           <SectionTitle icon="person-add-outline" title={t("settings.inviteTitle")} />
+diff --git a/src/data.ts b/src/data.ts
+index d0f2ae7..e845f4d 100644
+--- a/src/data.ts
++++ b/src/data.ts
+@@ -6,7 +6,8 @@ export const initialState: AppState = {
+     name: "Chen Family Care Circle",
+     timezone: "America/Los_Angeles",
+     inviteExpiresAt: "2026-07-24T08:30:00-07:00",
+-    careRecipientLabel: "Care recipient"
++    careRecipientLabel: "Care recipient",
++    plusPlan: "free"
+   },
+   members: [
+     {
+@@ -217,7 +218,8 @@ export const initialState: AppState = {
+       containsPhi: false,
+       confidence: 0.72,
+       source: "sample",
+-      suggestedAction: "Confirm paperwork requirements for the follow-up appointment"
++      suggestedAction: "Confirm paperwork requirements for the follow-up appointment",
++      sizeBytes: 0
+     }
+   ],
+   auditEvents: [
+diff --git a/src/domain.ts b/src/domain.ts
+index feae96b..6ff388c 100644
+--- a/src/domain.ts
++++ b/src/domain.ts
+@@ -502,7 +502,8 @@ export function addDocument(
+       t,
+       "task.dynamic.documentReview",
+       "Review and decide whether this creates a family coordination task"
+-    )
++    ),
++    sizeBytes: 0
+   };
+ 
+   const event: CareEvent = {
+diff --git a/src/i18n.ts b/src/i18n.ts
+index 40561d6..f847138 100644
+--- a/src/i18n.ts
++++ b/src/i18n.ts
+@@ -344,7 +344,49 @@ const translations: Record<Language, Record<string, string>> = {
+     "consent.agree": "Agree & continue",
+     "consent.decline": "Decline",
+     "consent.declinedTitle": "Consent required",
+-    "consent.declinedBody": "TaskKin Care can only be used after you agree to the Privacy Policy and Terms of Service."
++    "consent.declinedBody": "TaskKin Care can only be used after you agree to the Privacy Policy and Terms of Service.",
++    "plan.free": "Free",
++    "plan.plus": "Family Plus",
++    "plan.badge.free": "Free",
++    "plan.badge.plus": "Plus",
++    "paywall.title": "Family Plus",
++    "paywall.subtitle": "Unlock more households, members, tasks, OCR, and automation.",
++    "paywall.col.feature": "Feature",
++    "paywall.col.free": "Free",
++    "paywall.col.plus": "Plus",
++    "paywall.row.households": "Households",
++    "paywall.row.members": "Members",
++    "paywall.row.tasks": "In-progress tasks",
++    "paywall.row.storage": "Per-file size",
++    "paywall.row.report": "Weekly report",
++    "paywall.row.ocr": "OCR / month",
++    "paywall.row.audit": "Audit retention",
++    "paywall.row.export": "Export (PDF/CSV)",
++    "paywall.row.notifications": "Digest & quiet hours",
++    "paywall.value.reportManual": "Manual",
++    "paywall.value.reportAuto": "Auto + history",
++    "paywall.value.none": "—",
++    "paywall.subscribeMonthly": "$9.99 / month",
++    "paywall.subscribeYearly": "$99.99 / year",
++    "paywall.restore": "Restore purchase",
++    "paywall.close": "Close",
++    "paywall.currentPlan": "Current plan",
++    "paywall.plusActive": "Family Plus is active for this household.",
++    "paywall.iapSoon": "In-app purchase connects in step 2. For now, coordinators can toggle Plus for testing.",
++    "paywall.devEnablePlus": "Enable Plus (testing)",
++    "paywall.devDisablePlus": "Disable Plus (testing)",
++    "settings.plan": "Plan",
++    "settings.upgrade": "Upgrade to Family Plus",
++    "settings.managePlan": "Manage plan",
++    "quota.taskTitle": "Task limit reached",
++    "quota.taskBody": "Free plans allow 10 in-progress tasks. Upgrade to Family Plus for unlimited.",
++    "quota.memberTitle": "Member limit reached",
++    "quota.memberBody": "Free plans allow 3 members. Upgrade to Family Plus for up to 12.",
++    "quota.ocrTitle": "OCR limit reached",
++    "quota.ocrBody": "Free plans allow 1 OCR upload per month. Upgrade to Family Plus for 50.",
++    "quota.fileSizeTitle": "File too large",
++    "quota.fileSizeBody": "Maximum file size is 25 MB.",
++    "quota.upgrade": "Upgrade"
+   },
+   zh: {
+     "app.subtitle": "不处理 PHI 的家庭照护协同",
+@@ -657,7 +699,49 @@ const translations: Record<Language, Record<string, string>> = {
+     "consent.agree": "同意并继续",
+     "consent.decline": "不同意",
+     "consent.declinedTitle": "需要同意",
+-    "consent.declinedBody": "只有同意隐私政策与服务条款后才能使用 TaskKin Care。"
++    "consent.declinedBody": "只有同意隐私政策与服务条款后才能使用 TaskKin Care。",
++    "plan.free": "免费版",
++    "plan.plus": "家庭 Plus",
++    "plan.badge.free": "免费",
++    "plan.badge.plus": "Plus",
++    "paywall.title": "家庭 Plus",
++    "paywall.subtitle": "解锁更多家庭、成员、任务、OCR 与自动化。",
++    "paywall.col.feature": "功能",
++    "paywall.col.free": "免费",
++    "paywall.col.plus": "Plus",
++    "paywall.row.households": "家庭数量",
++    "paywall.row.members": "家庭成员",
++    "paywall.row.tasks": "进行中任务",
++    "paywall.row.storage": "单文件大小",
++    "paywall.row.report": "家庭周报",
++    "paywall.row.ocr": "OCR / 月",
++    "paywall.row.audit": "审计保留",
++    "paywall.row.export": "导出 (PDF/CSV)",
++    "paywall.row.notifications": "摘要与静默时段",
++    "paywall.value.reportManual": "手动",
++    "paywall.value.reportAuto": "自动 + 历史",
++    "paywall.value.none": "—",
++    "paywall.subscribeMonthly": "$9.99 / 月",
++    "paywall.subscribeYearly": "$99.99 / 年",
++    "paywall.restore": "恢复购买",
++    "paywall.close": "关闭",
++    "paywall.currentPlan": "当前套餐",
++    "paywall.plusActive": "本家庭已启用家庭 Plus。",
++    "paywall.iapSoon": "应用内购买将在第二步接入。当前协调人可临时切换 Plus 用于测试。",
++    "paywall.devEnablePlus": "启用 Plus（测试）",
++    "paywall.devDisablePlus": "关闭 Plus（测试）",
++    "settings.plan": "套餐",
++    "settings.upgrade": "升级到家庭 Plus",
++    "settings.managePlan": "管理套餐",
++    "quota.taskTitle": "任务已达上限",
++    "quota.taskBody": "免费版最多 10 个进行中任务。升级家庭 Plus 可不限数量。",
++    "quota.memberTitle": "成员已达上限",
++    "quota.memberBody": "免费版最多 3 名成员。升级家庭 Plus 可达 12 名。",
++    "quota.ocrTitle": "OCR 已达上限",
++    "quota.ocrBody": "免费版每月 1 次 OCR 上传。升级家庭 Plus 可达 50 次。",
++    "quota.fileSizeTitle": "文件过大",
++    "quota.fileSizeBody": "单文件最大 25 MB。",
++    "quota.upgrade": "升级"
+   },
+   es: {
+     "app.subtitle": "Coordinación familiar sin PHI",
+@@ -987,7 +1071,50 @@ const translations: Record<Language, Record<string, string>> = {
+     "consent.decline": "Rechazar",
+     "consent.declinedTitle": "Se requiere consentimiento",
+     "consent.declinedBody":
+-      "TaskKin Care solo puede usarse después de aceptar la Política de privacidad y los Términos del servicio."
++      "TaskKin Care solo puede usarse después de aceptar la Política de privacidad y los Términos del servicio.",
++    "plan.free": "Gratis",
++    "plan.plus": "Family Plus",
++    "plan.badge.free": "Gratis",
++    "plan.badge.plus": "Plus",
++    "paywall.title": "Family Plus",
++    "paywall.subtitle": "Desbloquea más hogares, miembros, tareas, OCR y automatización.",
++    "paywall.col.feature": "Función",
++    "paywall.col.free": "Gratis",
++    "paywall.col.plus": "Plus",
++    "paywall.row.households": "Hogares",
++    "paywall.row.members": "Miembros",
++    "paywall.row.tasks": "Tareas en curso",
++    "paywall.row.storage": "Tamaño por archivo",
++    "paywall.row.report": "Reporte semanal",
++    "paywall.row.ocr": "OCR / mes",
++    "paywall.row.audit": "Retención de auditoría",
++    "paywall.row.export": "Exportar (PDF/CSV)",
++    "paywall.row.notifications": "Resumen y horas de silencio",
++    "paywall.value.reportManual": "Manual",
++    "paywall.value.reportAuto": "Auto + historial",
++    "paywall.value.none": "-",
++    "paywall.subscribeMonthly": "$9.99 / mes",
++    "paywall.subscribeYearly": "$99.99 / año",
++    "paywall.restore": "Restaurar compra",
++    "paywall.close": "Cerrar",
++    "paywall.currentPlan": "Plan actual",
++    "paywall.plusActive": "Family Plus está activo para este hogar.",
++    "paywall.iapSoon":
++      "La compra integrada se conecta en el paso 2. Por ahora el coordinador puede alternar Plus para pruebas.",
++    "paywall.devEnablePlus": "Activar Plus (prueba)",
++    "paywall.devDisablePlus": "Desactivar Plus (prueba)",
++    "settings.plan": "Plan",
++    "settings.upgrade": "Mejorar a Family Plus",
++    "settings.managePlan": "Gestionar plan",
++    "quota.taskTitle": "Límite de tareas alcanzado",
++    "quota.taskBody": "El plan gratis permite 10 tareas en curso. Mejora a Family Plus para ilimitadas.",
++    "quota.memberTitle": "Límite de miembros alcanzado",
++    "quota.memberBody": "El plan gratis permite 3 miembros. Mejora a Family Plus para hasta 12.",
++    "quota.ocrTitle": "Límite de OCR alcanzado",
++    "quota.ocrBody": "El plan gratis permite 1 OCR al mes. Mejora a Family Plus para 50.",
++    "quota.fileSizeTitle": "Archivo demasiado grande",
++    "quota.fileSizeBody": "El tamaño máximo por archivo es 25 MB.",
++    "quota.upgrade": "Mejorar"
+   }
+ };
+ 
+diff --git a/src/lib/actions.ts b/src/lib/actions.ts
+index 201751f..b03f2b4 100644
+--- a/src/lib/actions.ts
++++ b/src/lib/actions.ts
+@@ -1,5 +1,6 @@
+ import { supabase } from "./supabase";
+ import { getOcrProvider } from "./ocr";
++import { inviteMemberRpc, createDocumentRpc } from "./db";
+ import type { Member, Role, AuditAction } from "../types";
+ 
+ // 写操作层：每个操作对应 domain.ts 的纯函数，但写 Supabase（而非本地 state）。
+@@ -212,42 +213,11 @@ export async function updateMemberRole(args: {
+ }
+ 
+ export async function inviteMember(args: { householdId: string; actor: Member; role: Role; householdName: string }) {
+-  const inviteName = args.role === "caregiver" ? "New caregiver invite" : "New viewer invite";
+-  const { data, error } = await supabase
+-    .from("members")
+-    .insert({
+-      household_id: args.householdId,
+-      name: inviteName,
+-      role: args.role,
+-      invite_status: "pending",
+-      invite_expires_at: new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString()
+-    })
+-    .select("id")
+-    .single();
+-  if (error) throw error;
+-  await supabase.from("notification_preferences").insert({ household_id: args.householdId, member_id: data.id });
+-  // 生成独立 invite token（存于 invites 表，不经 API 可读），用于邀请链接；accept_invite 凭 token 加入。
+-  const { data: token, error: invErr } = await supabase.rpc("create_invite", { p_member_id: data.id });
+-  if (invErr) throw invErr;
+-  await insertAudit({
+-    householdId: args.householdId,
+-    actorId: args.actor.id,
+-    action: "member.invited",
+-    entityType: "member",
+-    entityId: data.id,
+-    detail: `${args.actor.name} invited a new ${args.role} to ${args.householdName}.`
+-  });
+-  await insertNotification({
+-    householdId: args.householdId,
+-    audience: args.role,
+-    severity: "info",
+-    titleKey: "notification.title.memberInvited",
+-    bodyKey: "notification.body.memberInvited",
+-    values: { role: args.role },
+-    entityType: "member",
+-    entityId: data.id
+-  });
+-  return token as string; // 邀请 token，用于生成邀请链接（不暴露 member id）
++  if (args.role !== "caregiver" && args.role !== "viewer") {
++    throw new Error("Only caregiver or viewer can be invited");
++  }
++  // 原子 RPC：建 member + pref + invite token + 审计 + 通知，含成员数配额校验。返回 invite token。
++  return inviteMemberRpc(args.householdId, args.role);
+ }
+ 
+ export async function addDocument(args: {
+@@ -270,40 +240,29 @@ export async function addDocument(args: {
+     fileName: args.name,
+     source: args.source
+   });
+-  const { data, error } = await supabase
+-    .from("documents")
+-    .insert({
+-      household_id: args.householdId,
++  const sizeBytes = args.fileBody ? args.fileBody.size : 0;
++  try {
++    // 原子 RPC：单文件 25MB + OCR 月配额校验 + 插入 + 审计 + 通知。返回 document id。
++    return await createDocumentRpc({
++      householdId: args.householdId,
+       name: args.name,
+-      uploaded_by_id: args.actor.id,
+-      status: "pending_confirmation",
+-      contains_phi: false,
+-      confidence: ocr.confidence,
++      uploadedById: args.actor.id,
+       source: args.source,
+-      suggested_action: ocr.suggestedAction ?? null,
+-      storage_path: args.storagePath ?? null
+-    })
+-    .select("id")
+-    .single();
+-  if (error) {
+-    // DB 插入失败但文件已上传 -> 清理孤儿文件，避免存储泄漏。
++      sizeBytes,
++      confidence: ocr.confidence,
++      suggestedAction: ocr.suggestedAction ?? null,
++      storagePath: args.storagePath ?? null
++    });
++  } catch (e) {
++    // RPC 拒绝（配额/大小）或失败 -> 清理已上传的孤儿文件。
+     if (args.fileBody && args.storagePath) {
+       await supabase.storage
+         .from("documents")
+         .remove([args.storagePath])
+         .catch(() => {});
+     }
+-    throw error;
++    throw e;
+   }
+-  await insertAudit({
+-    householdId: args.householdId,
+-    actorId: args.actor.id,
+-    action: "document.uploaded",
+-    entityType: "document",
+-    entityId: data.id,
+-    detail: `${args.actor.name} uploaded "${args.name}"; manual confirmation required.`
+-  });
+-  return data.id;
+ }
+ 
+ export async function confirmDocumentAndCreateTask(args: {
+diff --git a/src/lib/db.ts b/src/lib/db.ts
+index 37b842c..495e654 100644
+--- a/src/lib/db.ts
++++ b/src/lib/db.ts
+@@ -24,6 +24,9 @@ interface DBHousehold {
+   timezone: string;
+   invite_expires_at: string;
+   care_recipient_label: string;
++  plus_plan: "free" | "monthly" | "yearly";
++  plus_until: string | null;
++  plus_owner_id: string | null;
+ }
+ interface DBMember {
+   id: string;
+@@ -99,6 +102,7 @@ interface DBDocument {
+   source: DocumentRecord["source"];
+   suggested_action: string | null;
+   storage_path: string | null;
++  size_bytes: number;
+ }
+ interface DBAuditEvent {
+   id: string;
+@@ -116,7 +120,10 @@ const mapHousehold = (r: DBHousehold): Household => ({
+   name: r.name,
+   timezone: r.timezone,
+   inviteExpiresAt: r.invite_expires_at,
+-  careRecipientLabel: r.care_recipient_label
++  careRecipientLabel: r.care_recipient_label,
++  plusPlan: r.plus_plan,
++  plusUntil: r.plus_until ?? undefined,
++  plusOwnerId: r.plus_owner_id ?? undefined
+ });
+ const mapMember = (r: DBMember): Member => ({
+   id: r.id,
+@@ -190,7 +197,8 @@ const mapDocument = (r: DBDocument): DocumentRecord => ({
+   confidence: r.confidence,
+   source: r.source,
+   suggestedAction: r.suggested_action ?? undefined,
+-  storagePath: r.storage_path ?? undefined
++  storagePath: r.storage_path ?? undefined,
++  sizeBytes: r.size_bytes ?? 0
+ });
+ const mapAuditEvent = (r: DBAuditEvent): AuditEvent => ({
+   id: r.id,
+@@ -358,3 +366,56 @@ export async function acceptInvite(token: string, displayName?: string): Promise
+   if (error) throw error;
+   return data as string; // 返回 household_id，避免再查一次
+ }
++
++// ============ 付费墙 RPC（0008）============
++
++// 邀请成员（原子：建 member + pref + invite token + 审计 + 通知，含成员数配额校验）。
++// 返回 invite token。
++export async function inviteMemberRpc(householdId: string, role: "caregiver" | "viewer"): Promise<string> {
++  const { data, error } = await supabase.rpc("invite_member", {
++    p_household_id: householdId,
++    p_role: role
++  });
++  if (error) throw error;
++  return data as string;
++}
++
++// 创建文档元数据（原子：单文件 25MB + OCR 月配额校验 + 插入 + 审计 + 通知）。
++// 客户端先上传 storage，再调本 RPC；若 RPC 拒绝需清理已上传文件。
++export async function createDocumentRpc(args: {
++  householdId: string;
++  name: string;
++  uploadedById: string;
++  source: "manual_upload" | "sample";
++  sizeBytes: number;
++  confidence: number;
++  suggestedAction: string | null;
++  storagePath: string | null;
++}): Promise<string> {
++  const { data, error } = await supabase.rpc("create_document", {
++    p_household_id: args.householdId,
++    p_name: args.name,
++    p_uploaded_by_id: args.uploadedById,
++    p_source: args.source,
++    p_size_bytes: args.sizeBytes,
++    p_confidence: args.confidence,
++    p_suggested_action: args.suggestedAction,
++    p_storage_path: args.storagePath
++  });
++  if (error) throw error;
++  return data as string;
++}
++
++// 手动设置家庭套餐（dev/测试用；上线后由校验 Edge Function 调用）。
++export async function setHouseholdPlus(
++  householdId: string,
++  plan: "free" | "monthly" | "yearly",
++  ownerMemberId: string
++): Promise<void> {
++  const { error } = await supabase.rpc("set_household_plus", {
++    p_household_id: householdId,
++    p_plan: plan,
++    p_owner_member_id: ownerMemberId
++  });
++  if (error) throw error;
++}
+diff --git a/src/types.ts b/src/types.ts
+index 8fd072d..35d4050 100644
+--- a/src/types.ts
++++ b/src/types.ts
+@@ -38,12 +38,17 @@ export type AuditAction =
+   | "document.task_created"
+   | "report.generated";
+ 
++export type Plan = "free" | "monthly" | "yearly";
++
+ export interface Household {
+   id: string;
+   name: string;
+   timezone: string;
+   inviteExpiresAt: string;
+   careRecipientLabel: string;
++  plusPlan: Plan;
++  plusUntil?: string;
++  plusOwnerId?: string;
+ }
+ 
+ export interface NotificationPreference {
+@@ -125,6 +130,7 @@ export interface DocumentRecord {
+   source: "manual_upload" | "sample";
+   suggestedAction?: string;
+   storagePath?: string;
++  sizeBytes: number;
+ }
+ 
+ export interface AuditEvent {

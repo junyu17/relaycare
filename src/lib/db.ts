@@ -24,6 +24,9 @@ interface DBHousehold {
   timezone: string;
   invite_expires_at: string;
   care_recipient_label: string;
+  plus_plan: "free" | "monthly" | "yearly";
+  plus_until: string | null;
+  plus_owner_id: string | null;
 }
 interface DBMember {
   id: string;
@@ -99,6 +102,7 @@ interface DBDocument {
   source: DocumentRecord["source"];
   suggested_action: string | null;
   storage_path: string | null;
+  size_bytes: number;
 }
 interface DBAuditEvent {
   id: string;
@@ -116,7 +120,10 @@ const mapHousehold = (r: DBHousehold): Household => ({
   name: r.name,
   timezone: r.timezone,
   inviteExpiresAt: r.invite_expires_at,
-  careRecipientLabel: r.care_recipient_label
+  careRecipientLabel: r.care_recipient_label,
+  plusPlan: r.plus_plan,
+  plusUntil: r.plus_until ?? undefined,
+  plusOwnerId: r.plus_owner_id ?? undefined
 });
 const mapMember = (r: DBMember): Member => ({
   id: r.id,
@@ -190,7 +197,8 @@ const mapDocument = (r: DBDocument): DocumentRecord => ({
   confidence: r.confidence,
   source: r.source,
   suggestedAction: r.suggested_action ?? undefined,
-  storagePath: r.storage_path ?? undefined
+  storagePath: r.storage_path ?? undefined,
+  sizeBytes: r.size_bytes ?? 0
 });
 const mapAuditEvent = (r: DBAuditEvent): AuditEvent => ({
   id: r.id,
@@ -357,4 +365,57 @@ export async function acceptInvite(token: string, displayName?: string): Promise
   });
   if (error) throw error;
   return data as string; // 返回 household_id，避免再查一次
+}
+
+// ============ 付费墙 RPC（0008）============
+
+// 邀请成员（原子：建 member + pref + invite token + 审计 + 通知，含成员数配额校验）。
+// 返回 invite token。
+export async function inviteMemberRpc(householdId: string, role: "caregiver" | "viewer"): Promise<string> {
+  const { data, error } = await supabase.rpc("invite_member", {
+    p_household_id: householdId,
+    p_role: role
+  });
+  if (error) throw error;
+  return data as string;
+}
+
+// 创建文档元数据（原子：单文件 25MB + OCR 月配额校验 + 插入 + 审计 + 通知）。
+// 客户端先上传 storage，再调本 RPC；若 RPC 拒绝需清理已上传文件。
+export async function createDocumentRpc(args: {
+  householdId: string;
+  name: string;
+  uploadedById: string;
+  source: "manual_upload" | "sample";
+  sizeBytes: number;
+  confidence: number;
+  suggestedAction: string | null;
+  storagePath: string | null;
+}): Promise<string> {
+  const { data, error } = await supabase.rpc("create_document", {
+    p_household_id: args.householdId,
+    p_name: args.name,
+    p_uploaded_by_id: args.uploadedById,
+    p_source: args.source,
+    p_size_bytes: args.sizeBytes,
+    p_confidence: args.confidence,
+    p_suggested_action: args.suggestedAction,
+    p_storage_path: args.storagePath
+  });
+  if (error) throw error;
+  return data as string;
+}
+
+// 手动设置家庭套餐（dev/测试用；上线后由校验 Edge Function 调用）。
+export async function setHouseholdPlus(
+  householdId: string,
+  plan: "free" | "monthly" | "yearly",
+  ownerMemberId: string
+): Promise<void> {
+  const { error } = await supabase.rpc("set_household_plus", {
+    p_household_id: householdId,
+    p_plan: plan,
+    p_owner_member_id: ownerMemberId
+  });
+  if (error) throw error;
 }

@@ -65,16 +65,19 @@ export class CloudOcrProvider implements OcrProvider {
 
 // ============ 工厂 ============
 // 环境变量 EXPO_PUBLIC_OCR_MODE 控制：
-//   mock（默认/试点期）| device（试点后，on-device）| cloud（兜底，需 BAA）
+//   device（默认/生产）| mock（Expo Go 开发期回退，无原生模块时用）| cloud（兜底，需 BAA）
+// 生产构建（.env / .env.example）显式设为 device；未设置时默认 device，
+// 保证上架包真正走 on-device 识别（Apple Vision + Google ML Kit），不回退演示值。
+// 仅 Expo Go 开发（无原生模块）需显式设 EXPO_PUBLIC_OCR_MODE=mock。
 export function getOcrProvider(): OcrProvider {
-  const mode = (process.env.EXPO_PUBLIC_OCR_MODE ?? "mock") as OcrProviderName;
+  const mode = (process.env.EXPO_PUBLIC_OCR_MODE ?? "device") as OcrProviderName;
   switch (mode) {
-    case "device":
-      return new DeviceOcrProvider();
+    case "mock":
+      return new MockOcrProvider();
     case "cloud":
       return new CloudOcrProvider();
-    case "mock":
+    case "device":
     default:
-      return new MockOcrProvider();
+      return new DeviceOcrProvider();
   }
 }

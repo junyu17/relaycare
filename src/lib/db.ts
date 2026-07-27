@@ -350,10 +350,11 @@ export async function createHousehold(args: {
   return data as string;
 }
 
-export async function acceptInvite(memberId: string, displayName?: string): Promise<void> {
-  const { error } = await supabase.rpc("accept_invite", {
-    p_member_id: memberId,
+export async function acceptInvite(token: string, displayName?: string): Promise<string> {
+  const { data, error } = await supabase.rpc("accept_invite", {
+    p_invite_token: token,
     p_display_name: displayName ?? null
   });
   if (error) throw error;
+  return data as string; // 返回 household_id，避免再查一次
 }

@@ -23,7 +23,7 @@ interface AuthState {
   signOut: () => Promise<void>;
   createHousehold: (args: CreateHouseholdArgs) => Promise<void>;
   acceptInvite: (memberId: string, displayName?: string) => Promise<void>;
-  pendingInviteId: string | null;
+  pendingInviteToken: string | null;
   clearPendingInvite: () => void;
 }
 
@@ -33,16 +33,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [householdId, setHouseholdId] = useState<string | null>(null);
   const [loading, setLoading] = useState(isSupabaseConfigured);
-  const [pendingInviteId, setPendingInviteId] = useState<string | null>(null);
+  const [pendingInviteToken, setPendingInviteToken] = useState<string | null>(null);
 
-  // Deep link: taskkin-care://invite?member=<id> -> 捕获邀请 member_id，登录/注册后加入
+  // Deep link: taskkin-care://invite?token=<token> -> 捕获邀请 token，登录/注册后加入
   useEffect(() => {
     const handleUrl = (url: string | null) => {
       if (!url) return;
       try {
         const parsed = Linking.parse(url);
-        const member = parsed.queryParams?.member;
-        if (typeof member === "string" && member) setPendingInviteId(member);
+        const token = parsed.queryParams?.token;
+        if (typeof token === "string" && token) setPendingInviteToken(token);
       } catch {
         // ignore malformed URLs
       }
@@ -110,12 +110,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const hid = await rpcCreateHousehold(args);
     setHouseholdId(hid);
   };
-  const acceptInvite = async (memberId: string, displayName?: string) => {
+  const acceptInvite = async (token: string, displayName?: string) => {
     if (!user) throw new Error("Not authenticated");
-    await rpcAcceptInvite(memberId, displayName);
-    if (user) setHouseholdId(await fetchHouseholdId(user.id));
+    const hid = await rpcAcceptInvite(token, displayName);
+    setHouseholdId(hid);
   };
-  const clearPendingInvite = () => setPendingInviteId(null);
+  const clearPendingInvite = () => setPendingInviteToken(null);
 
   return (
     <AuthContext.Provider
@@ -129,7 +129,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         signOut,
         createHousehold,
         acceptInvite,
-        pendingInviteId,
+        pendingInviteToken,
         clearPendingInvite
       }}
     >

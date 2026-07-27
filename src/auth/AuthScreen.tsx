@@ -2,6 +2,15 @@ import { useEffect, useState } from "react";
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, ScrollView } from "react-native";
 import { useAuth } from "./AuthContext";
 
+// 接受纯 token 或完整邀请链接（taskkin-care://invite?token=... 或 https://...token=...），统一抽出 token。
+function parseInviteToken(input: string): string {
+  const trimmed = input.trim();
+  if (!trimmed) return "";
+  const tokenMatch = trimmed.match(/[?&]token=([^&]+)/i);
+  if (tokenMatch) return decodeURIComponent(tokenMatch[1]);
+  return trimmed;
+}
+
 // 未登录时显示：登录 / 注册
 export function AuthScreen() {
   const { signIn, signUp } = useAuth();
@@ -56,21 +65,21 @@ export function AuthScreen() {
 
 // 已登录但还没家庭时显示：创建家庭 / 加入家庭
 export function OnboardingScreen() {
-  const { createHousehold, acceptInvite, signOut, pendingInviteId, clearPendingInvite } = useAuth();
+  const { createHousehold, acceptInvite, signOut, pendingInviteToken, clearPendingInvite } = useAuth();
   const [tab, setTab] = useState<"create" | "join">("create");
   const [householdName, setHouseholdName] = useState("");
   const [memberName, setMemberName] = useState("");
   const [relation, setRelation] = useState("");
-  const [inviteId, setInviteId] = useState("");
+  const [inviteInput, setInviteInput] = useState("");
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
-    if (!pendingInviteId) return;
-    // Sync invite id from deep link into local input state (one-time on link arrival).
+    if (!pendingInviteToken) return;
+    // Sync invite token from deep link into local input state (one-time on link arrival).
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    setInviteId(pendingInviteId);
+    setInviteInput(pendingInviteToken);
     setTab("join");
-  }, [pendingInviteId]);
+  }, [pendingInviteToken]);
 
   const onCreate = async () => {
     if (!householdName || !memberName) return;
@@ -92,10 +101,11 @@ export function OnboardingScreen() {
   };
 
   const onJoin = async () => {
-    if (!inviteId) return;
+    const token = parseInviteToken(inviteInput);
+    if (!token) return;
     setBusy(true);
     try {
-      await acceptInvite(inviteId.trim());
+      await acceptInvite(token);
       clearPendingInvite();
     } catch (e) {
       Alert.alert("Error", e instanceof Error ? e.message : String(e));
@@ -136,13 +146,14 @@ export function OnboardingScreen() {
         </>
       ) : (
         <>
-          <Text style={s.hint}>Paste the invite member ID your coordinator shared with you.</Text>
+          <Text style={s.hint}>Paste the invite link or token your coordinator shared with you.</Text>
           <TextInput
             style={s.input}
-            placeholder="Invite member ID"
-            value={inviteId}
-            onChangeText={setInviteId}
+            placeholder="Invite link or token"
+            value={inviteInput}
+            onChangeText={setInviteInput}
             autoCapitalize="none"
+            autoCorrect={false}
           />
           <TouchableOpacity style={s.button} onPress={onJoin} disabled={busy}>
             <Text style={s.buttonText}>{busy ? "..." : "Join household"}</Text>

@@ -12,6 +12,7 @@ backend/supabase/migrations/
   0004_storage.sql         # 私有文档 bucket 与存储路径
   0005_role_rbac.sql       # 数据库层三角色最小权限策略
   0006_task_activity_rpc.sql # P0 任务流、审计、通知原子事务 RPC
+  0007_invite_tokens.sql   # 邀请 token 安全（独立 invites 表 + accept_invite 凭 token）
 ```
 
 ## 数据模型 → Postgres 映射
@@ -37,7 +38,7 @@ backend/supabase/migrations/
 ## 关键 RPC
 
 - `create_household(...)`：注册用户一次性建家庭 + 自己的 coordinator 成员 + 通知偏好 + 审计。绕过 RLS 解决"首条 member 写入"问题。
-- `accept_invite(p_member_id, p_display_name)`：被邀请人注册后凭邀请链接加入家庭，校验 pending + 未过期。
+- `accept_invite(p_invite_token, p_display_name)`：被邀请人注册后凭邀请链接里的 token 加入家庭，校验 token 有效 + 未接受 + 未过期。token 存于独立 invites 表，不经 API 可读（防止同家庭其他成员冒用）。
 - `create_task_with_activity(...)`：原子创建任务、审计记录和照护者通知。
 - `transition_task_with_activity(...)`：原子认领、拒绝、交接或完成任务，并生成对应审计和角色通知。
 
@@ -53,7 +54,7 @@ npx supabase login
 npx supabase link --project-ref <your-project-ref>
 npx supabase db push            # 执行 migrations
 
-# 方式二：Supabase Dashboard → SQL Editor → 按编号依次执行 0001 到 0006
+# 方式二：Supabase Dashboard → SQL Editor → 按编号依次执行 0001 到 0007
 ```
 
-> 新 Supabase 项目已完成 `0001` 到 `0006` 的迁移与角色 API 验收。不要只执行旧版 `all_in_one.sql`，它没有包含 storage、RBAC 或原子任务 RPC。
+> 新 Supabase 项目已完成 `0001` 到 `0006` 的迁移与角色 API 验收。上线前需补执行 `0007_invite_tokens.sql`（邀请 token 安全）。不要只执行旧版 `all_in_one.sql`，它没有包含 storage、RBAC、原子任务 RPC 或邀请 token。

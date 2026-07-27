@@ -1,6 +1,7 @@
-# Clinical Disclaimer & Emergency Guidance (DRAFT)
+# Clinical Disclaimer & Emergency Guidance
 
-> **Status:** Draft v0.1 — 2026-07-24. Requires review by a clinical content advisor and US medical legal counsel before production use.
+> **Effective:** July 26, 2026
+> **Status:** Operator-reviewed clinical content. Independent clinical and medical legal review has not been obtained.
 
 ## 1. Not a Medical Service
 

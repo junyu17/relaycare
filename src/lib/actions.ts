@@ -226,6 +226,9 @@ export async function inviteMember(args: { householdId: string; actor: Member; r
     .single();
   if (error) throw error;
   await supabase.from("notification_preferences").insert({ household_id: args.householdId, member_id: data.id });
+  // 生成独立 invite token（存于 invites 表，不经 API 可读），用于邀请链接；accept_invite 凭 token 加入。
+  const { data: token, error: invErr } = await supabase.rpc("create_invite", { p_member_id: data.id });
+  if (invErr) throw invErr;
   await insertAudit({
     householdId: args.householdId,
     actorId: args.actor.id,
@@ -244,7 +247,7 @@ export async function inviteMember(args: { householdId: string; actor: Member; r
     entityType: "member",
     entityId: data.id
   });
-  return data.id; // 邀请 member id，用于生成邀请链接
+  return token as string; // 邀请 token，用于生成邀请链接（不暴露 member id）
 }
 
 export async function addDocument(args: {
@@ -282,7 +285,16 @@ export async function addDocument(args: {
     })
     .select("id")
     .single();
-  if (error) throw error;
+  if (error) {
+    // DB 插入失败但文件已上传 -> 清理孤儿文件，避免存储泄漏。
+    if (args.fileBody && args.storagePath) {
+      await supabase.storage
+        .from("documents")
+        .remove([args.storagePath])
+        .catch(() => {});
+    }
+    throw error;
+  }
   await insertAudit({
     householdId: args.householdId,
     actorId: args.actor.id,

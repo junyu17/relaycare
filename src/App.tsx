@@ -29,9 +29,12 @@ import {
   getCachedHouseholdState
 } from "./lib/db";
 import * as Notifications from "expo-notifications";
+import * as Clipboard from "expo-clipboard";
 import * as cloudActions from "./lib/actions";
 import * as Linking from "expo-linking";
 import { isSupabaseConfigured } from "./lib/supabase";
+import { ConsentGate } from "./legal/ConsentGate";
+import { openLegal } from "./legal/consent";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 import {
   addDocument,
@@ -479,9 +482,16 @@ function LocalApp(props: { cloud?: CloudProps } = {}) {
             role: templateKey,
             householdName: state.household.name
           })
-          .then((memberId) => {
-            const link = Linking.createURL("invite", { queryParams: { member: memberId } });
-            showMessage("Invite link", link);
+          .then(async (token) => {
+            const link = Linking.createURL("invite", { queryParams: { token } });
+            // 先复制到剪贴板（可靠），再打开系统分享面板。
+            await Clipboard.setStringAsync(link).catch(() => {});
+            try {
+              await Share.share({ title: t("settings.inviteShareTitle"), message: link });
+            } catch {
+              /* 用户取消分享或无可用分享应用 */
+            }
+            showMessage(t("settings.inviteLinkCopiedTitle"), t("settings.inviteLinkCopied"));
           })
           .catch(reportCloudActionFailure);
       } else {
@@ -708,7 +718,9 @@ function LocalApp(props: { cloud?: CloudProps } = {}) {
             setRoleEditorMemberId,
             onInviteMember,
             isHouseholdInviteExpired(state),
-            () => setActiveTab("audit")
+            () => setActiveTab("audit"),
+            !!cloud,
+            (kind) => void openLegal(kind, language)
           )}
         {activeTab === "audit" && can("audit:read") && renderAudit(state, language, t, () => setActiveTab("settings"))}
       </ScrollView>
@@ -955,12 +967,18 @@ function CloudApp() {
 
 export default function App() {
   if (!isSupabaseConfigured) {
-    return <LocalApp />;
+    return (
+      <ConsentGate>
+        <LocalApp />
+      </ConsentGate>
+    );
   }
   return (
-    <AuthProvider>
-      <CloudApp />
-    </AuthProvider>
+    <ConsentGate>
+      <AuthProvider>
+        <CloudApp />
+      </AuthProvider>
+    </ConsentGate>
   );
 }
 
@@ -1447,7 +1465,9 @@ function renderSettings(
   onOpenRoleEditor: (memberId: string) => void,
   onInviteMember: (templateKey: InviteTemplateKey) => void,
   inviteExpired: boolean,
-  onViewAllAudit: () => void
+  onViewAllAudit: () => void,
+  isCloud: boolean,
+  onOpenLegal: (kind: "privacy" | "terms") => void
 ) {
   const canManageRoles = hasPermission(state, actor.role, "member:role_update");
   const canInviteMembers = hasPermission(state, actor.role, "member:invite");
@@ -1470,7 +1490,7 @@ function renderSettings(
       <View style={styles.notice}>
         <Ionicons name="phone-portrait-outline" size={20} color={palette.teal} />
         <Text style={styles.noticeText} allowFontScaling>
-          {t("settings.localSave")}
+          {isCloud ? t("settings.cloudSync") : t("settings.localSave")}
         </Text>
       </View>
 
@@ -1656,6 +1676,32 @@ function renderSettings(
           )}
         </View>
       )}
+
+      <SectionTitle icon="document-text-outline" title={t("settings.legalTitle")} />
+      <View style={styles.panel}>
+        <TouchableOpacity
+          style={styles.roleChangeButton}
+          accessibilityRole="button"
+          accessibilityLabel={t("settings.openPrivacy")}
+          onPress={() => onOpenLegal("privacy")}
+        >
+          <Ionicons name="shield-outline" size={17} color={palette.teal} />
+          <Text style={styles.roleChangeButtonText} allowFontScaling>
+            {t("settings.openPrivacy")}
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.roleChangeButton}
+          accessibilityRole="button"
+          accessibilityLabel={t("settings.openTerms")}
+          onPress={() => onOpenLegal("terms")}
+        >
+          <Ionicons name="document-text-outline" size={17} color={palette.teal} />
+          <Text style={styles.roleChangeButtonText} allowFontScaling>
+            {t("settings.openTerms")}
+          </Text>
+        </TouchableOpacity>
+      </View>
     </View>
   );
 }

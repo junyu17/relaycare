@@ -1,6 +1,7 @@
-# Terms of Service (DRAFT)
+# Terms of Service
 
-> **Status:** Draft v0.1 — 2026-07-24. Requires review by US legal counsel before production use or public release.
+> **Effective:** July 26, 2026
+> **Status:** Operator-reviewed product terms. Independent legal counsel review has not been obtained.
 
 ## 1. Acceptance
 
@@ -58,7 +59,7 @@ To the maximum extent permitted by law, TaskKin Care is provided "as is" without
 
 ## 12. Dispute Resolution
 
-Disputes are resolved per the governing law and jurisdiction to be finalized before pilot launch (US jurisdiction expected).
+These Terms are intended to be governed by the laws of the State of California, United States, without regard to conflict of law principles. This governing-law selection has not received independent legal counsel review.
 
 ## 13. Changes
 

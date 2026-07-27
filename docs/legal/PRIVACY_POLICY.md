@@ -1,6 +1,7 @@
-# Privacy Policy (DRAFT)
+# Privacy Policy
 
-> **Status:** Draft v0.1 — 2026-07-24. Requires review by US privacy/medical legal counsel before any production use, public release, or institutional partnership. TaskKin Care is the current product name; legal and trademark review remain required.
+> **Effective:** July 26, 2026
+> **Status:** Operator-reviewed product notice. Independent legal counsel review has not been obtained. TaskKin Care is the current product name; legal and trademark review remain separate considerations.
 
 ## 1. Overview
 
@@ -51,7 +52,7 @@ The MVP is designed to operate **without** processing PHI. Whether TaskKin Care 
 
 ## 8. Retention and Deletion
 
-You can request deletion of your household data. Deletion/audit-retention timelines and the export procedure are defined in `COMPLIANCE_CHECKLIST.md`. Audit records may be retained for a defined period for security and accountability even after content deletion.
+Household content (households, members, tasks, timeline, documents, document files, notification preferences) is retained until you delete your household, which cascades to all household-scoped data. Audit records are retained for 24 months after household deletion for security and accountability. This retention period is an operator-selected policy and has not received independent legal counsel review. You can request an export of your household data or deletion at any time by emailing [Billy.yu@me.com](mailto:Billy.yu@me.com); the export and deletion procedure is defined in `COMPLIANCE_CHECKLIST.md §6`.
 
 ## 9. Your Rights
 

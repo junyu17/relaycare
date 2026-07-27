@@ -1,6 +1,7 @@
-# AI / OCR Usage Notice (DRAFT)
+# AI / OCR Usage Notice
 
-> **Status:** Draft v0.2 - 2026-07-24. Requires review by US privacy/medical legal counsel before any production use. On-device OCR is implemented (2026-07-24; decision updated from 1B "defer" to "implement now"); AI summaries remain template-based.
+> **Effective:** July 26, 2026
+> **Status:** Operator-reviewed product notice. Independent privacy/medical legal counsel review has not been obtained. On-device OCR is implemented and is the production default; AI summaries remain template-based.
 
 ## 1. Current State (MVP / Pilot)
 
@@ -24,7 +25,7 @@ The following safeguards apply to all OCR/AI processing, consistent with the pro
 - **Fallback (complex documents only): cloud.** AWS Textract AnalyzeDocument (Forms/Tables) or Google Document AI, invoked via a Supabase Edge Function (server-side signed, anon key never exposed). Requires a signed BAA before any PHI-capable document is processed.
 - Outputs only **candidate structured fields** with a **field-level confidence score**; production accuracy on real documents typically runs 80-95% (below curated benchmarks), so human confirmation remains mandatory.
 - **No field is written automatically.** A user must confirm candidate fields before they become a task or record.
-- The original file and source coordinates (bounding boxes) are retained for traceability.
+- The original file is retained in private object storage for traceability. On-device OCR computes candidate fields, confidence, and a suggested action; only the overall confidence and suggested action are persisted to document metadata. The raw extracted text and bounding boxes are processed ephemerally on the device and are **not** stored server-side, so no PHI leaves the device.
 
 ### AI Summaries
 

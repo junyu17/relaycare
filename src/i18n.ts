@@ -149,6 +149,8 @@ const translations: Record<Language, Record<string, string>> = {
     "settings.title": "App role settings",
     "settings.sameApp": "Everyone uses the same app. The active role controls which actions are available.",
     "settings.localSave": "Preview changes are saved on this device only. No cloud sync is enabled.",
+    "settings.cloudSync":
+      "Changes sync across all household devices. Offline edits are cached and sync automatically when back online.",
     "settings.inviteTitle": "Invite member",
     "settings.inviteCopy":
       "Create an in-app pending invite with least privilege. No email, phone, address, or PHI is collected here.",
@@ -158,6 +160,10 @@ const translations: Record<Language, Record<string, string>> = {
     "settings.inviteViewer": "Viewer invite",
     "settings.inviteViewerMeta": "Can view updates only",
     "settings.pendingInvite": "Pending invite",
+    "settings.inviteShareTitle": "TaskKin Care invite",
+    "settings.inviteLinkCopiedTitle": "Invite link copied",
+    "settings.inviteLinkCopied":
+      "The invite link was copied. Share it with your family member. It expires in 48 hours.",
     "settings.roleManagement": "Role management",
     "settings.currentRole": "Current role: {role}",
     "settings.changeRole": "Set {name} as {role}",
@@ -326,7 +332,19 @@ const translations: Record<Language, Record<string, string>> = {
     "settings.inviteExpiredNotice":
       "The household invite link has expired. New invites are blocked until a coordinator refreshes the invite window.",
     "settings.viewAllAudit": "View all audit events",
-    "audit.back": "Back to settings"
+    "audit.back": "Back to settings",
+    "settings.legalTitle": "Legal",
+    "settings.openPrivacy": "Privacy Policy",
+    "settings.openTerms": "Terms of Service",
+    "consent.title": "Before you begin",
+    "consent.body":
+      "TaskKin Care is a non-PHI family care coordination tool. It is not a medical device or emergency service. By continuing you agree to our Privacy Policy and Terms of Service.",
+    "consent.privacy": "Read Privacy Policy",
+    "consent.terms": "Read Terms of Service",
+    "consent.agree": "Agree & continue",
+    "consent.decline": "Decline",
+    "consent.declinedTitle": "Consent required",
+    "consent.declinedBody": "TaskKin Care can only be used after you agree to the Privacy Policy and Terms of Service."
   },
   zh: {
     "app.subtitle": "不处理 PHI 的家庭照护协同",
@@ -451,6 +469,7 @@ const translations: Record<Language, Record<string, string>> = {
     "settings.title": "App 内角色设置",
     "settings.sameApp": "所有人使用同一个 App。当前角色决定可执行的操作。",
     "settings.localSave": "预览改动仅保存在本设备。当前未启用云端同步。",
+    "settings.cloudSync": "改动在家庭所有设备间云同步。离线改动会缓存，联网后自动同步。",
     "settings.inviteTitle": "邀请成员",
     "settings.inviteCopy": "在 App 内创建待加入邀请，默认最小权限。此处不收集邮箱、电话、地址或 PHI。",
     "settings.inviteTemplate": "创建{role}",
@@ -459,6 +478,9 @@ const translations: Record<Language, Record<string, string>> = {
     "settings.inviteViewer": "查看者邀请",
     "settings.inviteViewerMeta": "仅可查看更新",
     "settings.pendingInvite": "待加入",
+    "settings.inviteShareTitle": "TaskKin Care 邀请",
+    "settings.inviteLinkCopiedTitle": "邀请链接已复制",
+    "settings.inviteLinkCopied": "邀请链接已复制，发给家人即可。链接 48 小时内有效。",
     "settings.roleManagement": "角色管理",
     "settings.currentRole": "当前角色：{role}",
     "settings.changeRole": "将 {name} 设为{role}",
@@ -623,7 +645,19 @@ const translations: Record<Language, Record<string, string>> = {
     "alerts.inviteExpiredBody": "家庭邀请链接已过期。在协调人刷新邀请窗口前，无法创建新邀请。",
     "settings.inviteExpiredNotice": "家庭邀请链接已过期。在协调人刷新邀请窗口前，无法创建新邀请。",
     "settings.viewAllAudit": "查看全部审计记录",
-    "audit.back": "返回设置"
+    "audit.back": "返回设置",
+    "settings.legalTitle": "法律",
+    "settings.openPrivacy": "隐私政策",
+    "settings.openTerms": "服务条款",
+    "consent.title": "开始使用前",
+    "consent.body":
+      "TaskKin Care 是不处理 PHI 的家庭照护协同工具，不是医疗器械或紧急服务。继续即表示你同意我们的隐私政策与服务条款。",
+    "consent.privacy": "查看隐私政策",
+    "consent.terms": "查看服务条款",
+    "consent.agree": "同意并继续",
+    "consent.decline": "不同意",
+    "consent.declinedTitle": "需要同意",
+    "consent.declinedBody": "只有同意隐私政策与服务条款后才能使用 TaskKin Care。"
   },
   es: {
     "app.subtitle": "Coordinación familiar sin PHI",
@@ -758,6 +792,8 @@ const translations: Record<Language, Record<string, string>> = {
     "settings.sameApp": "Todos usan la misma app. El rol activo controla qué acciones están disponibles.",
     "settings.localSave":
       "Los cambios de vista previa se guardan solo en este dispositivo. La sincronización en la nube no está activada.",
+    "settings.cloudSync":
+      "Los cambios se sincronizan entre todos los dispositivos del hogar. Sin conexión se guardan en caché y se sincronizan al volver.",
     "settings.inviteTitle": "Invitar miembro",
     "settings.inviteCopy":
       "Crea una invitación pendiente en la app con privilegio mínimo. Aquí no se recopilan email, teléfono, dirección ni PHI.",
@@ -767,6 +803,9 @@ const translations: Record<Language, Record<string, string>> = {
     "settings.inviteViewer": "Invitación de observador",
     "settings.inviteViewerMeta": "Solo puede ver actualizaciones",
     "settings.pendingInvite": "Invitación pendiente",
+    "settings.inviteShareTitle": "Invitación a TaskKin Care",
+    "settings.inviteLinkCopiedTitle": "Enlace de invitación copiado",
+    "settings.inviteLinkCopied": "Se copió el enlace de invitación. Compártelo con tu familiar. Expira en 48 horas.",
     "settings.roleManagement": "Gestión de roles",
     "settings.currentRole": "Rol actual: {role}",
     "settings.changeRole": "Asignar {role} a {name}",
@@ -935,7 +974,20 @@ const translations: Record<Language, Record<string, string>> = {
     "settings.inviteExpiredNotice":
       "El enlace de invitación familiar ha expirado. Las nuevas invitaciones están bloqueadas hasta que un coordinador renueve la ventana.",
     "settings.viewAllAudit": "Ver toda la auditoría",
-    "audit.back": "Volver a ajustes"
+    "audit.back": "Volver a ajustes",
+    "settings.legalTitle": "Legal",
+    "settings.openPrivacy": "Política de privacidad",
+    "settings.openTerms": "Términos del servicio",
+    "consent.title": "Antes de comenzar",
+    "consent.body":
+      "TaskKin Care es una herramienta de coordinación familiar sin PHI. No es un dispositivo médico ni un servicio de emergencia. Al continuar aceptas nuestra Política de privacidad y los Términos del servicio.",
+    "consent.privacy": "Leer Política de privacidad",
+    "consent.terms": "Leer Términos del servicio",
+    "consent.agree": "Aceptar y continuar",
+    "consent.decline": "Rechazar",
+    "consent.declinedTitle": "Se requiere consentimiento",
+    "consent.declinedBody":
+      "TaskKin Care solo puede usarse después de aceptar la Política de privacidad y los Términos del servicio."
   }
 };
 

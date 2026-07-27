@@ -16,7 +16,8 @@
         "foregroundImage": "./assets/icon.png",
         "backgroundColor": "#f7faf7"
       },
-      "package": "care.taskkincare.app"
-    }
+      "package": "cd.cc.taskkincare"
+    },
+    "plugins": ["expo-font"]
   }
 }

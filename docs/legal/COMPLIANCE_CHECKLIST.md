@@ -1,23 +1,23 @@
 # Compliance Checklist & Operational SOPs (DRAFT)
 
-> **Status:** Draft v0.1 — 2026-07-24. Internal working document. Requires sign-off by product lead, tech lead, and US privacy/medical legal counsel before pilot launch.
+> **Status:** Internal working document. Effective: July 26, 2026. Requires sign-off by product lead, tech lead, and US privacy/medical legal counsel before pilot launch.
 
 This checklist tracks the pre-launch compliance items required by the project charter (§6). Items marked ✅ are drafted; items marked ⏳ require action.
 
 ## 1. Required Documents
 
-| Document                                    | Status                                           | Path                                |
-| ------------------------------------------- | ------------------------------------------------ | ----------------------------------- |
-| Privacy Policy                              | ✅ Drafted (needs legal review)                  | `docs/legal/PRIVACY_POLICY.md`      |
-| Terms of Service                            | ✅ Drafted (needs legal review)                  | `docs/legal/TERMS_OF_SERVICE.md`    |
-| Clinical Disclaimer & Emergency Guidance    | ✅ Drafted (needs clinical + legal review)       | `docs/legal/CLINICAL_DISCLAIMER.md` |
-| AI/OCR Usage Notice                         | ✅ Drafted (needs legal review)                  | `docs/legal/AI_OCR_NOTICE.md`       |
-| Data Map                                    | ✅ Below (§2)                                    | —                                   |
-| Vendor Data Processing List                 | ✅ Below (§3)                                    | —                                   |
-| Information Security Policy                 | ✅ Below (§4)                                    | —                                   |
-| Incident Response SOP                       | ⏳ Framework below (§5) — finalize before launch | —                                   |
-| Data Deletion / Export SOP                  | ⏳ Framework below (§6) — finalize before launch | —                                   |
-| In-app consent + minor/representative rules | ⏳ Implement acceptance flow before launch       | —                                   |
+| Document                                    | Status                                                              | Path                                |
+| ------------------------------------------- | ------------------------------------------------------------------- | ----------------------------------- |
+| Privacy Policy                              | ✅ Drafted (needs legal review)                                     | `docs/legal/PRIVACY_POLICY.md`      |
+| Terms of Service                            | ✅ Drafted (needs legal review)                                     | `docs/legal/TERMS_OF_SERVICE.md`    |
+| Clinical Disclaimer & Emergency Guidance    | ✅ Drafted (needs clinical + legal review)                          | `docs/legal/CLINICAL_DISCLAIMER.md` |
+| AI/OCR Usage Notice                         | ✅ Drafted (needs legal review)                                     | `docs/legal/AI_OCR_NOTICE.md`       |
+| Data Map                                    | ✅ Below (§2)                                                       | —                                   |
+| Vendor Data Processing List                 | ✅ Below (§3)                                                       | —                                   |
+| Information Security Policy                 | ✅ Below (§4)                                                       | —                                   |
+| Incident Response SOP                       | ⏳ Framework below (§5) — finalize before launch                    | —                                   |
+| Data Deletion / Export SOP                  | ⏳ Framework below (§6) — finalize before launch                    | —                                   |
+| In-app consent + minor/representative rules | ✅ Implemented (ConsentGate on first launch + Settings legal links) | `src/legal/`                        |
 
 ## 2. Data Map
 
@@ -86,9 +86,9 @@ Per charter (§6.2), the app supports Dynamic Type / font scaling (`allowFontSca
 ## 9. Pre-Launch Sign-off
 
 - [ ] Legal review of Privacy Policy, ToS, Clinical Disclaimer, AI/OCR Notice.
-- [ ] Email confirmation enabled + email configured.
+- [x] Email confirmation enabled + email configured. (Operator-verified 2026-07-26.)
 - [ ] Incident response owner assigned; SOP finalized.
 - [ ] Deletion/export SOP finalized (retention period + self-service or manual flow).
 - [ ] Device-matrix QA passed (iOS + Android).
 - [ ] Dependency audit: high+ vulnerabilities resolved or accepted with rationale.
-- [ ] In-app consent / ToS acceptance flow implemented.
+- [x] In-app consent / ToS acceptance flow implemented. (ConsentGate + Settings legal links; pending legal counsel sign-off on policy text.)

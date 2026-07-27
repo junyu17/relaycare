@@ -8,7 +8,7 @@ const { defineConfig } = require("eslint/config");
 
 module.exports = defineConfig([
   {
-    ignores: ["node_modules/", "web-build/", "dist/", ".expo/", "coverage/", "docs/"]
+    ignores: ["node_modules/", "web-build/", "dist/", ".expo/", "coverage/", "docs/", "backend/supabase/functions/"]
   },
   expoConfig
 ]);

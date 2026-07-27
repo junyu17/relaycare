@@ -18,6 +18,6 @@
       },
       "package": "cd.cc.taskkincare"
     },
-    "plugins": ["expo-font"]
+    "plugins": ["expo-font", "expo-iap"]
   }
 }

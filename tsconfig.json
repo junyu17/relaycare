@@ -4,5 +4,6 @@
     "strict": true,
     "noImplicitReturns": true,
     "noFallthroughCasesInSwitch": true
-  }
+  },
+  "exclude": ["node_modules", "backend/supabase/functions"]
 }

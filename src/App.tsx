@@ -834,6 +834,9 @@ function LocalApp(props: { cloud?: CloudProps } = {}) {
         t={t}
         currentPlan={plan}
         isCoordinator={actor.role === "coordinator"}
+        householdId={cloud?.householdId}
+        ownerId={cloud?.actor.id}
+        onPurchased={() => setPaywallVisible(false)}
         onDevSetPlus={onDevSetPlus}
       />
 

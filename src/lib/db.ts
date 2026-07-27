@@ -281,44 +281,52 @@ export async function getCachedHouseholdState(householdId: string): Promise<AppS
 // ============ 实时订阅：任一业务表变更 -> 触发回调（app 重新 fetch）============
 
 export function subscribeHouseholdState(householdId: string, onChanged: () => void): RealtimeChannel {
-  return supabase
-    .channel(`household-${householdId}`)
-    .on(
-      "postgres_changes",
-      { event: "*", schema: "public", table: "tasks", filter: `household_id=eq.${householdId}` },
-      onChanged
-    )
-    .on(
-      "postgres_changes",
-      { event: "*", schema: "public", table: "members", filter: `household_id=eq.${householdId}` },
-      onChanged
-    )
-    .on(
-      "postgres_changes",
-      { event: "*", schema: "public", table: "care_events", filter: `household_id=eq.${householdId}` },
-      onChanged
-    )
-    .on(
-      "postgres_changes",
-      { event: "*", schema: "public", table: "documents", filter: `household_id=eq.${householdId}` },
-      onChanged
-    )
-    .on(
-      "postgres_changes",
-      { event: "*", schema: "public", table: "audit_events", filter: `household_id=eq.${householdId}` },
-      onChanged
-    )
-    .on(
-      "postgres_changes",
-      { event: "*", schema: "public", table: "role_notifications", filter: `household_id=eq.${householdId}` },
-      onChanged
-    )
-    .on(
-      "postgres_changes",
-      { event: "*", schema: "public", table: "notification_preferences", filter: `household_id=eq.${householdId}` },
-      onChanged
-    )
-    .subscribe();
+  return (
+    supabase
+      .channel(`household-${householdId}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "tasks", filter: `household_id=eq.${householdId}` },
+        onChanged
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "members", filter: `household_id=eq.${householdId}` },
+        onChanged
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "care_events", filter: `household_id=eq.${householdId}` },
+        onChanged
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "documents", filter: `household_id=eq.${householdId}` },
+        onChanged
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "audit_events", filter: `household_id=eq.${householdId}` },
+        onChanged
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "role_notifications", filter: `household_id=eq.${householdId}` },
+        onChanged
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "notification_preferences", filter: `household_id=eq.${householdId}` },
+        onChanged
+      )
+      // households 表变更（如购买后 set_household_plus 更新 plus_plan）也触发刷新。
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "households", filter: `id=eq.${householdId}` },
+        onChanged
+      )
+      .subscribe()
+  );
 }
 
 // 实时订阅角色通知新增 -> 触发本地 push 通知

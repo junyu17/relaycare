@@ -1,7 +1,17 @@
-import { Modal, View, Text, TouchableOpacity, ScrollView, StyleSheet, Alert } from "react-native";
+import { useEffect, useState } from "react";
+import { Modal, View, Text, TouchableOpacity, ScrollView, StyleSheet, Alert, ActivityIndicator } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import type { Translate } from "../i18n";
 import type { Plan } from "../types";
+import {
+  fetchIosSubscriptions,
+  purchaseIosSubscription,
+  verifyApplePurchase,
+  finishIosPurchase,
+  restoreIos,
+  isIosIapAvailable,
+  type ProductSubscription
+} from "./iap";
 
 interface Row {
   labelKey: string;
@@ -28,13 +38,26 @@ function rowValue(value: string, t: Translate): string {
   return value;
 }
 
-// 付费墙：Free / Family Plus 对比 + 订阅按钮（IAP 第二步接入）+ dev 测试切换。
+function findPrice(subs: ProductSubscription[], plan: "monthly" | "yearly"): string | null {
+  const sku = plan === "yearly" ? "TaskKin.care.pro.yearly" : "TaskKin.care.pro.mon";
+  const sub = subs.find((item) => item.id === sku);
+  if (!sub) return null;
+  const ios = sub as { localizedPrice?: string | null; price?: string };
+  return ios.localizedPrice ?? ios.price ?? null;
+}
+
+// 付费墙：Free / Family Plus 对比 + 订阅。
+// cloud 模式（householdId 提供）：走真实 iOS IAP（expo-iap + 校验 Edge Function）。
+// local 模式 / 非 iOS：dev 切换用于测试。
 export function Paywall({
   visible,
   onClose,
   t,
   currentPlan,
   isCoordinator,
+  householdId,
+  ownerId,
+  onPurchased,
   onDevSetPlus
 }: {
   visible: boolean;
@@ -42,18 +65,59 @@ export function Paywall({
   t: Translate;
   currentPlan: Plan;
   isCoordinator: boolean;
+  householdId?: string;
+  ownerId?: string;
+  onPurchased?: () => void;
   onDevSetPlus: (plan: "free" | "monthly" | "yearly") => void;
 }) {
   const isPlus = currentPlan === "monthly" || currentPlan === "yearly";
+  const canIap = Boolean(householdId && ownerId) && isIosIapAvailable();
+  const [subs, setSubs] = useState<ProductSubscription[]>([]);
+  const [busy, setBusy] = useState(false);
 
-  const onSubscribe = (_plan: "monthly" | "yearly") => {
-    // 第二步接入 expo-iap + 校验 Edge Function。当前提示 + dev 切换用于测试。
+  useEffect(() => {
+    if (visible && canIap) {
+      void fetchIosSubscriptions()
+        .then(setSubs)
+        .catch(() => {});
+    }
+  }, [visible, canIap]);
+
+  const handlePurchased = async (
+    plan: "monthly" | "yearly",
+    purchase: Awaited<ReturnType<typeof purchaseIosSubscription>>
+  ) => {
+    if (!householdId || !ownerId) return;
+    try {
+      const result = await verifyApplePurchase({ purchase, householdId, ownerId });
+      await finishIosPurchase(purchase);
+      if (result.ok) {
+        onPurchased?.();
+        Alert.alert(t("paywall.title"), t("paywall.plusActive"));
+      } else {
+        Alert.alert(t("paywall.title"), t("paywall.iapSoon"));
+      }
+    } catch (e) {
+      Alert.alert("Error", e instanceof Error ? e.message : String(e));
+    }
+  };
+
+  const onSubscribe = (plan: "monthly" | "yearly") => {
+    if (canIap) {
+      setBusy(true);
+      purchaseIosSubscription(plan)
+        .then((purchase) => handlePurchased(plan, purchase))
+        .catch((e) => Alert.alert("Error", e instanceof Error ? e.message : String(e)))
+        .finally(() => setBusy(false));
+      return;
+    }
+    // 非 iOS 或 local 模式：dev 切换。
     Alert.alert(
       t("paywall.title"),
       t("paywall.iapSoon"),
       isCoordinator
         ? [
-            { text: t("paywall.devEnablePlus"), onPress: () => onDevSetPlus(_plan) },
+            { text: t("paywall.devEnablePlus"), onPress: () => onDevSetPlus(plan) },
             { text: t("paywall.close"), style: "cancel" as const }
           ]
         : [{ text: t("paywall.close"), style: "cancel" as const }]
@@ -61,8 +125,26 @@ export function Paywall({
   };
 
   const onRestore = () => {
+    if (canIap && householdId && ownerId) {
+      setBusy(true);
+      restoreIos(householdId, ownerId)
+        .then((plan) => {
+          if (plan) {
+            onPurchased?.();
+            Alert.alert(t("paywall.title"), t("paywall.plusActive"));
+          } else {
+            Alert.alert(t("paywall.title"), t("paywall.iapSoon"));
+          }
+        })
+        .catch((e) => Alert.alert("Error", e instanceof Error ? e.message : String(e)))
+        .finally(() => setBusy(false));
+      return;
+    }
     Alert.alert(t("paywall.title"), t("paywall.iapSoon"));
   };
+
+  const monthlyPrice = findPrice(subs, "monthly") ?? t("paywall.subscribeMonthly");
+  const yearlyPrice = findPrice(subs, "yearly") ?? t("paywall.subscribeYearly");
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
@@ -119,28 +201,35 @@ export function Paywall({
           {!isPlus && (
             <>
               <TouchableOpacity
-                style={[s.subscribeBtn, s.yearlyBtn]}
+                style={[s.subscribeBtn, s.yearlyBtn, busy && s.disabledBtn]}
                 accessibilityRole="button"
                 accessibilityLabel={t("paywall.subscribeYearly")}
+                disabled={busy}
                 onPress={() => onSubscribe("yearly")}
               >
-                <Text style={s.subscribeText} allowFontScaling>
-                  {t("paywall.subscribeYearly")}
-                </Text>
+                {busy ? (
+                  <ActivityIndicator color="#fff" />
+                ) : (
+                  <Text style={s.subscribeText} allowFontScaling>
+                    {yearlyPrice}
+                  </Text>
+                )}
               </TouchableOpacity>
               <TouchableOpacity
-                style={[s.subscribeBtn, s.monthlyBtn]}
+                style={[s.subscribeBtn, s.monthlyBtn, busy && s.disabledBtn]}
                 accessibilityRole="button"
                 accessibilityLabel={t("paywall.subscribeMonthly")}
+                disabled={busy}
                 onPress={() => onSubscribe("monthly")}
               >
                 <Text style={s.subscribeText} allowFontScaling>
-                  {t("paywall.subscribeMonthly")}
+                  {monthlyPrice}
                 </Text>
               </TouchableOpacity>
               <TouchableOpacity
                 accessibilityRole="button"
                 accessibilityLabel={t("paywall.restore")}
+                disabled={busy}
                 onPress={onRestore}
               >
                 <Text style={s.restoreText} allowFontScaling>
@@ -150,9 +239,11 @@ export function Paywall({
             </>
           )}
 
-          <Text style={s.iapSoon} allowFontScaling>
-            {t("paywall.iapSoon")}
-          </Text>
+          {canIap && (
+            <Text style={s.iapSoon} allowFontScaling>
+              {t("paywall.iapSoon")}
+            </Text>
+          )}
 
           {/* dev 测试切换（仅协调人可见）：上线前移除或隐藏到 debug 菜单 */}
           {isCoordinator && (
@@ -211,6 +302,7 @@ const s = StyleSheet.create({
   subscribeBtn: { paddingVertical: 14, borderRadius: 10, alignItems: "center", marginBottom: 8 },
   yearlyBtn: { backgroundColor: "#0f766e" },
   monthlyBtn: { backgroundColor: "#0e6b63" },
+  disabledBtn: { opacity: 0.6 },
   subscribeText: { color: "#fff", fontWeight: "700", fontSize: 15 },
   restoreText: { color: "#0f766e", textAlign: "center", marginTop: 4, fontSize: 13 },
   iapSoon: { fontSize: 11, color: "#94a3b8", textAlign: "center", marginTop: 8 },

@@ -386,7 +386,17 @@ const translations: Record<Language, Record<string, string>> = {
     "quota.ocrBody": "Free plans allow 1 OCR upload per month. Upgrade to Family Plus for 50.",
     "quota.fileSizeTitle": "File too large",
     "quota.fileSizeBody": "Maximum file size is 25 MB.",
-    "quota.upgrade": "Upgrade"
+    "quota.upgrade": "Upgrade",
+    "paywall.disclosure":
+      "Family Plus is an auto-renewing subscription. Price: $9.99/month or $99.99/year. Payment is charged to your Apple ID. Subscription renews automatically unless canceled at least 24 hours before the end of the current period. You can manage or cancel anytime in Settings > Apple ID > Subscriptions.",
+    "paywall.manage": "Manage subscription",
+    "paywall.length.monthly": "1 month",
+    "paywall.length.yearly": "1 year",
+    "settings.deleteAccount": "Delete account & household data",
+    "settings.deleteAccountConfirm":
+      "This permanently deletes your account, your household, and all household data (tasks, timeline, documents, audit). This cannot be undone. Continue?",
+    "settings.deleteAccountTitle": "Delete account",
+    "settings.deleting": "Deleting…"
   },
   zh: {
     "app.subtitle": "不处理 PHI 的家庭照护协同",
@@ -741,7 +751,17 @@ const translations: Record<Language, Record<string, string>> = {
     "quota.ocrBody": "免费版每月 1 次 OCR 上传。升级家庭 Plus 可达 50 次。",
     "quota.fileSizeTitle": "文件过大",
     "quota.fileSizeBody": "单文件最大 25 MB。",
-    "quota.upgrade": "升级"
+    "quota.upgrade": "升级",
+    "paywall.disclosure":
+      "家庭 Plus 为自动续订订阅。价格：$9.99/月 或 $99.99/年。费用从你的 Apple ID 扣取。除非在当前周期结束前至少 24 小时取消，否则将自动续订。可在“设置 > Apple ID > 订阅”中随时管理或取消。",
+    "paywall.manage": "管理订阅",
+    "paywall.length.monthly": "1 个月",
+    "paywall.length.yearly": "1 年",
+    "settings.deleteAccount": "删除账号与家庭数据",
+    "settings.deleteAccountConfirm":
+      "这将永久删除你的账号、你的家庭以及全部家庭数据（任务、时间线、文件、审计）。此操作不可撤销。是否继续？",
+    "settings.deleteAccountTitle": "删除账号",
+    "settings.deleting": "删除中…"
   },
   es: {
     "app.subtitle": "Coordinación familiar sin PHI",
@@ -1114,7 +1134,17 @@ const translations: Record<Language, Record<string, string>> = {
     "quota.ocrBody": "El plan gratis permite 1 OCR al mes. Mejora a Family Plus para 50.",
     "quota.fileSizeTitle": "Archivo demasiado grande",
     "quota.fileSizeBody": "El tamaño máximo por archivo es 25 MB.",
-    "quota.upgrade": "Mejorar"
+    "quota.upgrade": "Mejorar",
+    "paywall.disclosure":
+      "Family Plus es una suscripción de renovación automática. Precio: $9.99/mes o $99.99/año. El cobro se realiza a tu Apple ID. Se renueva automáticamente salvo que canceles al menos 24 horas antes del fin del período. Puedes gestionar o cancelar en Ajustes > Apple ID > Suscripciones.",
+    "paywall.manage": "Gestionar suscripción",
+    "paywall.length.monthly": "1 mes",
+    "paywall.length.yearly": "1 año",
+    "settings.deleteAccount": "Eliminar cuenta y datos del hogar",
+    "settings.deleteAccountConfirm":
+      "Esto elimina permanentemente tu cuenta, tu hogar y todos los datos del hogar (tareas, línea, documentos, auditoría). No se puede deshacer. ¿Continuar?",
+    "settings.deleteAccountTitle": "Eliminar cuenta",
+    "settings.deleting": "Eliminando…"
   }
 };
 

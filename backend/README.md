@@ -16,6 +16,7 @@ backend/supabase/migrations/
   0008_paywall.sql         # Family Plus 付费墙：entitlement 列 + 服务端硬配额 RPC
   0009_realtime_households.sql # households 加入实时发布（购买后刷新套餐徽章）
   0010_paywall_service_role.sql # service_role 可调 set_household_plus（校验 Edge Function 用）
+  0011_paywall_security.sql  # P0 安全加固（收回 authenticated、显式到期时间、subscriptions 表、删账号）
 ```
 
 ## 数据模型 → Postgres 映射
@@ -57,7 +58,7 @@ npx supabase login
 npx supabase link --project-ref <your-project-ref>
 npx supabase db push            # 执行 migrations
 
-# 方式二：Supabase Dashboard → SQL Editor → 按编号依次执行 0001 到 0010
+# 方式二：Supabase Dashboard → SQL Editor → 按编号依次执行 0001 到 0011
 ```
 
 > 新 Supabase 项目已完成 `0001` 到 `0006` 的迁移与角色 API 验收。上线前需补执行 `0007_invite_tokens.sql`（邀请 token 安全）。不要只执行旧版 `all_in_one.sql`，它没有包含 storage、RBAC、原子任务 RPC 或邀请 token。

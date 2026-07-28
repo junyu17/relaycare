@@ -43,7 +43,7 @@ Uploaded documents are metadata and candidate-field coordination aids, not verif
 
 ## 8. Fees
 
-The MVP is offered at no charge during the pilot. Future subscription plans (e.g., family Plus) will be disclosed before any charge.
+Family Plus is an optional auto-renewing subscription: **$9.99/month** or **$99.99/year**. Payment is charged to your Apple ID. The subscription renews automatically unless canceled at least 24 hours before the end of the current period. You can manage or cancel anytime in your Apple ID subscription settings. The Free tier remains available at no charge.
 
 ## 9. Intellectual Property
 

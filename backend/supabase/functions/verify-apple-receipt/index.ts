@@ -1,15 +1,9 @@
 // Edge Function: verify-apple-receipt
-// 校验 StoreKit 2 签名交易（JWS）并写入家庭 Plus entitlement。
+// 校验 StoreKit 2 签名交易（JWS），用 Apple 真实 expiresDate 写 entitlement，
+// 处理退款/过期，并登记 subscriptions 表（供 Server Notifications V2 定位家庭）。
 //
 // 部署：supabase functions deploy verify-apple-receipt
-// 环境变量（Supabase Dashboard -> Edge Functions -> Secrets）：
-//   SUPABASE_URL                  已有
-//   SUPABASE_SERVICE_ROLE_KEY     已有（service role，绕过 RLS）
-//   APPLE_BUNDLE_ID               cd.cc.relaycare（与 app.json 一致）
-//   APPLE_APP_APPLE_ID            App 的 Apple ID（可选；App Store Server 校验用）
-//   APPLE_ENVIRONMENT             Sandbox | Production（开发期 Sandbox，上架后 Production）
-//
-// 客户端（src/paywall/iap.ts）购买成功后调用本函数，传 purchaseToken（iOS JWS）。
+// Secrets：SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY / APPLE_BUNDLE_ID / APPLE_APP_APPLE_ID(可选) / APPLE_ENVIRONMENT(Sandbox|Production)
 
 import { SignedDataVerifier } from "npm:@apple/app-store-server-library@1.4.0";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
@@ -25,7 +19,6 @@ const SKU_TO_PLAN: Record<string, "monthly" | "yearly"> = {
   "TaskKin.care.pro.mon": "monthly"
 };
 
-// Apple 根证书（运行时拉取，用于校验 JWS 签名链）。
 const ROOT_CERT_URLS = [
   "https://www.apple.com/certificateauthority/AppleRootCA-G3.cer",
   "https://www.apple.com/certificateauthority/AppleComputerRootCertificate.cer",
@@ -44,7 +37,7 @@ async function getVerifier(): Promise<SignedDataVerifier> {
       );
       return new SignedDataVerifier(
         certs,
-        true, // enableOnlineChecks
+        true,
         ENVIRONMENT,
         BUNDLE_ID,
         APP_APPLE_ID ? Number(APP_APPLE_ID) : undefined
@@ -68,10 +61,7 @@ function json(body: unknown, status = 200): Response {
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { status: 200 });
-
-  if (!SERVICE_ROLE || !SUPA_URL) {
-    return json({ ok: false, error: "Server misconfigured: missing Supabase secrets" }, 500);
-  }
+  if (!SERVICE_ROLE || !SUPA_URL) return json({ ok: false, error: "Server misconfigured" }, 500);
 
   try {
     const { productId, transactionId, purchaseToken, householdId, ownerId } = await req.json();
@@ -81,25 +71,36 @@ Deno.serve(async (req) => {
     const plan = SKU_TO_PLAN[productId];
     if (!plan) return json({ ok: false, error: "Unknown product id" }, 400);
 
-    // 校验 StoreKit 2 签名交易（JWS）。失败会抛异常。
     const verifier = await getVerifier();
-    const transaction = await verifier.verifyAndDecodeTransaction(purchaseToken);
+    const tx = await verifier.verifyAndDecodeTransaction(purchaseToken); // 验签 + bundleId + 环境
 
-    // 产品 ID 必须匹配（防伪）。
-    if (transaction.productId !== productId) {
-      return json({ ok: false, error: "Product id mismatch" }, 400);
-    }
+    if (tx.productId !== productId) return json({ ok: false, error: "Product id mismatch" }, 400);
+    // 退款/撤销：不授权。
+    if (tx.revocationDate) return json({ ok: false, error: "Transaction revoked/refunded" }, 400);
+    // 必须是带到期时间的订阅。
+    const expiresMs = tx.expiresDate;
+    if (!expiresMs) return json({ ok: false, error: "Not a subscription (no expiry)" }, 400);
+    // 已过期：不授权（防止旧交易刷新）。
+    if (Date.now() > expiresMs) return json({ ok: false, error: "Subscription expired" }, 400);
 
-    // 用 service role 调 set_household_plus 写入 entitlement（绕过 RLS）。
+    const plusUntil = new Date(expiresMs).toISOString();
+    const originalTxId = tx.originalTransactionId ?? tx.transactionId ?? transactionId;
     const admin = createClient(SUPA_URL, SERVICE_ROLE);
-    const { error } = await admin.rpc("set_household_plus", {
+
+    // 登记订阅 + 同步家庭 entitlement（用 Apple 真实到期时间，不再硬编码 365 天）。
+    const { error: upErr } = await admin.rpc("upsert_subscription", {
       p_household_id: householdId,
+      p_original_transaction_id: originalTxId,
       p_plan: plan,
+      p_expires_at: plusUntil,
+      p_status: "active",
+      p_environment: ENVIRONMENT,
+      p_last_transaction_id: tx.transactionId ?? transactionId,
       p_owner_member_id: ownerId
     });
-    if (error) return json({ ok: false, error: error.message }, 500);
+    if (upErr) return json({ ok: false, error: upErr.message }, 500);
 
-    return json({ ok: true, plan, transactionId: transactionId ?? transaction.transactionId }, 200);
+    return json({ ok: true, plan, plusUntil, originalTransactionId: originalTxId }, 200);
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     return json({ ok: false, error: `Verification failed: ${msg}` }, 500);

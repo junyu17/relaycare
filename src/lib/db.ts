@@ -415,15 +415,9 @@ export async function createDocumentRpc(args: {
 }
 
 // 手动设置家庭套餐（dev/测试用；上线后由校验 Edge Function 调用）。
-export async function setHouseholdPlus(
-  householdId: string,
-  plan: "free" | "monthly" | "yearly",
-  ownerMemberId: string
-): Promise<void> {
-  const { error } = await supabase.rpc("set_household_plus", {
-    p_household_id: householdId,
-    p_plan: plan,
-    p_owner_member_id: ownerMemberId
-  });
+// 删除账号 + 家庭数据（调 delete-account Edge Function；Apple 5.1.1）。
+// 成功后调用方应 signOut。
+export async function deleteAccount(): Promise<void> {
+  const { error } = await supabase.functions.invoke("delete-account", {});
   if (error) throw error;
 }

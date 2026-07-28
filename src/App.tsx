@@ -27,7 +27,7 @@ import {
   subscribeRoleNotifications,
   cacheHouseholdState,
   getCachedHouseholdState,
-  setHouseholdPlus
+  deleteAccount
 } from "./lib/db";
 import * as Notifications from "expo-notifications";
 import * as Clipboard from "expo-clipboard";
@@ -578,21 +578,34 @@ function LocalApp(props: { cloud?: CloudProps } = {}) {
     });
   };
 
-  // dev 测试切换套餐（上线前移除/隐藏；第二步换成真实 IAP）。
+  // dev 测试切换套餐（仅本地 demo 模式；cloud 走真实 IAP，不提供）。
   const onDevSetPlus = (nextPlan: "free" | "monthly" | "yearly") => {
-    if (cloud) {
-      runCloudAction(setHouseholdPlus(cloud.householdId, nextPlan, actor.id));
-    } else {
-      setState((current) => ({
-        ...current,
-        household: {
-          ...current.household,
-          plusPlan: nextPlan,
-          plusUntil: nextPlan === "free" ? undefined : new Date(Date.now() + 365 * 86400000).toISOString(),
-          plusOwnerId: nextPlan === "free" ? undefined : actor.id
+    setState((current) => ({
+      ...current,
+      household: {
+        ...current.household,
+        plusPlan: nextPlan,
+        plusUntil: nextPlan === "free" ? undefined : new Date(Date.now() + 365 * 86400000).toISOString(),
+        plusOwnerId: nextPlan === "free" ? undefined : actor.id
+      }
+    }));
+  };
+
+  // 删除账号 + 家庭数据（cloud 模式；Apple 5.1.1）。
+  const onDeleteAccount = () => {
+    if (!cloud) return;
+    Alert.alert(t("settings.deleteAccountTitle"), t("settings.deleteAccountConfirm"), [
+      { style: "cancel", text: t("paywall.close") },
+      {
+        style: "destructive",
+        text: t("settings.deleteAccountTitle"),
+        onPress: () => {
+          deleteAccount()
+            .then(() => cloud.onSignOut())
+            .catch((e) => Alert.alert("Error", e instanceof Error ? e.message : String(e)));
         }
-      }));
-    }
+      }
+    ]);
   };
 
   const metrics = useMemo(() => {
@@ -787,7 +800,8 @@ function LocalApp(props: { cloud?: CloudProps } = {}) {
             !!cloud,
             (kind) => void openLegal(kind, language),
             plan,
-            () => setPaywallVisible(true)
+            () => setPaywallVisible(true),
+            cloud ? onDeleteAccount : undefined
           )}
         {activeTab === "audit" && can("audit:read") && renderAudit(state, language, t, () => setActiveTab("settings"))}
       </ScrollView>
@@ -1548,7 +1562,8 @@ function renderSettings(
   isCloud: boolean,
   onOpenLegal: (kind: "privacy" | "terms") => void,
   plan: Plan,
-  onOpenPaywall: () => void
+  onOpenPaywall: () => void,
+  onDeleteAccount?: () => void
 ) {
   const canManageRoles = hasPermission(state, actor.role, "member:role_update");
   const canInviteMembers = hasPermission(state, actor.role, "member:invite");
@@ -1804,6 +1819,22 @@ function renderSettings(
           </Text>
         </TouchableOpacity>
       </View>
+
+      {onDeleteAccount && (
+        <View style={styles.panel}>
+          <TouchableOpacity
+            style={[styles.roleChangeButton, styles.deleteButton]}
+            accessibilityRole="button"
+            accessibilityLabel={t("settings.deleteAccount")}
+            onPress={onDeleteAccount}
+          >
+            <Ionicons name="trash-outline" size={17} color={palette.red} />
+            <Text style={[styles.roleChangeButtonText, { color: palette.red }]} allowFontScaling>
+              {t("settings.deleteAccount")}
+            </Text>
+          </TouchableOpacity>
+        </View>
+      )}
     </View>
   );
 }
@@ -3043,6 +3074,10 @@ const styles = StyleSheet.create({
     color: palette.teal,
     fontSize: 13,
     fontWeight: "800"
+  },
+  deleteButton: {
+    borderColor: palette.red,
+    backgroundColor: "#fff5f5"
   },
   backBar: {
     flexDirection: "row",

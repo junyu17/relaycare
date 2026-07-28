@@ -1,5 +1,15 @@
 import { useEffect, useState } from "react";
-import { Modal, View, Text, TouchableOpacity, ScrollView, StyleSheet, Alert, ActivityIndicator } from "react-native";
+import {
+  Modal,
+  View,
+  Text,
+  TouchableOpacity,
+  ScrollView,
+  StyleSheet,
+  Alert,
+  ActivityIndicator,
+  Linking
+} from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import type { Translate } from "../i18n";
 import type { Plan } from "../types";
@@ -245,8 +255,25 @@ export function Paywall({
             </Text>
           )}
 
-          {/* dev 测试切换（仅协调人可见）：上线前移除或隐藏到 debug 菜单 */}
-          {isCoordinator && (
+          <Text style={s.disclosure} allowFontScaling>
+            {t("paywall.disclosure")}
+          </Text>
+
+          {isPlus && (
+            <TouchableOpacity
+              style={s.devBtn}
+              accessibilityRole="button"
+              accessibilityLabel={t("paywall.manage")}
+              onPress={() => Linking.openURL("https://apps.apple.com/account/subscriptions").catch(() => {})}
+            >
+              <Text style={s.devBtnText} allowFontScaling>
+                {t("paywall.manage")}
+              </Text>
+            </TouchableOpacity>
+          )}
+
+          {/* dev 测试切换（仅本地 demo 模式；cloud 走真实 IAP，不提供）*/}
+          {!householdId && isCoordinator && (
             <View style={s.devRow}>
               {isPlus ? (
                 <TouchableOpacity style={s.devBtn} onPress={() => onDevSetPlus("free")}>
@@ -306,6 +333,7 @@ const s = StyleSheet.create({
   subscribeText: { color: "#fff", fontWeight: "700", fontSize: 15 },
   restoreText: { color: "#0f766e", textAlign: "center", marginTop: 4, fontSize: 13 },
   iapSoon: { fontSize: 11, color: "#94a3b8", textAlign: "center", marginTop: 8 },
+  disclosure: { fontSize: 11, color: "#64748b", marginTop: 10, lineHeight: 16 },
   devRow: { marginTop: 10, alignItems: "center" },
   devBtn: { borderWidth: 1, borderColor: "#cbd5e1", borderRadius: 8, paddingHorizontal: 14, paddingVertical: 8 },
   devBtnText: { color: "#64748b", fontSize: 12 }

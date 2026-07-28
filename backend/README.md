@@ -17,6 +17,8 @@ backend/supabase/migrations/
   0009_realtime_households.sql # households 加入实时发布（购买后刷新套餐徽章）
   0010_paywall_service_role.sql # service_role 可调 set_household_plus（校验 Edge Function 用）
   0011_paywall_security.sql  # P0 安全加固（收回 authenticated、显式到期时间、subscriptions 表、删账号）
+  0012_subscription_binding.sql # Apple 原始交易与登录协调人/家庭的不可转移绑定
+  0013_multi_households.sql  # Family Plus 最多三个家庭：活动家庭上下文与订阅权益覆盖
 ```
 
 ## 数据模型 → Postgres 映射
@@ -43,6 +45,7 @@ backend/supabase/migrations/
 
 - `create_household(...)`：注册用户一次性建家庭 + 自己的 coordinator 成员 + 通知偏好 + 审计。绕过 RLS 解决"首条 member 写入"问题。
 - `accept_invite(p_invite_token, p_display_name)`：被邀请人注册后凭邀请链接里的 token 加入家庭，校验 token 有效 + 未接受 + 未过期。token 存于独立 invites 表，不经 API 可读（防止同家庭其他成员冒用）。
+- `list_my_households()` / `set_active_household(...)`：列出当前账号的家庭，并安全切换当前工作家庭；RLS 与角色 RPC 都只使用该活动家庭。
 - `create_task_with_activity(...)`：原子创建任务、审计记录和照护者通知。
 - `transition_task_with_activity(...)`：原子认领、拒绝、交接或完成任务，并生成对应审计和角色通知。
 
@@ -58,7 +61,7 @@ npx supabase login
 npx supabase link --project-ref <your-project-ref>
 npx supabase db push            # 执行 migrations
 
-# 方式二：Supabase Dashboard → SQL Editor → 按编号依次执行 0001 到 0011
+# 方式二：Supabase Dashboard → SQL Editor → 按编号依次执行 0001 到 0013
 ```
 
 > 新 Supabase 项目已完成 `0001` 到 `0006` 的迁移与角色 API 验收。上线前需补执行 `0007_invite_tokens.sql`（邀请 token 安全）。不要只执行旧版 `all_in_one.sql`，它没有包含 storage、RBAC、原子任务 RPC 或邀请 token。

@@ -105,7 +105,6 @@ export async function purchaseIosSubscription(plan: "monthly" | "yearly"): Promi
 export async function verifyApplePurchase(args: {
   purchase: Purchase;
   householdId: string;
-  ownerId: string;
 }): Promise<{ ok: boolean; plan: Plan | null }> {
   const plan = SKU_TO_PLAN[args.purchase.productId] ?? null;
   if (!plan) return { ok: false, plan: null };
@@ -114,8 +113,7 @@ export async function verifyApplePurchase(args: {
       productId: args.purchase.productId,
       transactionId: args.purchase.transactionId,
       purchaseToken: args.purchase.purchaseToken ?? null, // iOS JWS（签名交易）
-      householdId: args.householdId,
-      ownerId: args.ownerId
+      householdId: args.householdId
     }
   });
   if (error) throw error;
@@ -131,14 +129,14 @@ export async function finishIosPurchase(purchase: Purchase): Promise<void> {
 }
 
 // ============ 恢复购买 ============
-export async function restoreIos(householdId: string, ownerId: string): Promise<Plan | null> {
+export async function restoreIos(householdId: string): Promise<Plan | null> {
   await initIap();
   if (!isIosIapAvailable()) return null;
   const purchases = await getAvailablePurchases();
   for (const purchase of purchases) {
     if (!SKU_TO_PLAN[purchase.productId]) continue;
     try {
-      const result = await verifyApplePurchase({ purchase, householdId, ownerId });
+      const result = await verifyApplePurchase({ purchase, householdId });
       if (result.ok) {
         await finishIosPurchase(purchase);
         return result.plan;

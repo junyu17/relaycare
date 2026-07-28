@@ -19,8 +19,9 @@ import { uniqueId } from "./lib/id";
 import { getStoredLanguage, initStoredLanguage, setStoredLanguage } from "./lib/language";
 import { ocrProviderName } from "./lib/ocr";
 import { initialState } from "./data";
-import { AuthProvider, useAuth } from "./auth/AuthContext";
+import { AuthProvider, useAuth, type CreateHouseholdArgs } from "./auth/AuthContext";
 import { AuthScreen, OnboardingScreen } from "./auth/AuthScreen";
+import { HouseholdSwitcher } from "./auth/HouseholdSwitcher";
 import {
   fetchHouseholdState,
   subscribeHouseholdState,
@@ -37,6 +38,7 @@ import { isSupabaseConfigured } from "./lib/supabase";
 import { ConsentGate } from "./legal/ConsentGate";
 import { openLegal } from "./legal/consent";
 import { Paywall } from "./paywall/Paywall";
+import type { HouseholdSummary } from "./lib/db";
 import { effectivePlan, checkTaskQuota, checkMemberQuota, checkOcrQuota, checkFileSize } from "./lib/entitlement";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 import {
@@ -136,6 +138,9 @@ interface CloudProps {
   state: AppState;
   actor: Member;
   householdId: string;
+  households: HouseholdSummary[];
+  onSwitchHousehold: (householdId: string) => Promise<void>;
+  onCreateHousehold: (args: CreateHouseholdArgs) => Promise<void>;
   onSignOut: () => void;
 }
 
@@ -155,6 +160,7 @@ function LocalApp(props: { cloud?: CloudProps } = {}) {
   const [handoffTaskId, setHandoffTaskId] = useState<string | null>(null);
   const [documentSafetyConfirmed, setDocumentSafetyConfirmed] = useState(false);
   const [paywallVisible, setPaywallVisible] = useState(false);
+  const [householdSwitcherVisible, setHouseholdSwitcherVisible] = useState(false);
 
   const t = useMemo(() => makeTranslator(language), [language]);
 
@@ -798,6 +804,7 @@ function LocalApp(props: { cloud?: CloudProps } = {}) {
             isHouseholdInviteExpired(state),
             () => setActiveTab("audit"),
             !!cloud,
+            cloud ? () => setHouseholdSwitcherVisible(true) : undefined,
             (kind) => void openLegal(kind, language),
             plan,
             () => setPaywallVisible(true),
@@ -849,10 +856,31 @@ function LocalApp(props: { cloud?: CloudProps } = {}) {
         currentPlan={plan}
         isCoordinator={actor.role === "coordinator"}
         householdId={cloud?.householdId}
-        ownerId={cloud?.actor.id}
         onPurchased={() => setPaywallVisible(false)}
         onDevSetPlus={onDevSetPlus}
       />
+
+      {cloud && (
+        <HouseholdSwitcher
+          visible={householdSwitcherVisible}
+          onClose={() => setHouseholdSwitcherVisible(false)}
+          households={cloud.households}
+          currentName={state.household.name}
+          memberName={actor.name}
+          memberRelation={actor.relation || "Coordinator"}
+          onSwitch={async (householdId) => {
+            await cloud.onSwitchHousehold(householdId);
+            setActiveTab("home");
+            setHouseholdSwitcherVisible(false);
+          }}
+          onCreate={async (args) => {
+            await cloud.onCreateHousehold(args);
+            setActiveTab("home");
+            setHouseholdSwitcherVisible(false);
+          }}
+          t={t}
+        />
+      )}
 
       <Modal
         visible={roleEditorMember != null}
@@ -973,7 +1001,7 @@ function LocalApp(props: { cloud?: CloudProps } = {}) {
 }
 
 function CloudApp() {
-  const { user, householdId, loading, signOut } = useAuth();
+  const { user, householdId, households, loading, signOut, switchHousehold, createHousehold } = useAuth();
   const [state, setState] = useState<AppState | null>(null);
   const [err, setErr] = useState<string | null>(null);
 
@@ -1055,7 +1083,19 @@ function CloudApp() {
   }
 
   const actor = state.members.find((m) => m.userId === user.id) ?? state.members[0];
-  return <LocalApp cloud={{ state, actor, householdId, onSignOut: signOut }} />;
+  return (
+    <LocalApp
+      cloud={{
+        state,
+        actor,
+        householdId,
+        households,
+        onSwitchHousehold: switchHousehold,
+        onCreateHousehold: createHousehold,
+        onSignOut: signOut
+      }}
+    />
+  );
 }
 
 export default function App() {
@@ -1560,6 +1600,7 @@ function renderSettings(
   inviteExpired: boolean,
   onViewAllAudit: () => void,
   isCloud: boolean,
+  onOpenHouseholds: (() => void) | undefined,
   onOpenLegal: (kind: "privacy" | "terms") => void,
   plan: Plan,
   onOpenPaywall: () => void,
@@ -1589,6 +1630,23 @@ function renderSettings(
           {isCloud ? t("settings.cloudSync") : t("settings.localSave")}
         </Text>
       </View>
+
+      {onOpenHouseholds && (
+        <>
+          <SectionTitle icon="home-outline" title={t("households.title")} />
+          <View style={styles.panel}>
+            <Text style={styles.bodyText} allowFontScaling>
+              {t("households.current", { name: state.household.name })}
+            </Text>
+            <ActionButton
+              icon="swap-horizontal-outline"
+              label={t("households.manage")}
+              tone="secondary"
+              onPress={onOpenHouseholds}
+            />
+          </View>
+        </>
+      )}
 
       <SectionTitle icon="ribbon-outline" title={t("settings.plan")} />
       <View style={styles.panel}>

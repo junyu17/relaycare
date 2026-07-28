@@ -66,7 +66,6 @@ export function Paywall({
   currentPlan,
   isCoordinator,
   householdId,
-  ownerId,
   onPurchased,
   onDevSetPlus
 }: {
@@ -76,12 +75,11 @@ export function Paywall({
   currentPlan: Plan;
   isCoordinator: boolean;
   householdId?: string;
-  ownerId?: string;
   onPurchased?: () => void;
   onDevSetPlus: (plan: "free" | "monthly" | "yearly") => void;
 }) {
   const isPlus = currentPlan === "monthly" || currentPlan === "yearly";
-  const canIap = Boolean(householdId && ownerId) && isIosIapAvailable();
+  const canIap = Boolean(householdId) && isCoordinator && isIosIapAvailable();
   const [subs, setSubs] = useState<ProductSubscription[]>([]);
   const [busy, setBusy] = useState(false);
 
@@ -97,15 +95,15 @@ export function Paywall({
     plan: "monthly" | "yearly",
     purchase: Awaited<ReturnType<typeof purchaseIosSubscription>>
   ) => {
-    if (!householdId || !ownerId) return;
+    if (!householdId) return;
     try {
-      const result = await verifyApplePurchase({ purchase, householdId, ownerId });
+      const result = await verifyApplePurchase({ purchase, householdId });
       await finishIosPurchase(purchase);
       if (result.ok) {
         onPurchased?.();
         Alert.alert(t("paywall.title"), t("paywall.plusActive"));
       } else {
-        Alert.alert(t("paywall.title"), t("paywall.iapSoon"));
+        Alert.alert(t("paywall.title"), t("paywall.purchaseNotVerified"));
       }
     } catch (e) {
       Alert.alert("Error", e instanceof Error ? e.message : String(e));
@@ -121,10 +119,18 @@ export function Paywall({
         .finally(() => setBusy(false));
       return;
     }
-    // 非 iOS 或 local 模式：dev 切换。
+    if (householdId && !isCoordinator) {
+      Alert.alert(t("paywall.title"), t("paywall.coordinatorOnly"));
+      return;
+    }
+    if (householdId) {
+      Alert.alert(t("paywall.title"), t("paywall.iapUnavailable"));
+      return;
+    }
+    // Local demo only: no cloud entitlement is written.
     Alert.alert(
       t("paywall.title"),
-      t("paywall.iapSoon"),
+      t("paywall.localTest"),
       isCoordinator
         ? [
             { text: t("paywall.devEnablePlus"), onPress: () => onDevSetPlus(plan) },
@@ -135,22 +141,22 @@ export function Paywall({
   };
 
   const onRestore = () => {
-    if (canIap && householdId && ownerId) {
+    if (canIap && householdId) {
       setBusy(true);
-      restoreIos(householdId, ownerId)
+      restoreIos(householdId)
         .then((plan) => {
           if (plan) {
             onPurchased?.();
             Alert.alert(t("paywall.title"), t("paywall.plusActive"));
           } else {
-            Alert.alert(t("paywall.title"), t("paywall.iapSoon"));
+            Alert.alert(t("paywall.title"), t("paywall.restoreNone"));
           }
         })
         .catch((e) => Alert.alert("Error", e instanceof Error ? e.message : String(e)))
         .finally(() => setBusy(false));
       return;
     }
-    Alert.alert(t("paywall.title"), t("paywall.iapSoon"));
+    Alert.alert(t("paywall.title"), t("paywall.iapUnavailable"));
   };
 
   const monthlyPrice = findPrice(subs, "monthly") ?? t("paywall.subscribeMonthly");
@@ -249,12 +255,6 @@ export function Paywall({
             </>
           )}
 
-          {canIap && (
-            <Text style={s.iapSoon} allowFontScaling>
-              {t("paywall.iapSoon")}
-            </Text>
-          )}
-
           <Text style={s.disclosure} allowFontScaling>
             {t("paywall.disclosure")}
           </Text>
@@ -332,7 +332,6 @@ const s = StyleSheet.create({
   disabledBtn: { opacity: 0.6 },
   subscribeText: { color: "#fff", fontWeight: "700", fontSize: 15 },
   restoreText: { color: "#0f766e", textAlign: "center", marginTop: 4, fontSize: 13 },
-  iapSoon: { fontSize: 11, color: "#94a3b8", textAlign: "center", marginTop: 8 },
   disclosure: { fontSize: 11, color: "#64748b", marginTop: 10, lineHeight: 16 },
   devRow: { marginTop: 10, alignItems: "center" },
   devBtn: { borderWidth: 1, borderColor: "#cbd5e1", borderRadius: 8, paddingHorizontal: 14, paddingVertical: 8 },

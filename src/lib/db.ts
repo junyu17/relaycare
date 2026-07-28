@@ -115,6 +115,26 @@ interface DBAuditEvent {
   created_at: string;
 }
 
+interface DBHouseholdSummary {
+  id: string;
+  name: string;
+  care_recipient_label: string;
+  role: Role;
+  plus_plan: "free" | "monthly" | "yearly";
+  plus_until: string | null;
+  is_active: boolean;
+}
+
+export interface HouseholdSummary {
+  id: string;
+  name: string;
+  careRecipientLabel: string;
+  role: Role;
+  plusPlan: "free" | "monthly" | "yearly";
+  plusUntil?: string;
+  isActive: boolean;
+}
+
 const mapHousehold = (r: DBHousehold): Household => ({
   id: r.id,
   name: r.name,
@@ -210,6 +230,15 @@ const mapAuditEvent = (r: DBAuditEvent): AuditEvent => ({
   createdAt: r.created_at,
   detail: r.detail
 });
+const mapHouseholdSummary = (r: DBHouseholdSummary): HouseholdSummary => ({
+  id: r.id,
+  name: r.name,
+  careRecipientLabel: r.care_recipient_label,
+  role: r.role,
+  plusPlan: r.plus_plan,
+  plusUntil: r.plus_until ?? undefined,
+  isActive: r.is_active
+});
 
 // ============ 加载家庭全部数据 -> AppState ============
 
@@ -257,6 +286,17 @@ export async function fetchHouseholdState(householdId: string): Promise<AppState
     documents: (docsRes.data as DBDocument[]).map(mapDocument),
     auditEvents: (auditRes.data as DBAuditEvent[]).map(mapAuditEvent)
   };
+}
+
+export async function listMyHouseholds(): Promise<HouseholdSummary[]> {
+  const { data, error } = await supabase.rpc("list_my_households");
+  if (error) throw error;
+  return ((data ?? []) as DBHouseholdSummary[]).map(mapHouseholdSummary);
+}
+
+export async function setActiveHousehold(householdId: string): Promise<void> {
+  const { error } = await supabase.rpc("set_active_household", { p_household_id: householdId });
+  if (error) throw error;
 }
 
 // ============ 离线缓存（断网时读本地缓存） ============

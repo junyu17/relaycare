@@ -1,10 +1,16 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 import type { User } from "@supabase/supabase-js";
 import { supabase, isSupabaseConfigured } from "../lib/supabase";
-import { createHousehold as rpcCreateHousehold, acceptInvite as rpcAcceptInvite } from "../lib/db";
+import {
+  createHousehold as rpcCreateHousehold,
+  acceptInvite as rpcAcceptInvite,
+  listMyHouseholds,
+  setActiveHousehold as rpcSetActiveHousehold,
+  type HouseholdSummary
+} from "../lib/db";
 import * as Linking from "expo-linking";
 
-interface CreateHouseholdArgs {
+export interface CreateHouseholdArgs {
   householdName: string;
   timezone: string;
   careRecipientLabel: string;
@@ -16,6 +22,7 @@ interface CreateHouseholdArgs {
 interface AuthState {
   user: User | null;
   householdId: string | null;
+  households: HouseholdSummary[];
   loading: boolean;
   configured: boolean;
   signIn: (email: string, password: string) => Promise<void>;
@@ -23,6 +30,7 @@ interface AuthState {
   resetPassword: (email: string) => Promise<void>;
   signOut: () => Promise<void>;
   createHousehold: (args: CreateHouseholdArgs) => Promise<void>;
+  switchHousehold: (householdId: string) => Promise<void>;
   acceptInvite: (memberId: string, displayName?: string) => Promise<void>;
   pendingInviteToken: string | null;
   clearPendingInvite: () => void;
@@ -33,6 +41,7 @@ const AuthContext = createContext<AuthState | null>(null);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [householdId, setHouseholdId] = useState<string | null>(null);
+  const [households, setHouseholds] = useState<HouseholdSummary[]>([]);
   const [loading, setLoading] = useState(isSupabaseConfigured);
   const [pendingInviteToken, setPendingInviteToken] = useState<string | null>(null);
 
@@ -53,16 +62,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => sub.remove();
   }, []);
 
-  // 查当前用户所属家庭的 household_id（登录后调用）
-  async function fetchHouseholdId(uid: string): Promise<string | null> {
-    const { data, error } = await supabase
-      .from("members")
-      .select("household_id")
-      .eq("user_id", uid)
-      .eq("invite_status", "active")
-      .maybeSingle();
-    if (error) return null;
-    return data?.household_id ?? null;
+  async function refreshHouseholds(preferredId?: string): Promise<void> {
+    const next = await listMyHouseholds();
+    setHouseholds(next);
+    const activeId = preferredId ?? next.find((household) => household.isActive)?.id ?? next[0]?.id ?? null;
+    setHouseholdId(activeId);
   }
 
   useEffect(() => {
@@ -73,7 +77,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const u = data.session?.user ?? null;
       setUser(u);
       if (u) {
-        fetchHouseholdId(u.id).then((hid) => active && (setHouseholdId(hid), setLoading(false)));
+        refreshHouseholds()
+          .catch(() => active && setHouseholds([]))
+          .finally(() => active && setLoading(false));
       } else {
         setLoading(false);
       }
@@ -82,9 +88,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const u = session?.user ?? null;
       setUser(u);
       if (u) {
-        fetchHouseholdId(u.id).then(setHouseholdId);
+        void refreshHouseholds();
       } else {
         setHouseholdId(null);
+        setHouseholds([]);
       }
     });
     return () => {
@@ -109,16 +116,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await supabase.auth.signOut();
     setUser(null);
     setHouseholdId(null);
+    setHouseholds([]);
   };
   const createHousehold = async (args: CreateHouseholdArgs) => {
     if (!user) throw new Error("Not authenticated");
     const hid = await rpcCreateHousehold(args);
-    setHouseholdId(hid);
+    await refreshHouseholds(hid);
+  };
+  const switchHousehold = async (nextHouseholdId: string) => {
+    if (!user) throw new Error("Not authenticated");
+    await rpcSetActiveHousehold(nextHouseholdId);
+    await refreshHouseholds(nextHouseholdId);
   };
   const acceptInvite = async (token: string, displayName?: string) => {
     if (!user) throw new Error("Not authenticated");
     const hid = await rpcAcceptInvite(token, displayName);
-    setHouseholdId(hid);
+    await refreshHouseholds(hid);
   };
   const clearPendingInvite = () => setPendingInviteToken(null);
 
@@ -127,6 +140,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       value={{
         user,
         householdId,
+        households,
         loading,
         configured: isSupabaseConfigured,
         signIn,
@@ -134,6 +148,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         resetPassword,
         signOut,
         createHousehold,
+        switchHousehold,
         acceptInvite,
         pendingInviteToken,
         clearPendingInvite

@@ -42,11 +42,29 @@ export function AuthScreen() {
       return;
     }
 
-    if (!email || !password) return;
+    const trimmedEmail = email.trim();
+    if (!trimmedEmail || !password) {
+      Alert.alert("Missing information", "Enter both email and password.");
+      return;
+    }
+    if (mode === "signup" && password.length < 6) {
+      Alert.alert("Password too short", "Password must be at least 6 characters.");
+      return;
+    }
     setBusy(true);
     try {
-      if (mode === "signin") await signIn(email, password);
-      else await signUp(email, password);
+      if (mode === "signin") {
+        await signIn(trimmedEmail, password);
+      } else {
+        const result = await signUp(trimmedEmail, password);
+        if (result.signedIn) {
+          Alert.alert("Account created", "账号已建立，正在进入应用。");
+        } else {
+          Alert.alert("Check your email", `请去 ${trimmedEmail} 点击确认链接，然后返回登录。`);
+          setMode("signin");
+          setPassword("");
+        }
+      }
     } catch (e) {
       Alert.alert("Error", e instanceof Error ? e.message : String(e));
     } finally {
@@ -87,7 +105,6 @@ export function AuthScreen() {
       {mode !== "reset" && (
         <TextInput style={s.input} placeholder="Password" value={password} onChangeText={setPassword} secureTextEntry />
       )}
-      {mode === "signup" && <Text style={s.hint}>Password must be at least 6 characters.</Text>}
       <TouchableOpacity style={s.button} onPress={submit} disabled={busy}>
         <Text style={s.buttonText}>{submitLabel}</Text>
       </TouchableOpacity>
@@ -101,13 +118,7 @@ export function AuthScreen() {
           <Text style={s.link}>Back to sign in</Text>
         </TouchableOpacity>
       )}
-      <Text style={s.hint}>
-        {mode === "signup"
-          ? "After signup, confirm via email if required, then sign in."
-          : mode === "reset"
-            ? "Enter your account email and we'll send a reset link."
-            : ""}
-      </Text>
+      {mode === "reset" && <Text style={s.hint}>Enter your account email and we will send a reset link.</Text>}
     </ScrollView>
   );
 }
@@ -241,34 +252,36 @@ const s = StyleSheet.create({
     width: "100%",
     maxWidth: 520,
     alignSelf: "center",
-    padding: 24,
+    paddingHorizontal: 24,
+    paddingVertical: 16,
     justifyContent: "center",
     backgroundColor: "#f7faf7"
   },
-  title: { alignSelf: "stretch", flexShrink: 1, fontSize: 26, fontWeight: "700", color: "#0f766e", marginBottom: 4 },
-  subtitle: { alignSelf: "stretch", flexShrink: 1, fontSize: 14, color: "#64748b", marginBottom: 24 },
+  title: { alignSelf: "stretch", flexShrink: 1, fontSize: 34, fontWeight: "800", color: "#0f766e", marginBottom: 6 },
+  subtitle: { alignSelf: "stretch", flexShrink: 1, fontSize: 17, color: "#64748b", marginBottom: 18 },
   tabs: {
     alignSelf: "stretch",
     flexDirection: "row",
-    marginBottom: 16,
+    marginBottom: 14,
     borderRadius: 8,
     overflow: "hidden",
     backgroundColor: "#e2e8f0"
   },
-  tab: { flex: 1, paddingVertical: 10, alignItems: "center" },
+  tab: { flex: 1, paddingVertical: 12, alignItems: "center" },
   tabActive: { backgroundColor: "#0f766e" },
-  tabText: { color: "#475569" },
-  tabTextActive: { color: "#fff", fontWeight: "600" },
+  tabText: { color: "#475569", fontSize: 16, fontWeight: "600" },
+  tabTextActive: { color: "#fff", fontSize: 16, fontWeight: "700" },
   input: {
     alignSelf: "stretch",
     width: "100%",
     borderWidth: 1,
     borderColor: "#cbd5e1",
     borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 13,
     marginBottom: 12,
-    backgroundColor: "#fff"
+    backgroundColor: "#fff",
+    fontSize: 17
   },
   fieldLabel: { alignSelf: "stretch", fontSize: 13, fontWeight: "600", color: "#334155", marginBottom: 8 },
   roleRow: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 8 },
@@ -289,12 +302,12 @@ const s = StyleSheet.create({
     alignSelf: "stretch",
     width: "100%",
     backgroundColor: "#0f766e",
-    paddingVertical: 12,
+    paddingVertical: 15,
     borderRadius: 8,
     alignItems: "center",
     marginTop: 8
   },
-  buttonText: { color: "#fff", fontWeight: "600" },
-  hint: { fontSize: 12, color: "#64748b", marginTop: 8 },
-  link: { color: "#0f766e", marginTop: 16, textAlign: "center" }
+  buttonText: { color: "#fff", fontWeight: "700", fontSize: 17 },
+  hint: { fontSize: 14, color: "#64748b", marginTop: 10, lineHeight: 20 },
+  link: { color: "#0f766e", marginTop: 16, textAlign: "center", fontSize: 16, fontWeight: "600" }
 });

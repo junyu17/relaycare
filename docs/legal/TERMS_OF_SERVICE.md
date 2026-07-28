@@ -51,7 +51,7 @@ You retain ownership of the content you submit. You grant TaskKin Care a limited
 
 ## 10. Termination
 
-You may delete your household data at any time. We may suspend or terminate access for violations of these Terms or to protect safety and security.
+You may delete your account and household data at any time through Settings > Delete account & household data. We may suspend or terminate access for violations of these Terms or to protect safety and security.
 
 ## 11. Limitation of Liability
 

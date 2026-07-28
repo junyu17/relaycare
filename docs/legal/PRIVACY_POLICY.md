@@ -19,7 +19,9 @@ This policy explains what information TaskKin Care processes, how it is used, an
 
 **Care coordination content:** tasks, timeline events, document metadata (filename, upload time, confidence indicators), notification preferences, and audit records of who did what and when.
 
-**Document files:** files you upload for family coordination. You are responsible for ensuring uploaded files are de-identified or do not contain Protected Health Information (PHI).
+**Document files:** files you upload for family coordination. You are responsible for ensuring uploaded files are de-identified or do not contain Protected Health Information (PHI). Document text recognition (OCR) runs **on your device**; the contents of your files are not sent to any external service for OCR.
+
+**Purchases and subscriptions:** when you subscribe to Family Plus, payment is processed by Apple through your Apple ID; TaskKin Care does not receive or store your payment card or Apple account credentials. We do store subscription metadata needed to provide access, including the Apple transaction identifier, the plan, and the renewal/expiry date, linked to your account and household. Subscription status (active/expired) determines which features your household can access.
 
 ## 3. Information We Do Not Collect
 
@@ -52,11 +54,11 @@ The MVP is designed to operate **without** processing PHI. Whether TaskKin Care 
 
 ## 8. Retention and Deletion
 
-Household content (households, members, tasks, timeline, documents, document files, notification preferences) is retained until you delete your household, which cascades to all household-scoped data. Audit records are retained for 24 months after household deletion for security and accountability. This retention period is an operator-selected policy and has not received independent legal counsel review. You can request an export of your household data or deletion at any time by emailing [Billy.yu@me.com](mailto:Billy.yu@me.com); the export and deletion procedure is defined in `COMPLIANCE_CHECKLIST.md §6`.
+Household content (households, members, tasks, timeline, documents, document files, notification preferences) is retained until you delete your account in the app, which deletes your household and all household-scoped data. Audit records are retained for 24 months after household deletion for security and accountability. This retention period is an operator-selected policy and has not received independent legal counsel review. You can request an export of your household data or other privacy assistance by emailing [Billy.yu@me.com](mailto:Billy.yu@me.com); the export procedure is defined in `COMPLIANCE_CHECKLIST.md §6`.
 
 ## 9. Your Rights
 
-You may request access to, correction of, deletion of, or export of your data by emailing [Billy.yu@me.com](mailto:Billy.yu@me.com).
+You may request access to, correction of, or export of your data by emailing [Billy.yu@me.com](mailto:Billy.yu@me.com). You may delete your account and household data directly in the app through Settings > Delete account & household data.
 
 ## 10. Minors and Authorized Representatives
 

@@ -20,20 +20,20 @@
 - `initIap`：`initConnection` + 安装 `purchaseUpdatedListener`/`purchaseErrorListener`（作为 `requestPurchase` 返回值的兜底）。
 - `fetchIosSubscriptions`：`fetchProducts({skus, type:"subs"})` 拿本地化价格。
 - `purchaseIosSubscription(plan)`：`requestPurchase({request:{apple:{sku}}, type:"subs"})`，返回 `Purchase`（用返回值，回退 listener）。
-- `verifyApplePurchase`：购买成功后把 `{productId, transactionId, purchaseToken(iOS JWS), householdId, ownerId}` 发到 `verify-apple-receipt` Edge Function。
+- `verifyApplePurchase`：购买成功后把 `{productId, transactionId, purchaseToken(iOS JWS), householdId}` 发到 `verify-apple-receipt` Edge Function。成员身份由函数从登录 JWT 推导，客户端不再提交 owner ID。
 - `finishIosPurchase`：`finishTransaction`。
 - `restoreIos`：`getAvailablePurchases` -> 逐个校验 -> 命中即应用。
 - `isIosIapAvailable`：仅 iOS 启用。
 
 ### 2. `src/paywall/Paywall.tsx` 接入真实购买
 
-- cloud 模式（householdId 提供）+ iOS：订阅按钮走真实 IAP（拉价格、购买、校验、finish、刷新、提示）；恢复走 `restoreIos`。
+- cloud 模式（householdId 提供）+ iOS：仅协调人可发起真实 IAP（拉价格、购买、校验、finish、刷新、提示）；恢复走 `restoreIos`。
 - local 模式 / 非 iOS：保留 dev 切换（测试用）。
 - 购买中显示 spinner、禁用按钮。
 
 ### 3. App.tsx
 
-- 给 Paywall 传 `householdId` / `ownerId` / `onPurchased`（cloud 模式）。
+- 给 Paywall 传 `householdId` / `onPurchased`（cloud 模式）。
 
 ### 4. 实时刷新套餐
 
@@ -43,9 +43,9 @@
 
 ### 5. 收据校验 Edge Function `backend/supabase/functions/verify-apple-receipt/index.ts`
 
-- 用 `@apple/app-store-server-library` 的 `SignedDataVerifier`（拉取 Apple 根证书、校验 JWS 签名链 + bundleId + 环境）。
-- 校验 `productId` 匹配 -> 用 **service role** 调 `set_household_plus(householdId, plan, ownerId)` 写 entitlement。
-- `0010_paywall_service_role.sql`：`grant execute ... to service_role`（上线前 revoke authenticated，仅留 service_role 防客户端自升）。
+- 用 `@apple/app-store-server-library` 的 `SignedDataVerifier`（拉取 Apple 根证书、校验 JWS 签名链 + bundleId）；兼容 Sandbox 与 Production。
+- 用调用者 JWT 查验其为目标家庭的 active coordinator，再登记 Apple 原始交易。`0012_subscription_binding.sql` 确保一笔原始交易不能改绑到另一个家庭或账户；`0013_multi_households.sql` 将这笔订阅安全覆盖到该协调人新建的最多三个 Family Plus 家庭。
+- `0011_paywall_security.sql`：`set_household_plus` 仅允许 service role 调用，且使用 Apple 的真实到期时间。
 
 ### 6. app.json
 
@@ -56,19 +56,19 @@
 
 1. 用户开付费墙（cloud + iOS）-> 拉取月/年价格。
 2. 点订阅 -> `requestPurchase` -> StoreKit sheet -> 完成 -> `Purchase`。
-3. `verifyApplePurchase` -> Edge Function 校验 JWS -> `set_household_plus`。
+3. `verifyApplePurchase` -> Edge Function 校验 JWT、家庭协调人身份、JWS 和交易绑定 -> `register_apple_subscription`。
 4. households 变更 -> realtime -> 客户端 re-fetch -> 徽章变 Plus。
 5. `finishTransaction` + 提示"已激活"。
 
 ## 四、需你部署/配置（才能真机跑通）
 
-1. **SQL**：执行 `0009_realtime_households.sql` + `0010_paywall_service_role.sql`（0008 已执行）。
+1. **SQL**：按编号执行 `0009_realtime_households.sql`、`0010_paywall_service_role.sql`、`0011_paywall_security.sql`、`0012_subscription_binding.sql` 和 `0013_multi_households.sql`（0008 已执行）。
 2. **Edge Function**：
    - `supabase functions deploy verify-apple-receipt`
-   - Secrets：`APPLE_BUNDLE_ID=cd.cc.relaycare`、`APPLE_APP_APPLE_ID=<App 的 Apple ID>`、`APPLE_ENVIRONMENT=Sandbox`（上架后改 Production）。`SUPABASE_URL`/`SUPABASE_SERVICE_ROLE_KEY` 已有。
+   - Secrets：`APPLE_BUNDLE_ID=cd.cc.relaycare`、`SUPABASE_ANON_KEY`。`APPLE_APP_APPLE_ID` 已内置默认值；`SUPABASE_URL`/`SUPABASE_SERVICE_ROLE_KEY` 已有。
 3. **原生构建**：`expo prebuild -p ios`（expo-iap 原生模块，Expo Go 不可用）+ Xcode build。
 4. **沙盒测试**：App Store Connect 的沙盒账号；StoreKit Configuration（Xcode）可本地测。
-5. **上架前**：`revoke execute on function set_household_plus from authenticated;`（仅留 service_role）；`APPLE_ENVIRONMENT` 改 Production。
+5. **上架前**：确认 `set_household_plus` 仅留 service_role，并为 `apple-server-notifications` 配置 Sandbox 与 Production URL。
 
 ## 五、已知边界
 

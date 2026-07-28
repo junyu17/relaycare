@@ -63,21 +63,21 @@
 
 ## 需你部署/配置
 
-1. **SQL**：执行 `0011_paywall_security.sql`（0008-0010 已执行）。
+1. **SQL**：按编号执行 `0011_paywall_security.sql`、`0012_subscription_binding.sql` 和 `0013_multi_households.sql`（0008-0010 已执行）。`0013` 是 Family Plus 最多三个家庭、订阅权益同步和家庭切换所必需的迁移。
 2. **Edge Functions**：
-   - `supabase functions deploy verify-apple-receipt`（已更新：Apple 真实到期 + upsert）
+   - `supabase functions deploy verify-apple-receipt`（已更新：按登录会话校验协调人、交易绑定和真实到期）
    - `supabase functions deploy apple-server-notifications`（新）
    - `supabase functions deploy delete-account`（新）
-   - Secrets：补 `SUPABASE_ANON_KEY`（delete-account 用，通常已自动注入）；设 `APPLE_BUNDLE_ID=cd.cc.relaycare`、`APPLE_ENVIRONMENT=Sandbox`（`APPLE_APP_APPLE_ID` 已内置 6794837934，可不设）。
+   - Secrets：补 `SUPABASE_ANON_KEY`（`delete-account` 与 `verify-apple-receipt` 使用，通常已自动注入）；设 `APPLE_BUNDLE_ID=cd.cc.relaycare`。`APPLE_APP_APPLE_ID` 已内置 6794837934，可不设。
+   - 两个 Apple 函数同时验证 Sandbox 和 Production JWS；无需在发布时切换 `APPLE_ENVIRONMENT`。
 3. **App Store Connect**：Server Notifications V2 -> URL 指 `apple-server-notifications`（生产 + Sandbox 各一）。
 4. **iOS 构建**：本机 `expo prebuild -p ios --clean && cd ios && pod install`（github 不通时用 `git config --local url."https://gh-proxy.com/https://github.com/".insteadOf "https://github.com/"` 临时代理，跑完 unset）。然后 Xcode Archive 上传。
-5. **上架前**：`APPLE_ENVIRONMENT=Production`；确认 `set_household_plus` 仅 service_role（已 revoke authenticated）。
+5. **上架前**：确认 `set_household_plus` 仅 service_role（已 revoke authenticated）。
 
 ## 上架检查清单
 
-- [ ] 0011 SQL 已执行
+- [ ] 0011、0012、0013 SQL 已执行
 - [ ] 3 个 Edge Function 已部署 + Secrets 配齐
 - [ ] Server Notifications V2 URL 已配
 - [ ] iOS prebuild + pod install + Archive 上传（cd.cc.relaycare）
 - [ ] Sandbox：购买/恢复/到期/退款/取消 全通过
-- [ ] APPLE_ENVIRONMENT=Production

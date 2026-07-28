@@ -17,3 +17,7 @@ coverage/
 # Native (CNG - regenerated via `expo prebuild`)
 ios/
 android/
+
+# Supabase CLI local state
+backend/supabase/.temp/
+supabase/.temp/

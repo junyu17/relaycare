@@ -54,6 +54,13 @@
 
 - 购买/重复/恢复/到期/取消续订/退款/断网重试。
 
+## Apple App 标识（已确认，已写入代码）
+
+- Bundle ID：`cd.cc.relaycare`（app.json）
+- App Apple ID：`6794837934`（已内置为 Edge Function 默认，可用 `APPLE_APP_APPLE_ID` 覆盖）
+- App SKU：`relaycare-001`（ASC 应用标识，代码不用）
+- 订阅产品：`TaskKin.care.pro.yearly`(6795121970) / `TaskKin.care.pro.mon`(6795120026)
+
 ## 需你部署/配置
 
 1. **SQL**：执行 `0011_paywall_security.sql`（0008-0010 已执行）。
@@ -61,7 +68,7 @@
    - `supabase functions deploy verify-apple-receipt`（已更新：Apple 真实到期 + upsert）
    - `supabase functions deploy apple-server-notifications`（新）
    - `supabase functions deploy delete-account`（新）
-   - Secrets：补 `SUPABASE_ANON_KEY`（delete-account 用）；`APPLE_*` 同前。
+   - Secrets：补 `SUPABASE_ANON_KEY`（delete-account 用，通常已自动注入）；设 `APPLE_BUNDLE_ID=cd.cc.relaycare`、`APPLE_ENVIRONMENT=Sandbox`（`APPLE_APP_APPLE_ID` 已内置 6794837934，可不设）。
 3. **App Store Connect**：Server Notifications V2 -> URL 指 `apple-server-notifications`（生产 + Sandbox 各一）。
 4. **iOS 构建**：本机 `expo prebuild -p ios --clean && cd ios && pod install`（github 不通时用 `git config --local url."https://gh-proxy.com/https://github.com/".insteadOf "https://github.com/"` 临时代理，跑完 unset）。然后 Xcode Archive 上传。
 5. **上架前**：`APPLE_ENVIRONMENT=Production`；确认 `set_household_plus` 仅 service_role（已 revoke authenticated）。

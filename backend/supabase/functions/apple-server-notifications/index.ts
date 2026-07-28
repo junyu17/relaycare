@@ -3,14 +3,15 @@
 //
 // 配置：App Store Connect -> App -> App Store Server Notifications V2 -> 生产/Sandbox URL
 //   指向本函数：https://<project>.functions.supabase.co/apple-server-notifications
-// Secrets：SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY / APPLE_BUNDLE_ID / APPLE_APP_APPLE_ID(可选) / APPLE_ENVIRONMENT
+// Secrets：SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY（自动注入）/ APPLE_BUNDLE_ID / APPLE_ENVIRONMENT。APPLE_APP_APPLE_ID 已内置默认 6794837934。
 
 import { SignedDataVerifier } from "npm:@apple/app-store-server-library@1.4.0";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const BUNDLE_ID = Deno.env.get("APPLE_BUNDLE_ID") ?? "cd.cc.relaycare";
 const ENVIRONMENT = (Deno.env.get("APPLE_ENVIRONMENT") ?? "Sandbox") as "Sandbox" | "Production";
-const APP_APPLE_ID = Deno.env.get("APPLE_APP_APPLE_ID");
+// App 的 Apple ID（ASC -> App Information）。非密钥，内置默认；可用环境变量覆盖。
+const APP_APPLE_ID = Deno.env.get("APPLE_APP_APPLE_ID") ?? "6794837934";
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 const SUPA_URL = Deno.env.get("SUPABASE_URL");
 

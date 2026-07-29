@@ -2,37 +2,32 @@ import { useEffect, useState } from "react";
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, ScrollView } from "react-native";
 import { useAuth } from "./AuthContext";
 
-// 接受纯 token 或完整邀请链接（taskkin-care://invite?token=... 或 https://...token=...），统一抽出 token。
-function parseInviteToken(input: string): string {
-  const trimmed = input.trim();
-  if (!trimmed) return "";
-  const tokenMatch = trimmed.match(/[?&]token=([^&]+)/i);
-  if (tokenMatch) return decodeURIComponent(tokenMatch[1]);
-  return trimmed;
-}
-
-const ROLE_LABEL: Record<"coordinator" | "caregiver" | "viewer", string> = {
-  coordinator: "Coordinator",
-  caregiver: "Caregiver",
-  viewer: "Viewer"
-};
-const ROLE_OPTIONS: ("coordinator" | "caregiver" | "viewer")[] = ["coordinator", "caregiver", "viewer"];
-
-// 未登录时显示：登录 / 注册 / 重置密码
+// 未登录：登录 / 注册 / 重置 / 用 6 位码加入（匿名）
 export function AuthScreen() {
-  const { signIn, signUp, resetPassword } = useAuth();
-  const [mode, setMode] = useState<"signin" | "signup" | "reset">("signin");
+  const { signIn, signUp, resetPassword, joinByCode, pendingJoinCode, clearPendingJoinCode } = useAuth();
+  const [mode, setMode] = useState<"signin" | "signup" | "reset" | "join">("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [joinCode, setJoinCode] = useState("");
+  const [displayName, setDisplayName] = useState("");
   const [busy, setBusy] = useState(false);
 
+  useEffect(() => {
+    if (!pendingJoinCode) return;
+    // Sync join code from deep link (taskkin-care://join?code=XXXXXX).
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setJoinCode(pendingJoinCode);
+    setMode("join");
+  }, [pendingJoinCode]);
+
   const submit = async () => {
+    if (busy) return;
     if (mode === "reset") {
       if (!email) return;
       setBusy(true);
       try {
         await resetPassword(email);
-        Alert.alert("Check your email", "If an account exists for that email, a password reset link has been sent.");
+        Alert.alert("Check your email", "If an account exists, a password reset link has been sent.");
         setMode("signin");
       } catch (e) {
         Alert.alert("Error", e instanceof Error ? e.message : String(e));
@@ -41,30 +36,27 @@ export function AuthScreen() {
       }
       return;
     }
-
-    const trimmedEmail = email.trim();
-    if (!trimmedEmail || !password) {
-      Alert.alert("Missing information", "Enter both email and password.");
+    if (mode === "join") {
+      if (!/^\d{6}$/.test(joinCode)) {
+        Alert.alert("Invalid code", "Enter the 6-digit family code.");
+        return;
+      }
+      setBusy(true);
+      try {
+        await joinByCode(joinCode, displayName.trim() || undefined);
+        clearPendingJoinCode();
+      } catch (e) {
+        Alert.alert("Error", e instanceof Error ? e.message : String(e));
+      } finally {
+        setBusy(false);
+      }
       return;
     }
-    if (mode === "signup" && password.length < 6) {
-      Alert.alert("Password too short", "Password must be at least 6 characters.");
-      return;
-    }
+    if (!email || !password) return;
     setBusy(true);
     try {
-      if (mode === "signin") {
-        await signIn(trimmedEmail, password);
-      } else {
-        const result = await signUp(trimmedEmail, password);
-        if (result.signedIn) {
-          Alert.alert("Account created", "账号已建立，正在进入应用。");
-        } else {
-          Alert.alert("Check your email", `请去 ${trimmedEmail} 点击确认链接，然后返回登录。`);
-          setMode("signin");
-          setPassword("");
-        }
-      }
+      if (mode === "signin") await signIn(email, password);
+      else await signUp(email, password);
     } catch (e) {
       Alert.alert("Error", e instanceof Error ? e.message : String(e));
     } finally {
@@ -78,13 +70,15 @@ export function AuthScreen() {
       ? "Sign in"
       : mode === "signup"
         ? "Create account"
-        : "Send reset link";
+        : mode === "reset"
+          ? "Send reset link"
+          : "Join household";
 
   return (
     <ScrollView contentContainerStyle={s.container}>
       <Text style={s.title}>TaskKin Care</Text>
       <Text style={s.subtitle}>Family care coordination</Text>
-      {mode !== "reset" && (
+      {mode !== "reset" && mode !== "join" && (
         <View style={s.tabs}>
           <TouchableOpacity style={[s.tab, mode === "signin" && s.tabActive]} onPress={() => setMode("signin")}>
             <Text style={mode === "signin" ? s.tabTextActive : s.tabText}>Sign in</Text>
@@ -94,52 +88,94 @@ export function AuthScreen() {
           </TouchableOpacity>
         </View>
       )}
-      <TextInput
-        style={s.input}
-        placeholder="Email"
-        value={email}
-        onChangeText={setEmail}
-        autoCapitalize="none"
-        keyboardType="email-address"
-      />
-      {mode !== "reset" && (
-        <TextInput style={s.input} placeholder="Password" value={password} onChangeText={setPassword} secureTextEntry />
+
+      {mode === "join" ? (
+        <>
+          <Text style={s.hint}>Enter the 6-digit code your family coordinator shared, or scan their QR code.</Text>
+          <TextInput
+            style={s.input}
+            placeholder="6-digit family code"
+            value={joinCode}
+            onChangeText={(v) => setJoinCode(v.replace(/\D/g, "").slice(0, 6))}
+            keyboardType="number-pad"
+            autoCapitalize="none"
+          />
+          <TextInput
+            style={s.input}
+            placeholder="Your name (optional)"
+            value={displayName}
+            onChangeText={setDisplayName}
+          />
+        </>
+      ) : (
+        <>
+          <TextInput
+            style={s.input}
+            placeholder="Email"
+            value={email}
+            onChangeText={setEmail}
+            autoCapitalize="none"
+            keyboardType="email-address"
+          />
+          {mode !== "reset" && (
+            <TextInput
+              style={s.input}
+              placeholder="Password"
+              value={password}
+              onChangeText={setPassword}
+              secureTextEntry
+            />
+          )}
+          {mode === "signup" && <Text style={s.hint}>Password must be at least 6 characters.</Text>}
+        </>
       )}
+
       <TouchableOpacity style={s.button} onPress={submit} disabled={busy}>
         <Text style={s.buttonText}>{submitLabel}</Text>
       </TouchableOpacity>
+
       {mode === "signin" && (
-        <TouchableOpacity onPress={() => setMode("reset")}>
-          <Text style={s.link}>Forgot password?</Text>
-        </TouchableOpacity>
+        <>
+          <TouchableOpacity onPress={() => setMode("reset")}>
+            <Text style={s.link}>Forgot password?</Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => setMode("join")}>
+            <Text style={s.link}>Have a family code? Join</Text>
+          </TouchableOpacity>
+        </>
       )}
       {mode === "reset" && (
         <TouchableOpacity onPress={() => setMode("signin")}>
           <Text style={s.link}>Back to sign in</Text>
         </TouchableOpacity>
       )}
-      {mode === "reset" && <Text style={s.hint}>Enter your account email and we will send a reset link.</Text>}
+      {mode === "join" && (
+        <TouchableOpacity onPress={() => setMode("signin")}>
+          <Text style={s.link}>Coordinator? Sign in / sign up</Text>
+        </TouchableOpacity>
+      )}
+      <Text style={s.hint}>
+        {mode === "signup"
+          ? "After signup, confirm via email if required, then sign in."
+          : mode === "reset"
+            ? "Enter your account email and we'll send a reset link."
+            : mode === "join"
+              ? "Joining creates a device-linked identity; no email needed."
+              : ""}
+      </Text>
     </ScrollView>
   );
 }
 
-// 已登录但还没家庭时显示：创建家庭 / 加入家庭
+// 已登录但还没家庭：创建家庭（协调人）/ 用 6 位码加入
 export function OnboardingScreen() {
-  const { createHousehold, acceptInvite, signOut, pendingInviteToken, clearPendingInvite } = useAuth();
+  const { createHousehold, joinByCode, signOut } = useAuth();
   const [tab, setTab] = useState<"create" | "join">("create");
   const [householdName, setHouseholdName] = useState("");
   const [memberName, setMemberName] = useState("");
   const [relation, setRelation] = useState("");
-  const [inviteInput, setInviteInput] = useState("");
+  const [joinCode, setJoinCode] = useState("");
   const [busy, setBusy] = useState(false);
-
-  useEffect(() => {
-    if (!pendingInviteToken) return;
-    // Sync invite token from deep link into local input state (one-time on link arrival).
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setInviteInput(pendingInviteToken);
-    setTab("join");
-  }, [pendingInviteToken]);
 
   const onCreate = async () => {
     if (!householdName || !memberName) return;
@@ -161,12 +197,13 @@ export function OnboardingScreen() {
   };
 
   const onJoin = async () => {
-    const token = parseInviteToken(inviteInput);
-    if (!token) return;
+    if (!/^\d{6}$/.test(joinCode)) {
+      Alert.alert("Invalid code", "Enter the 6-digit family code.");
+      return;
+    }
     setBusy(true);
     try {
-      await acceptInvite(token);
-      clearPendingInvite();
+      await joinByCode(joinCode, memberName.trim() || undefined);
     } catch (e) {
       Alert.alert("Error", e instanceof Error ? e.message : String(e));
     } finally {
@@ -200,39 +237,26 @@ export function OnboardingScreen() {
             value={relation}
             onChangeText={setRelation}
           />
-          <Text style={s.fieldLabel}>Your role (3 roles available)</Text>
-          <View style={s.roleRow}>
-            {ROLE_OPTIONS.map((r) => {
-              const selected = r === "coordinator";
-              return (
-                <View
-                  key={r}
-                  style={[s.roleChip, selected && s.roleChipActive, s.roleChipDisabled]}
-                  accessibilityState={{ selected, disabled: true }}
-                >
-                  <Text style={selected ? s.roleChipTextActive : s.roleChipText}>{ROLE_LABEL[r]}</Text>
-                </View>
-              );
-            })}
-          </View>
-          <Text style={s.hint}>
-            The first member of a household is always the Coordinator. You can invite Caregivers and Viewers later from
-            Settings.
-          </Text>
+          <Text style={s.hint}>The first member is the Coordinator (admin). Others join by code.</Text>
           <TouchableOpacity style={s.button} onPress={onCreate} disabled={busy}>
             <Text style={s.buttonText}>{busy ? "..." : "Create household"}</Text>
           </TouchableOpacity>
         </>
       ) : (
         <>
-          <Text style={s.hint}>Paste the invite link or token your coordinator shared with you.</Text>
+          <Text style={s.hint}>Enter the 6-digit code your coordinator shared.</Text>
           <TextInput
             style={s.input}
-            placeholder="Invite link or token"
-            value={inviteInput}
-            onChangeText={setInviteInput}
-            autoCapitalize="none"
-            autoCorrect={false}
+            placeholder="6-digit family code"
+            value={joinCode}
+            onChangeText={(v) => setJoinCode(v.replace(/\D/g, "").slice(0, 6))}
+            keyboardType="number-pad"
+          />
+          <TextInput
+            style={s.input}
+            placeholder="Your name (optional)"
+            value={memberName}
+            onChangeText={setMemberName}
           />
           <TouchableOpacity style={s.button} onPress={onJoin} disabled={busy}>
             <Text style={s.buttonText}>{busy ? "..." : "Join household"}</Text>
@@ -252,62 +276,45 @@ const s = StyleSheet.create({
     width: "100%",
     maxWidth: 520,
     alignSelf: "center",
-    paddingHorizontal: 24,
-    paddingVertical: 16,
+    padding: 24,
     justifyContent: "center",
     backgroundColor: "#f7faf7"
   },
-  title: { alignSelf: "stretch", flexShrink: 1, fontSize: 34, fontWeight: "800", color: "#0f766e", marginBottom: 6 },
-  subtitle: { alignSelf: "stretch", flexShrink: 1, fontSize: 17, color: "#64748b", marginBottom: 18 },
+  title: { alignSelf: "stretch", flexShrink: 1, fontSize: 26, fontWeight: "700", color: "#0f766e", marginBottom: 4 },
+  subtitle: { alignSelf: "stretch", flexShrink: 1, fontSize: 14, color: "#64748b", marginBottom: 24 },
   tabs: {
     alignSelf: "stretch",
     flexDirection: "row",
-    marginBottom: 14,
+    marginBottom: 16,
     borderRadius: 8,
     overflow: "hidden",
     backgroundColor: "#e2e8f0"
   },
-  tab: { flex: 1, paddingVertical: 12, alignItems: "center" },
+  tab: { flex: 1, paddingVertical: 10, alignItems: "center" },
   tabActive: { backgroundColor: "#0f766e" },
-  tabText: { color: "#475569", fontSize: 16, fontWeight: "600" },
-  tabTextActive: { color: "#fff", fontSize: 16, fontWeight: "700" },
+  tabText: { color: "#475569" },
+  tabTextActive: { color: "#fff", fontWeight: "600" },
   input: {
     alignSelf: "stretch",
     width: "100%",
     borderWidth: 1,
     borderColor: "#cbd5e1",
     borderRadius: 8,
-    paddingHorizontal: 14,
-    paddingVertical: 13,
-    marginBottom: 12,
-    backgroundColor: "#fff",
-    fontSize: 17
-  },
-  fieldLabel: { alignSelf: "stretch", fontSize: 13, fontWeight: "600", color: "#334155", marginBottom: 8 },
-  roleRow: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 8 },
-  roleChip: {
     paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: "#cbd5e1",
-    backgroundColor: "#fff",
-    opacity: 0.55
+    paddingVertical: 10,
+    marginBottom: 12,
+    backgroundColor: "#fff"
   },
-  roleChipActive: { backgroundColor: "#0f766e", borderColor: "#0f766e", opacity: 1 },
-  roleChipDisabled: {},
-  roleChipText: { color: "#475569", fontWeight: "600" },
-  roleChipTextActive: { color: "#fff", fontWeight: "700" },
   button: {
     alignSelf: "stretch",
     width: "100%",
     backgroundColor: "#0f766e",
-    paddingVertical: 15,
+    paddingVertical: 12,
     borderRadius: 8,
     alignItems: "center",
     marginTop: 8
   },
-  buttonText: { color: "#fff", fontWeight: "700", fontSize: 17 },
-  hint: { fontSize: 14, color: "#64748b", marginTop: 10, lineHeight: 20 },
-  link: { color: "#0f766e", marginTop: 16, textAlign: "center", fontSize: 16, fontWeight: "600" }
+  buttonText: { color: "#fff", fontWeight: "600" },
+  hint: { fontSize: 12, color: "#64748b", marginTop: 8 },
+  link: { color: "#0f766e", marginTop: 16, textAlign: "center" }
 });

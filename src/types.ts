@@ -24,7 +24,11 @@ export type DocumentStatus = "uploaded" | "pending_confirmation" | "confirmed";
 
 export type AuditAction =
   | "household.created"
+  | "household.dissolved"
   | "member.invited"
+  | "member.joined"
+  | "member.removed"
+  | "member.left"
   | "member.role_updated"
   | "task.created"
   | "task.claimed"

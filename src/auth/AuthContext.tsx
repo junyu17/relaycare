@@ -4,6 +4,7 @@ import { supabase, isSupabaseConfigured } from "../lib/supabase";
 import {
   createHousehold as rpcCreateHousehold,
   acceptInvite as rpcAcceptInvite,
+  joinByCode as rpcJoinByCode,
   listMyHouseholds,
   setActiveHousehold as rpcSetActiveHousehold,
   type HouseholdSummary
@@ -32,8 +33,11 @@ interface AuthState {
   createHousehold: (args: CreateHouseholdArgs) => Promise<void>;
   switchHousehold: (householdId: string) => Promise<void>;
   acceptInvite: (memberId: string, displayName?: string) => Promise<void>;
+  joinByCode: (code: string, displayName?: string) => Promise<void>;
   pendingInviteToken: string | null;
+  pendingJoinCode: string | null;
   clearPendingInvite: () => void;
+  clearPendingJoinCode: () => void;
 }
 
 const AuthContext = createContext<AuthState | null>(null);
@@ -44,8 +48,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [households, setHouseholds] = useState<HouseholdSummary[]>([]);
   const [loading, setLoading] = useState(isSupabaseConfigured);
   const [pendingInviteToken, setPendingInviteToken] = useState<string | null>(null);
+  const [pendingJoinCode, setPendingJoinCode] = useState<string | null>(null);
 
-  // Deep link: taskkin-care://invite?token=<token> -> 捕获邀请 token，登录/注册后加入
+  // Deep link: taskkin-care://invite?token=<token> 或 taskkin-care://join?code=<6位码>
   useEffect(() => {
     const handleUrl = (url: string | null) => {
       if (!url) return;
@@ -53,6 +58,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const parsed = Linking.parse(url);
         const token = parsed.queryParams?.token;
         if (typeof token === "string" && token) setPendingInviteToken(token);
+        const code = parsed.queryParams?.code;
+        if (typeof code === "string" && /^\d{6}$/.test(code)) setPendingJoinCode(code);
       } catch {
         // ignore malformed URLs
       }
@@ -134,7 +141,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const hid = await rpcAcceptInvite(token, displayName);
     await refreshHouseholds(hid);
   };
+  // 匿名签到 + 凭 6 位码加入（普通成员无需邮箱）。
+  const joinByCode = async (code: string, displayName?: string) => {
+    if (!user) {
+      const { error } = await supabase.auth.signInAnonymously();
+      if (error) throw error;
+    }
+    const hid = await rpcJoinByCode(code, displayName);
+    await refreshHouseholds(hid);
+  };
   const clearPendingInvite = () => setPendingInviteToken(null);
+  const clearPendingJoinCode = () => setPendingJoinCode(null);
 
   return (
     <AuthContext.Provider
@@ -151,8 +168,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         createHousehold,
         switchHousehold,
         acceptInvite,
+        joinByCode,
         pendingInviteToken,
-        clearPendingInvite
+        pendingJoinCode,
+        clearPendingInvite,
+        clearPendingJoinCode
       }}
     >
       {children}

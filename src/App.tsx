@@ -28,8 +28,16 @@ import {
   subscribeRoleNotifications,
   cacheHouseholdState,
   getCachedHouseholdState,
-  deleteAccount
+  deleteAccount,
+  generateHouseholdCode,
+  getHouseholdCode,
+  leaveHousehold,
+  removeMember,
+  dissolveHousehold,
+  type HouseholdCode,
+  type HouseholdSummary
 } from "./lib/db";
+import { QRCode } from "./components/QRCode";
 import * as Notifications from "expo-notifications";
 import * as Clipboard from "expo-clipboard";
 import * as cloudActions from "./lib/actions";
@@ -38,8 +46,7 @@ import { isSupabaseConfigured } from "./lib/supabase";
 import { ConsentGate } from "./legal/ConsentGate";
 import { openLegal } from "./legal/consent";
 import { Paywall } from "./paywall/Paywall";
-import type { HouseholdSummary } from "./lib/db";
-import { effectivePlan, checkTaskQuota, checkMemberQuota, checkOcrQuota, checkFileSize } from "./lib/entitlement";
+import { effectivePlan, checkTaskQuota, checkOcrQuota, checkFileSize } from "./lib/entitlement";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 import {
   addDocument,
@@ -50,7 +57,6 @@ import {
   createTask,
   formatDateTime,
   hasPermission,
-  inviteMember,
   isHouseholdInviteExpired,
   memberName,
   rejectTask,
@@ -114,11 +120,9 @@ Notifications.setNotificationHandler({
 const roleOptions: Role[] = ["coordinator", "caregiver", "viewer"];
 type TaskTemplateKey = "ride" | "paperwork" | "supplies";
 type TimelineTemplateKey = "checkin" | "pickup" | "paperwork";
-type InviteTemplateKey = "caregiver" | "viewer";
 
 const taskTemplateKeys: TaskTemplateKey[] = ["ride", "paperwork", "supplies"];
 const timelineTemplateKeys: TimelineTemplateKey[] = ["checkin", "pickup", "paperwork"];
-const inviteTemplateKeys: InviteTemplateKey[] = ["caregiver", "viewer"];
 
 const palette = {
   ink: "#172026",
@@ -161,6 +165,7 @@ function LocalApp(props: { cloud?: CloudProps } = {}) {
   const [documentSafetyConfirmed, setDocumentSafetyConfirmed] = useState(false);
   const [paywallVisible, setPaywallVisible] = useState(false);
   const [householdSwitcherVisible, setHouseholdSwitcherVisible] = useState(false);
+  const [joinCode, setJoinCode] = useState<HouseholdCode | null>(null);
 
   const t = useMemo(() => makeTranslator(language), [language]);
 
@@ -179,6 +184,18 @@ function LocalApp(props: { cloud?: CloudProps } = {}) {
     [actorId, state.members]
   );
   const actor = cloud ? cloud.actor : localActor;
+
+  // cloud 模式：加载当前加入码（仅协调人有意义）。
+  useEffect(() => {
+    if (!cloud || actor.role !== "coordinator") {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setJoinCode(null);
+      return;
+    }
+    void getHouseholdCode()
+      .then(setJoinCode)
+      .catch(() => {});
+  }, [cloud, actor.role, state.members.length]);
 
   const roleEditorMember = useMemo(
     () => state.members.find((member) => member.id === roleEditorMemberId),
@@ -495,46 +512,6 @@ function LocalApp(props: { cloud?: CloudProps } = {}) {
     });
   };
 
-  const onInviteMember = (templateKey: InviteTemplateKey) => {
-    runIfAllowed("member:invite", () => {
-      if (isHouseholdInviteExpired(state)) {
-        showMessage(t("alerts.inviteExpiredTitle"), t("alerts.inviteExpiredBody"));
-        return;
-      }
-      const quota = checkMemberQuota(state);
-      if (!quota.ok) {
-        Alert.alert(t("quota.memberTitle"), t("quota.memberBody"), [
-          { text: t("quota.upgrade"), onPress: () => setPaywallVisible(true) },
-          { text: t("paywall.close"), style: "cancel" as const }
-        ]);
-        return;
-      }
-      if (cloud) {
-        cloudActions
-          .inviteMember({
-            householdId: cloud.householdId,
-            actor,
-            role: templateKey,
-            householdName: state.household.name
-          })
-          .then(async (token) => {
-            const link = Linking.createURL("invite", { queryParams: { token } });
-            // 先复制到剪贴板（可靠），再打开系统分享面板。
-            await Clipboard.setStringAsync(link).catch(() => {});
-            try {
-              await Share.share({ title: t("settings.inviteShareTitle"), message: link });
-            } catch {
-              /* 用户取消分享或无可用分享应用 */
-            }
-            showMessage(t("settings.inviteLinkCopiedTitle"), t("settings.inviteLinkCopied"));
-          })
-          .catch(reportCloudActionFailure);
-      } else {
-        setState((current) => inviteMember(current, actor, templateKey, t));
-      }
-    });
-  };
-
   const onCreateTaskFromTemplate = (templateKey: TaskTemplateKey) => {
     runIfAllowed("task:create", () => {
       const quota = checkTaskQuota(state);
@@ -607,6 +584,63 @@ function LocalApp(props: { cloud?: CloudProps } = {}) {
         text: t("settings.deleteAccountTitle"),
         onPress: () => {
           deleteAccount()
+            .then(() => cloud.onSignOut())
+            .catch((e) => Alert.alert("Error", e instanceof Error ? e.message : String(e)));
+        }
+      }
+    ]);
+  };
+
+  // 生成/刷新 6 位加入码（协调人）。
+  const onGenerateCode = () => {
+    if (!cloud) return;
+    generateHouseholdCode()
+      .then(setJoinCode)
+      .catch((e) => Alert.alert("Error", e instanceof Error ? e.message : String(e)));
+  };
+
+  // 移除成员（协调人，不能移除自己）。
+  const onRemoveMember = (memberId: string) => {
+    if (!cloud) return;
+    Alert.alert(t("settings.removeMember"), t("settings.removeConfirm"), [
+      { style: "cancel", text: t("paywall.close") },
+      {
+        style: "destructive",
+        text: t("settings.removeMember"),
+        onPress: () => {
+          removeMember(memberId).catch((e) => Alert.alert("Error", e instanceof Error ? e.message : String(e)));
+        }
+      }
+    ]);
+  };
+
+  // 普通成员退出家庭。
+  const onLeaveHousehold = () => {
+    if (!cloud) return;
+    Alert.alert(t("settings.leaveHousehold"), t("settings.leaveConfirm"), [
+      { style: "cancel", text: t("paywall.close") },
+      {
+        style: "destructive",
+        text: t("settings.leaveHousehold"),
+        onPress: () => {
+          leaveHousehold(cloud.householdId)
+            .then(() => cloud.onSignOut())
+            .catch((e) => Alert.alert("Error", e instanceof Error ? e.message : String(e)));
+        }
+      }
+    ]);
+  };
+
+  // 协调人解散家庭。
+  const onDissolveHousehold = () => {
+    if (!cloud) return;
+    Alert.alert(t("settings.dissolveHousehold"), t("settings.dissolveConfirm"), [
+      { style: "cancel", text: t("paywall.close") },
+      {
+        style: "destructive",
+        text: t("settings.dissolveHousehold"),
+        onPress: () => {
+          dissolveHousehold()
             .then(() => cloud.onSignOut())
             .catch((e) => Alert.alert("Error", e instanceof Error ? e.message : String(e)));
         }
@@ -800,7 +834,6 @@ function LocalApp(props: { cloud?: CloudProps } = {}) {
             report,
             onGenerateReport,
             setRoleEditorMemberId,
-            onInviteMember,
             isHouseholdInviteExpired(state),
             () => setActiveTab("audit"),
             !!cloud,
@@ -808,7 +841,12 @@ function LocalApp(props: { cloud?: CloudProps } = {}) {
             (kind) => void openLegal(kind, language),
             plan,
             () => setPaywallVisible(true),
-            cloud ? onDeleteAccount : undefined
+            cloud ? onDeleteAccount : undefined,
+            cloud ? joinCode : null,
+            onGenerateCode,
+            cloud ? onRemoveMember : undefined,
+            cloud ? onLeaveHousehold : undefined,
+            cloud ? onDissolveHousehold : undefined
           )}
         {activeTab === "audit" && can("audit:read") && renderAudit(state, language, t, () => setActiveTab("settings"))}
       </ScrollView>
@@ -1596,7 +1634,6 @@ function renderSettings(
   report: string,
   onGenerateReport: () => void,
   onOpenRoleEditor: (memberId: string) => void,
-  onInviteMember: (templateKey: InviteTemplateKey) => void,
   inviteExpired: boolean,
   onViewAllAudit: () => void,
   isCloud: boolean,
@@ -1604,10 +1641,14 @@ function renderSettings(
   onOpenLegal: (kind: "privacy" | "terms") => void,
   plan: Plan,
   onOpenPaywall: () => void,
-  onDeleteAccount?: () => void
+  onDeleteAccount?: () => void,
+  joinCode?: HouseholdCode | null,
+  onGenerateCode?: () => void,
+  onRemoveMember?: (memberId: string) => void,
+  onLeaveHousehold?: () => void,
+  onDissolveHousehold?: () => void
 ) {
   const canManageRoles = hasPermission(state, actor.role, "member:role_update");
-  const canInviteMembers = hasPermission(state, actor.role, "member:invite");
   const canGenerateReport = hasPermission(state, actor.role, "report:export");
   const canReadAudit = hasPermission(state, actor.role, "audit:read");
   const completed = state.tasks.filter((task) => task.status === "completed");
@@ -1669,48 +1710,46 @@ function renderSettings(
         />
       </View>
 
-      {canInviteMembers && (
+      {canManageRoles && (
         <>
-          <SectionTitle icon="person-add-outline" title={t("settings.inviteTitle")} />
+          <SectionTitle icon="qr-code-outline" title={t("settings.joinCodeTitle")} />
           <View style={styles.panel}>
             <Text style={styles.bodyText} allowFontScaling>
-              {t("settings.inviteCopy")}
+              {t("settings.joinCodeCopy")}
             </Text>
-            {inviteExpired ? (
-              <View style={styles.notice}>
-                <Ionicons name="time-outline" size={20} color={palette.amber} />
-                <Text style={styles.noticeText} allowFontScaling>
-                  {t("settings.inviteExpiredNotice")}
+            {joinCode ? (
+              <>
+                <QRCode value={Linking.createURL("join", { queryParams: { code: joinCode.code } })} size={200} />
+                <TouchableOpacity
+                  style={styles.codeBox}
+                  accessibilityRole="button"
+                  accessibilityLabel={t("settings.codeCopied")}
+                  onPress={() => {
+                    Clipboard.setStringAsync(joinCode.code);
+                    showMessage(t("settings.codeCopied"), joinCode.code);
+                  }}
+                >
+                  <Text style={styles.codeText} allowFontScaling>
+                    {joinCode.code}
+                  </Text>
+                </TouchableOpacity>
+                <Text style={styles.itemMeta} allowFontScaling>
+                  {t("settings.codeExpires", { date: formatDateTime(joinCode.expiresAt, language) })}
                 </Text>
-              </View>
+                <ActionButton
+                  icon="refresh-outline"
+                  label={t("settings.refreshCode")}
+                  tone="secondary"
+                  onPress={() => onGenerateCode?.()}
+                />
+              </>
             ) : (
-              <View style={styles.templateGrid}>
-                {inviteTemplateKeys.map((templateKey) => (
-                  <TouchableOpacity
-                    key={templateKey}
-                    style={styles.templateButton}
-                    accessibilityRole="button"
-                    accessibilityLabel={t("settings.inviteTemplate", { role: inviteTemplateLabel(templateKey, t) })}
-                    onPress={() => onInviteMember(templateKey)}
-                  >
-                    <View style={styles.templateIcon}>
-                      <Ionicons
-                        name={templateKey === "caregiver" ? "hand-left-outline" : "eye-outline"}
-                        size={18}
-                        color={palette.surface}
-                      />
-                    </View>
-                    <View style={styles.listText}>
-                      <Text style={styles.templateTitle} allowFontScaling>
-                        {inviteTemplateLabel(templateKey, t)}
-                      </Text>
-                      <Text style={styles.itemMeta} allowFontScaling>
-                        {inviteTemplateMeta(templateKey, t)}
-                      </Text>
-                    </View>
-                  </TouchableOpacity>
-                ))}
-              </View>
+              <ActionButton
+                icon="add-circle-outline"
+                label={t("settings.generateCode")}
+                tone="primary"
+                onPress={() => onGenerateCode?.()}
+              />
             )}
           </View>
         </>
@@ -1744,6 +1783,20 @@ function renderSettings(
                 <Ionicons name="swap-horizontal-outline" size={17} color={palette.teal} />
                 <Text style={styles.roleChangeButtonText} allowFontScaling>
                   {t("settings.changeRoleButton")}
+                </Text>
+              </TouchableOpacity>
+            )}
+
+            {canManageRoles && !isSelf && onRemoveMember && (
+              <TouchableOpacity
+                style={[styles.roleChangeButton, { borderColor: palette.red }]}
+                accessibilityRole="button"
+                accessibilityLabel={t("settings.removeMember")}
+                onPress={() => onRemoveMember(member.id)}
+              >
+                <Ionicons name="trash-outline" size={17} color={palette.red} />
+                <Text style={[styles.roleChangeButtonText, { color: palette.red }]} allowFontScaling>
+                  {t("settings.removeMember")}
                 </Text>
               </TouchableOpacity>
             )}
@@ -1851,6 +1904,37 @@ function renderSettings(
           )}
         </View>
       )}
+
+      <SectionTitle icon="exit-outline" title={state.household.name} />
+      <View style={styles.panel}>
+        {canManageRoles
+          ? onDissolveHousehold && (
+              <TouchableOpacity
+                style={[styles.roleChangeButton, { borderColor: palette.red }]}
+                accessibilityRole="button"
+                accessibilityLabel={t("settings.dissolveHousehold")}
+                onPress={() => onDissolveHousehold?.()}
+              >
+                <Ionicons name="trash-outline" size={17} color={palette.red} />
+                <Text style={[styles.roleChangeButtonText, { color: palette.red }]} allowFontScaling>
+                  {t("settings.dissolveHousehold")}
+                </Text>
+              </TouchableOpacity>
+            )
+          : onLeaveHousehold && (
+              <TouchableOpacity
+                style={[styles.roleChangeButton, { borderColor: palette.red }]}
+                accessibilityRole="button"
+                accessibilityLabel={t("settings.leaveHousehold")}
+                onPress={() => onLeaveHousehold?.()}
+              >
+                <Ionicons name="log-out-outline" size={17} color={palette.red} />
+                <Text style={[styles.roleChangeButtonText, { color: palette.red }]} allowFontScaling>
+                  {t("settings.leaveHousehold")}
+                </Text>
+              </TouchableOpacity>
+            )}
+      </View>
 
       <SectionTitle icon="document-text-outline" title={t("settings.legalTitle")} />
       <View style={styles.panel}>
@@ -2419,20 +2503,6 @@ function timelineTemplateIcon(templateKey: TimelineTemplateKey): IconName {
   };
 
   return icons[templateKey];
-}
-
-function inviteTemplateLabel(templateKey: InviteTemplateKey, t: Translate): string {
-  return {
-    caregiver: t("settings.inviteCaregiver"),
-    viewer: t("settings.inviteViewer")
-  }[templateKey];
-}
-
-function inviteTemplateMeta(templateKey: InviteTemplateKey, t: Translate): string {
-  return {
-    caregiver: t("settings.inviteCaregiverMeta"),
-    viewer: t("settings.inviteViewerMeta")
-  }[templateKey];
 }
 
 function timelineTemplateInput(
@@ -3137,6 +3207,14 @@ const styles = StyleSheet.create({
     borderColor: palette.red,
     backgroundColor: "#fff5f5"
   },
+  codeBox: {
+    alignSelf: "center",
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    backgroundColor: "#e5f3ef"
+  },
+  codeText: { fontSize: 30, fontWeight: "800", color: palette.teal, letterSpacing: 6 },
   backBar: {
     flexDirection: "row",
     alignItems: "center",

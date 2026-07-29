@@ -461,3 +461,56 @@ export async function deleteAccount(): Promise<void> {
   const { error } = await supabase.functions.invoke("delete-account", {});
   if (error) throw error;
 }
+
+// ============ 家庭 6 位加入码 + 成员管理（0014）============
+
+export interface HouseholdCode {
+  code: string;
+  expiresAt: string;
+}
+
+// 协调人生成新码（旧码作废），返回 6 位码 + 到期时间。
+export async function generateHouseholdCode(): Promise<HouseholdCode> {
+  const { data, error } = await supabase.rpc("generate_household_code");
+  if (error) throw error;
+  const row = (data ?? []) as { code: string; expires_at: string }[];
+  if (!row.length) throw new Error("Could not generate code");
+  return { code: row[0].code, expiresAt: row[0].expires_at };
+}
+
+// 协调人取当前有效码（无则 null）。
+export async function getHouseholdCode(): Promise<HouseholdCode | null> {
+  const { data, error } = await supabase.rpc("get_household_code");
+  if (error) throw error;
+  const row = (data ?? []) as { code: string; expires_at: string }[];
+  if (!row.length) return null;
+  return { code: row[0].code, expiresAt: row[0].expires_at };
+}
+
+// 凭 6 位码加入家庭（返回 household_id）。
+export async function joinByCode(code: string, displayName?: string): Promise<string> {
+  const { data, error } = await supabase.rpc("join_by_code", {
+    p_code: code,
+    p_display_name: displayName ?? null
+  });
+  if (error) throw error;
+  return data as string;
+}
+
+// 普通成员退出自己。
+export async function leaveHousehold(householdId: string): Promise<void> {
+  const { error } = await supabase.rpc("leave_household", { p_household_id: householdId });
+  if (error) throw error;
+}
+
+// 协调人移除成员。
+export async function removeMember(memberId: string): Promise<void> {
+  const { error } = await supabase.rpc("remove_member", { p_member_id: memberId });
+  if (error) throw error;
+}
+
+// 协调人解散家庭（级联删除全部数据）。
+export async function dissolveHousehold(): Promise<void> {
+  const { error } = await supabase.rpc("dissolve_household");
+  if (error) throw error;
+}

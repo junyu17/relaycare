@@ -34,6 +34,7 @@ import {
   leaveHousehold,
   removeMember,
   dissolveHousehold,
+  subscribeUserNotifications,
   type HouseholdCode,
   type HouseholdSummary
 } from "./lib/db";
@@ -607,9 +608,17 @@ function LocalApp(props: { cloud?: CloudProps } = {}) {
       {
         style: "destructive",
         text: t("settings.removeMember"),
-        onPress: () => {
-          removeMember(memberId).catch((e) => Alert.alert("Error", e instanceof Error ? e.message : String(e)));
-        }
+        onPress: () =>
+          Alert.alert(t("settings.removeMember"), t("confirm.sure"), [
+            { style: "cancel", text: t("paywall.close") },
+            {
+              style: "destructive",
+              text: t("settings.removeMember"),
+              onPress: () => {
+                removeMember(memberId).catch((e) => Alert.alert("Error", e instanceof Error ? e.message : String(e)));
+              }
+            }
+          ])
       }
     ]);
   };
@@ -622,11 +631,19 @@ function LocalApp(props: { cloud?: CloudProps } = {}) {
       {
         style: "destructive",
         text: t("settings.leaveHousehold"),
-        onPress: () => {
-          leaveHousehold(cloud.householdId)
-            .then(() => cloud.onSignOut())
-            .catch((e) => Alert.alert("Error", e instanceof Error ? e.message : String(e)));
-        }
+        onPress: () =>
+          Alert.alert(t("settings.leaveHousehold"), t("confirm.sure"), [
+            { style: "cancel", text: t("paywall.close") },
+            {
+              style: "destructive",
+              text: t("settings.leaveHousehold"),
+              onPress: () => {
+                leaveHousehold(cloud.householdId)
+                  .then(() => cloud.onSignOut())
+                  .catch((e) => Alert.alert("Error", e instanceof Error ? e.message : String(e)));
+              }
+            }
+          ])
       }
     ]);
   };
@@ -639,11 +656,19 @@ function LocalApp(props: { cloud?: CloudProps } = {}) {
       {
         style: "destructive",
         text: t("settings.dissolveHousehold"),
-        onPress: () => {
-          dissolveHousehold()
-            .then(() => cloud.onSignOut())
-            .catch((e) => Alert.alert("Error", e instanceof Error ? e.message : String(e)));
-        }
+        onPress: () =>
+          Alert.alert(t("settings.dissolveHousehold"), t("confirm.sure"), [
+            { style: "cancel", text: t("paywall.close") },
+            {
+              style: "destructive",
+              text: t("settings.dissolveHousehold"),
+              onPress: () => {
+                dissolveHousehold()
+                  .then(() => cloud.onSignOut())
+                  .catch((e) => Alert.alert("Error", e instanceof Error ? e.message : String(e)));
+              }
+            }
+          ])
       }
     ]);
   };
@@ -1092,6 +1117,25 @@ function CloudApp() {
       noteChannel?.unsubscribe();
     };
   }, [householdId]);
+
+  // 用户级通知（解散/被移除）：弹通知并自动登出回到登录/引导页。
+  useEffect(() => {
+    if (!user) return;
+    const ch = subscribeUserNotifications(user.id, (n) => {
+      const tr = makeTranslator(getStoredLanguage());
+      const name = n.householdName ?? "";
+      const title = n.kind === "household_dissolved" ? tr("userNotif.dissolvedTitle") : tr("userNotif.removedTitle");
+      const body =
+        n.kind === "household_dissolved"
+          ? tr("userNotif.dissolvedBody", { name })
+          : tr("userNotif.removedBody", { name });
+      Notifications.scheduleNotificationAsync({ content: { title, body }, trigger: null }).catch(() => {});
+      Alert.alert(title, body, [{ text: "OK", onPress: () => void signOut() }]);
+    });
+    return () => {
+      ch.unsubscribe();
+    };
+  }, [user, signOut]);
 
   if (loading) {
     return (

@@ -20,6 +20,7 @@ backend/supabase/migrations/
   0012_subscription_binding.sql # Apple 原始交易与登录协调人/家庭的不可转移绑定
   0013_multi_households.sql  # Family Plus 最多三个家庭：活动家庭上下文与订阅权益覆盖
   0014_join_codes.sql        # 6 位家庭加入码 + 匿名成员加入 + 成员退出/移除/解散
+  0015_member_notifications.sql # 成员变动通知（加入/退出通知协调人；解散/移除通知成员）
 ```
 
 ## 数据模型 → Postgres 映射
@@ -62,7 +63,7 @@ npx supabase login
 npx supabase link --project-ref <your-project-ref>
 npx supabase db push            # 执行 migrations
 
-# 方式二：Supabase Dashboard → SQL Editor → 按编号依次执行 0001 到 0014
+# 方式二：Supabase Dashboard → SQL Editor → 按编号依次执行 0001 到 0015
 ```
 
 > 新 Supabase 项目已完成 `0001` 到 `0006` 的迁移与角色 API 验收。上线前需补执行 `0007_invite_tokens.sql`（邀请 token 安全）。不要只执行旧版 `all_in_one.sql`，它没有包含 storage、RBAC、原子任务 RPC 或邀请 token。

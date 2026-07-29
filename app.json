@@ -18,6 +18,10 @@
       },
       "package": "cd.cc.taskkincare"
     },
-    "plugins": ["expo-font", "expo-iap"]
+    "plugins": [
+      "expo-font",
+      "expo-iap",
+      ["expo-camera", { "cameraPermission": "TaskKin Care uses the camera to scan your family join QR code." }]
+    ]
   }
 }

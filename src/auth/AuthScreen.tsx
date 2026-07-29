@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, ScrollView } from "react-native";
 import { useAuth } from "./AuthContext";
+import { QRScanner } from "../components/QRScanner";
+import { makeTranslator } from "../i18n";
 
 // 未登录：登录 / 注册 / 重置 / 用 6 位码加入（匿名）
 export function AuthScreen() {
@@ -11,6 +13,8 @@ export function AuthScreen() {
   const [joinCode, setJoinCode] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [busy, setBusy] = useState(false);
+  const [scannerVisible, setScannerVisible] = useState(false);
+  const t = makeTranslator("en");
 
   useEffect(() => {
     if (!pendingJoinCode) return;
@@ -100,6 +104,9 @@ export function AuthScreen() {
             keyboardType="number-pad"
             autoCapitalize="none"
           />
+          <TouchableOpacity style={s.scanBtn} onPress={() => setScannerVisible(true)}>
+            <Text style={s.scanBtnText}>{t("join.scanQR")}</Text>
+          </TouchableOpacity>
           <TextInput
             style={s.input}
             placeholder="Your name (optional)"
@@ -163,6 +170,15 @@ export function AuthScreen() {
               ? "Joining creates a device-linked identity; no email needed."
               : ""}
       </Text>
+      <QRScanner
+        visible={scannerVisible}
+        onClose={() => setScannerVisible(false)}
+        onCode={(code) => {
+          setJoinCode(code);
+          setScannerVisible(false);
+        }}
+        t={t}
+      />
     </ScrollView>
   );
 }
@@ -316,5 +332,15 @@ const s = StyleSheet.create({
   },
   buttonText: { color: "#fff", fontWeight: "600" },
   hint: { fontSize: 12, color: "#64748b", marginTop: 8 },
-  link: { color: "#0f766e", marginTop: 16, textAlign: "center" }
+  link: { color: "#0f766e", marginTop: 16, textAlign: "center" },
+  scanBtn: {
+    alignSelf: "stretch",
+    borderWidth: 1,
+    borderColor: "#0f766e",
+    paddingVertical: 10,
+    borderRadius: 8,
+    alignItems: "center",
+    marginBottom: 4
+  },
+  scanBtnText: { color: "#0f766e", fontWeight: "700" }
 });

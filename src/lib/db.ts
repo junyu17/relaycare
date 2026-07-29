@@ -514,3 +514,39 @@ export async function dissolveHousehold(): Promise<void> {
   const { error } = await supabase.rpc("dissolve_household");
   if (error) throw error;
 }
+
+// ============ 用户级通知（解散/移除；家庭删除后仍存活）============
+
+export interface UserNotification {
+  id: string;
+  kind: "household_dissolved" | "removed_from_household";
+  householdName: string | null;
+  read: boolean;
+  createdAt: string;
+}
+
+export function subscribeUserNotifications(userId: string, onNew: (n: UserNotification) => void): RealtimeChannel {
+  return supabase
+    .channel(`user-notifications-${userId}`)
+    .on(
+      "postgres_changes",
+      { event: "INSERT", schema: "public", table: "user_notifications", filter: `user_id=eq.${userId}` },
+      (payload) => {
+        const r = payload.new as {
+          id: string;
+          kind: string;
+          household_name: string | null;
+          read: boolean;
+          created_at: string;
+        };
+        onNew({
+          id: r.id,
+          kind: r.kind as UserNotification["kind"],
+          householdName: r.household_name,
+          read: r.read,
+          createdAt: r.created_at
+        });
+      }
+    )
+    .subscribe();
+}

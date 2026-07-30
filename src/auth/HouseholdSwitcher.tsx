@@ -13,6 +13,7 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import type { Translate } from "../i18n";
 import type { HouseholdSummary } from "../lib/db";
+import { errorMessage } from "../lib/error";
 import type { CreateHouseholdArgs } from "./AuthContext";
 
 export function HouseholdSwitcher({
@@ -49,7 +50,7 @@ export function HouseholdSwitcher({
       setHouseholdName("");
       setCareRecipientLabel("");
     } catch (error) {
-      Alert.alert("Error", error instanceof Error ? error.message : String(error));
+      Alert.alert("Error", errorMessage(error));
     } finally {
       setBusy(false);
     }

@@ -48,6 +48,7 @@ import { ConsentGate } from "./legal/ConsentGate";
 import { openLegal } from "./legal/consent";
 import { Paywall } from "./paywall/Paywall";
 import { effectivePlan, checkTaskQuota, checkOcrQuota, checkFileSize } from "./lib/entitlement";
+import { errorMessage } from "./lib/error";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 import {
   addDocument,
@@ -264,12 +265,12 @@ function LocalApp(props: { cloud?: CloudProps } = {}) {
     action();
   };
 
-  const reportCloudActionFailure = () => {
-    showMessage(t("alerts.actionFailedTitle"), t("alerts.actionFailedBody"));
+  const reportCloudActionFailure = (e?: unknown) => {
+    showMessage(t("alerts.actionFailedTitle"), e ? errorMessage(e) : t("alerts.actionFailedBody"));
   };
 
   const runCloudAction = (action: Promise<unknown>) => {
-    void action.catch(reportCloudActionFailure);
+    void action.catch((e) => reportCloudActionFailure(e));
   };
 
   const onClaim = (task: Task) => {
@@ -403,31 +404,6 @@ function LocalApp(props: { cloud?: CloudProps } = {}) {
       }
     } catch {
       reportCloudActionFailure();
-    }
-  };
-
-  const onAddSampleDocument = () => {
-    if (!can("document:upload")) {
-      showMessage(t("alerts.permissionTitle"), t("alerts.uploadBlocked", { name: actor.name }));
-      return;
-    }
-
-    if (!documentSafetyConfirmed) {
-      showMessage(t("alerts.documentSafetyTitle"), t("alerts.documentSafetyBody"));
-      return;
-    }
-
-    if (cloud) {
-      runCloudAction(
-        cloudActions.addDocument({
-          householdId: cloud.householdId,
-          actor,
-          name: t("document.sampleName"),
-          source: "sample"
-        })
-      );
-    } else {
-      setState((current) => addDocument(current, actor, t("document.sampleName"), "sample", t));
     }
   };
 
@@ -846,7 +822,6 @@ function LocalApp(props: { cloud?: CloudProps } = {}) {
             documentSafetyConfirmed,
             () => setDocumentSafetyConfirmed((current) => !current),
             onPickDocument,
-            onAddSampleDocument,
             onConfirmDocument
           )}
         {activeTab === "settings" &&
@@ -1382,11 +1357,7 @@ function renderTasks(
     <View>
       {canCreateTask && (
         <>
-          <SectionTitle
-            icon="add-circle-outline"
-            title={t("tasks.newRequest")}
-            onAction={() => onCreateTaskFromTemplate("ride")}
-          />
+          <SectionTitle icon="reader-outline" title={t("tasks.newRequest")} />
           <View style={styles.panel}>
             <Text style={styles.bodyText} allowFontScaling>
               {t("tasks.newRequestCopy")}
@@ -1417,7 +1388,7 @@ function renderTasks(
           </View>
         </>
       )}
-      <SectionTitle icon="checkbox-outline" title={t("tasks.claimableWork")} />
+      <SectionTitle icon="list-outline" title={t("tasks.claimableWork")} />
       {state.tasks.map((task) => (
         <TaskCard
           key={task.id}
@@ -1454,11 +1425,7 @@ function renderTimeline(
     <View>
       {canAddTimeline && (
         <>
-          <SectionTitle
-            icon="add-circle-outline"
-            title={t("timeline.quickUpdate")}
-            onAction={() => onCreateTimelineEvent("checkin")}
-          />
+          <SectionTitle icon="time-outline" title={t("timeline.quickUpdate")} />
           <View style={styles.panel}>
             <Text style={styles.bodyText} allowFontScaling>
               {t("timeline.quickUpdateCopy")}
@@ -1551,7 +1518,6 @@ function renderDocuments(
   documentSafetyConfirmed: boolean,
   onToggleDocumentSafety: () => void,
   onPickDocument: () => void,
-  onAddSampleDocument: () => void,
   onConfirmDocument: (documentId: string) => void
 ) {
   return (
@@ -1589,12 +1555,6 @@ function renderDocuments(
       </TouchableOpacity>
       <View style={styles.actionRow}>
         <ActionButton icon="attach-outline" label={t("documents.upload")} tone="primary" onPress={onPickDocument} />
-        <ActionButton
-          icon="flask-outline"
-          label={t("documents.sample")}
-          tone="secondary"
-          onPress={onAddSampleDocument}
-        />
       </View>
 
       {state.documents.map((document) => (
@@ -2739,23 +2699,15 @@ function Metric({
   );
 }
 
-function SectionTitle({ icon, title, onAction }: { icon: IconName; title: string; onAction?: () => void }) {
-  const content = (
-    <>
+function SectionTitle({ icon, title }: { icon: IconName; title: string }) {
+  return (
+    <View style={styles.sectionTitle}>
       <Ionicons name={icon} size={20} color={palette.teal} />
       <Text style={styles.sectionTitleText} allowFontScaling>
         {title}
       </Text>
-    </>
+    </View>
   );
-  if (onAction) {
-    return (
-      <TouchableOpacity style={styles.sectionTitle} accessibilityRole="button" onPress={onAction}>
-        {content}
-      </TouchableOpacity>
-    );
-  }
-  return <View style={styles.sectionTitle}>{content}</View>;
 }
 
 function ActionButton({
@@ -3179,8 +3131,8 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     borderWidth: 1,
     borderColor: palette.teal,
-    paddingHorizontal: 12,
-    paddingVertical: 9,
+    paddingHorizontal: 8,
+    paddingVertical: 8,
     flexDirection: "row",
     alignItems: "center",
     gap: 6,

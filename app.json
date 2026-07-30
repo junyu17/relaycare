@@ -22,7 +22,7 @@
       "expo-font",
       "expo-iap",
       ["expo-camera", { "cameraPermission": "TaskKin Care uses the camera to scan your family join QR code." }],
-      ["./plugins/with-dev-team", { "teamId": "ZS3HG47K88" }]
+      ["./plugins/with-dev-team", { "teamId": "ZS3HG47K88", "nodePath": "/Users/jun/.hermes/node/bin/node" }]
     ]
   }
 }

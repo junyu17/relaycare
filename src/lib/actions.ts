@@ -111,6 +111,16 @@ export async function requestHandoff(args: {
   if (error) throw error;
 }
 
+export async function deleteTask(args: { taskId: string }) {
+  const { error } = await supabase.rpc("delete_task", { p_task_id: args.taskId });
+  if (error) throw error;
+}
+
+export async function deleteCareEvent(args: { eventId: string }) {
+  const { error } = await supabase.rpc("delete_care_event", { p_event_id: args.eventId });
+  if (error) throw error;
+}
+
 export async function completeTask(args: {
   householdId: string;
   taskId: string;

@@ -112,6 +112,10 @@ export function Paywall({
 
   const onSubscribe = (plan: "monthly" | "yearly") => {
     if (canIap) {
+      if (!findPrice(subs, plan)) {
+        Alert.alert("Error", t("paywall.productUnavailable"));
+        return;
+      }
       setBusy(true);
       purchaseIosSubscription(plan)
         .then((purchase) => handlePurchased(plan, purchase))
@@ -159,8 +163,8 @@ export function Paywall({
     Alert.alert(t("paywall.title"), t("paywall.iapUnavailable"));
   };
 
+  const yearlyPriceLabel = `${findPrice(subs, "yearly") ?? "$99.99"}${t("paywall.perYear")}`;
   const monthlyPrice = `${findPrice(subs, "monthly") ?? "$9.99"}${t("paywall.perMonth")}`;
-  const yearlyPrice = `${findPrice(subs, "yearly") ?? "$99.99"}${t("paywall.perYear")} (${t("paywall.save")})`;
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
@@ -226,9 +230,16 @@ export function Paywall({
                 {busy ? (
                   <ActivityIndicator color="#fff" />
                 ) : (
-                  <Text style={s.subscribeText} allowFontScaling>
-                    {yearlyPrice}
-                  </Text>
+                  <View style={s.subscribeRow}>
+                    <Text style={s.subscribeText} allowFontScaling>
+                      {yearlyPriceLabel}
+                    </Text>
+                    <View style={s.saveBadge}>
+                      <Text style={s.saveBadgeText} allowFontScaling>
+                        {t("paywall.save")}
+                      </Text>
+                    </View>
+                  </View>
                 )}
               </TouchableOpacity>
               <TouchableOpacity
@@ -331,6 +342,9 @@ const s = StyleSheet.create({
   monthlyBtn: { backgroundColor: "#0e6b63" },
   disabledBtn: { opacity: 0.6 },
   subscribeText: { color: "#fff", fontWeight: "700", fontSize: 15 },
+  subscribeRow: { flexDirection: "row", alignItems: "center", gap: 8 },
+  saveBadge: { backgroundColor: "#facc15", paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6 },
+  saveBadgeText: { color: "#713f12", fontWeight: "800", fontSize: 12 },
   restoreText: { color: "#0f766e", textAlign: "center", marginTop: 4, fontSize: 13 },
   disclosure: { fontSize: 11, color: "#64748b", marginTop: 10, lineHeight: 16 },
   devRow: { marginTop: 10, alignItems: "center" },

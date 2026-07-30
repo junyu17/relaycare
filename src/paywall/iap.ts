@@ -95,7 +95,10 @@ export async function purchaseIosSubscription(plan: "monthly" | "yearly"): Promi
   } catch (e) {
     pendingResolver = null;
     pendingRejecter = null;
-    throw e instanceof Error ? e : new Error(String(e));
+    const err = e as { code?: string; message?: string };
+    const code = err?.code ? ` (${err.code})` : "";
+    const msg = err?.message ? String(err.message) : String(e);
+    throw new Error(`${msg}${code}`);
   }
   // requestPurchase 未直接返回（部分情况）-> 等 listener。
   return listenerPromise;

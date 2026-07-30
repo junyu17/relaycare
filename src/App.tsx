@@ -349,6 +349,40 @@ function LocalApp(props: { cloud?: CloudProps } = {}) {
     });
   };
 
+  const onDeleteTask = (task: Task) => {
+    Alert.alert(t("tasks.delete"), t("tasks.deleteConfirm"), [
+      { style: "cancel", text: t("paywall.close") },
+      {
+        style: "destructive",
+        text: t("tasks.delete"),
+        onPress: () => {
+          if (cloud) {
+            runCloudAction(cloudActions.deleteTask({ taskId: task.id }));
+          } else {
+            setState((current) => ({ ...current, tasks: current.tasks.filter((item) => item.id !== task.id) }));
+          }
+        }
+      }
+    ]);
+  };
+
+  const onDeleteEvent = (eventId: string) => {
+    Alert.alert(t("timeline.delete"), t("timeline.deleteConfirm"), [
+      { style: "cancel", text: t("paywall.close") },
+      {
+        style: "destructive",
+        text: t("timeline.delete"),
+        onPress: () => {
+          if (cloud) {
+            runCloudAction(cloudActions.deleteCareEvent({ eventId }));
+          } else {
+            setState((current) => ({ ...current, events: current.events.filter((item) => item.id !== eventId) }));
+          }
+        }
+      }
+    ]);
+  };
+
   const onPickDocument = async () => {
     if (!can("document:upload")) {
       showMessage(t("alerts.permissionTitle"), t("alerts.uploadBlocked", { name: actor.name }));
@@ -799,7 +833,18 @@ function LocalApp(props: { cloud?: CloudProps } = {}) {
             onGenerateReport
           )}
         {activeTab === "tasks" &&
-          renderTasks(state, actor, language, t, onCreateTaskFromTemplate, onClaim, onReject, onHandoff, onComplete)}
+          renderTasks(
+            state,
+            actor,
+            language,
+            t,
+            onCreateTaskFromTemplate,
+            onClaim,
+            onReject,
+            onHandoff,
+            onComplete,
+            onDeleteTask
+          )}
         {activeTab === "timeline" &&
           renderTimeline(
             state,
@@ -811,7 +856,8 @@ function LocalApp(props: { cloud?: CloudProps } = {}) {
             setMemberFilter,
             language,
             t,
-            onCreateTimelineEvent
+            onCreateTimelineEvent,
+            onDeleteEvent
           )}
         {activeTab === "documents" &&
           renderDocuments(
@@ -1349,7 +1395,8 @@ function renderTasks(
   onClaim: (task: Task) => void,
   onReject: (task: Task) => void,
   onHandoff: (task: Task) => void,
-  onComplete: (task: Task) => void
+  onComplete: (task: Task) => void,
+  onDeleteTask: (task: Task) => void
 ) {
   const canCreateTask = hasPermission(state, actor.role, "task:create");
 
@@ -1401,6 +1448,7 @@ function renderTasks(
           onReject={() => onReject(task)}
           onHandoff={() => onHandoff(task)}
           onComplete={() => onComplete(task)}
+          onDelete={() => onDeleteTask(task)}
         />
       ))}
     </View>
@@ -1417,7 +1465,8 @@ function renderTimeline(
   setMemberFilter: (memberId: string) => void,
   language: Language,
   t: Translate,
-  onCreateTimelineEvent: (templateKey: TimelineTemplateKey) => void
+  onCreateTimelineEvent: (templateKey: TimelineTemplateKey) => void,
+  onDeleteEvent: (eventId: string) => void
 ) {
   const canAddTimeline = hasPermission(state, actor.role, "timeline:add");
 
@@ -1485,27 +1534,40 @@ function renderTimeline(
       </ScrollView>
 
       <SectionTitle icon="time-outline" title={t("timeline.careTimeline")} />
-      {filteredEvents.map((event) => (
-        <View key={event.id} style={styles.timelineItem}>
-          <View style={styles.timelineMarker}>
-            <Ionicons name={eventIcon(event.type)} size={18} color={palette.surface} />
+      {filteredEvents.map((event) => {
+        const canDeleteEvent = actor.role === "coordinator" || event.ownerId === actor.id;
+        return (
+          <View key={event.id} style={styles.timelineItem}>
+            <View style={styles.timelineMarker}>
+              <Ionicons name={eventIcon(event.type)} size={18} color={palette.surface} />
+            </View>
+            <View style={styles.timelineBody}>
+              <Text style={styles.itemTitle} allowFontScaling>
+                {eventTitle(event, state, t)}
+              </Text>
+              <Text style={styles.itemMeta} allowFontScaling>
+                {t("timeline.eventMeta", {
+                  date: formatDateTime(event.startsAt, language),
+                  location: eventLocation(event, t)
+                })}
+              </Text>
+              <Text style={styles.itemMeta} allowFontScaling>
+                {t("tasks.owner", { name: memberName(state, event.ownerId, t) })}
+              </Text>
+            </View>
+            {canDeleteEvent && (
+              <TouchableOpacity
+                style={styles.smallIconButton}
+                accessibilityRole="button"
+                accessibilityLabel={t("timeline.delete")}
+                onPress={() => onDeleteEvent(event.id)}
+              >
+                <Ionicons name="trash-outline" size={18} color={palette.red} />
+              </TouchableOpacity>
+            )}
           </View>
-          <View style={styles.timelineBody}>
-            <Text style={styles.itemTitle} allowFontScaling>
-              {eventTitle(event, state, t)}
-            </Text>
-            <Text style={styles.itemMeta} allowFontScaling>
-              {t("timeline.eventMeta", {
-                date: formatDateTime(event.startsAt, language),
-                location: eventLocation(event, t)
-              })}
-            </Text>
-            <Text style={styles.itemMeta} allowFontScaling>
-              {t("tasks.owner", { name: memberName(state, event.ownerId, t) })}
-            </Text>
-          </View>
-        </View>
-      ))}
+        );
+      })}
     </View>
   );
 }
@@ -2244,7 +2306,8 @@ function TaskCard({
   onClaim,
   onReject,
   onHandoff,
-  onComplete
+  onComplete,
+  onDelete
 }: {
   task: Task;
   state: AppState;
@@ -2255,12 +2318,14 @@ function TaskCard({
   onReject: () => void;
   onHandoff: () => void;
   onComplete: () => void;
+  onDelete: () => void;
 }) {
   const ownedByActor = task.ownerId === actor.id;
   const canClaim = hasPermission(state, actor.role, "task:claim");
   const canHandoff = hasPermission(state, actor.role, "task:handoff");
   const canComplete = hasPermission(state, actor.role, "task:complete");
   const canFinish = canComplete && (ownedByActor || actor.role === "coordinator");
+  const canDelete = actor.role === "coordinator" || task.requestedById === actor.id || ownedByActor;
   const canRequestHandoff = canHandoff && (ownedByActor || actor.role === "coordinator");
   const canAcceptHandoff = canClaim && task.status === "handoff_requested" && task.handoffToId === actor.id;
   const canTakeOpenTask = task.status === "open" || task.status === "rejected";
@@ -2296,7 +2361,7 @@ function TaskCard({
       )}
       {task.subtasks.map((subtask, index) => (
         <View key={subtask} style={styles.subtaskRow}>
-          <Ionicons name="ellipse-outline" size={14} color={palette.teal} />
+          <Ionicons name="ellipse" size={8} color={palette.teal} />
           <Text style={styles.subtaskText} allowFontScaling>
             {taskSubtask(task, index, subtask, t)}
           </Text>
@@ -2345,6 +2410,9 @@ function TaskCard({
             tone="success"
             onPress={onComplete}
           />
+        )}
+        {canDelete && (
+          <ActionButton icon="trash-outline" label={t("tasks.delete")} tone="secondary" onPress={onDelete} />
         )}
       </View>
     </View>
@@ -3124,7 +3192,8 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     flexWrap: "wrap",
     gap: 8,
-    alignItems: "center"
+    alignItems: "center",
+    marginVertical: 6
   },
   actionButton: {
     minHeight: 42,

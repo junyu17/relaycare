@@ -159,8 +159,8 @@ export function Paywall({
     Alert.alert(t("paywall.title"), t("paywall.iapUnavailable"));
   };
 
-  const monthlyPrice = findPrice(subs, "monthly") ?? t("paywall.subscribeMonthly");
-  const yearlyPrice = findPrice(subs, "yearly") ?? t("paywall.subscribeYearly");
+  const monthlyPrice = `${findPrice(subs, "monthly") ?? "$9.99"}${t("paywall.perMonth")}`;
+  const yearlyPrice = `${findPrice(subs, "yearly") ?? "$99.99"}${t("paywall.perYear")} (${t("paywall.save")})`;
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>

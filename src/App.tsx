@@ -361,7 +361,7 @@ function LocalApp(props: { cloud?: CloudProps } = {}) {
 
     try {
       const result = await DocumentPicker.getDocumentAsync({
-        copyToCacheDirectory: false,
+        copyToCacheDirectory: true,
         multiple: false,
         type: ["application/pdf", "image/*"]
       });
@@ -704,10 +704,10 @@ function LocalApp(props: { cloud?: CloudProps } = {}) {
           <Ionicons name="git-compare-outline" size={22} color={palette.surface} />
         </View>
         <View style={styles.brandText}>
-          <Text style={styles.productName} allowFontScaling>
+          <Text style={styles.productName} numberOfLines={1} allowFontScaling>
             TaskKin Care
           </Text>
-          <Text style={styles.productMeta} allowFontScaling>
+          <Text style={styles.productMeta} numberOfLines={1} allowFontScaling>
             {t("app.subtitle")}
           </Text>
         </View>
@@ -2852,10 +2852,11 @@ const styles = StyleSheet.create({
     justifyContent: "center"
   },
   brandText: {
-    flex: 1
+    width: 150,
+    flexShrink: 1
   },
   productName: {
-    fontSize: 22,
+    fontSize: 19,
     fontWeight: "800",
     color: palette.ink
   },

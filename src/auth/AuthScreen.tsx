@@ -59,8 +59,15 @@ export function AuthScreen() {
     if (!email || !password) return;
     setBusy(true);
     try {
-      if (mode === "signin") await signIn(email, password);
-      else await signUp(email, password);
+      if (mode === "signin") {
+        await signIn(email, password);
+      } else {
+        const { signedIn } = await signUp(email, password);
+        if (!signedIn) {
+          Alert.alert("Check your email", "Please check your email for confirmation, then sign in.");
+          setMode("signin");
+        }
+      }
     } catch (e) {
       Alert.alert("Error", e instanceof Error ? e.message : String(e));
     } finally {
@@ -189,7 +196,6 @@ export function OnboardingScreen() {
   const [tab, setTab] = useState<"create" | "join">("create");
   const [householdName, setHouseholdName] = useState("");
   const [memberName, setMemberName] = useState("");
-  const [relation, setRelation] = useState("");
   const [joinCode, setJoinCode] = useState("");
   const [busy, setBusy] = useState(false);
 
@@ -202,7 +208,7 @@ export function OnboardingScreen() {
         timezone: "America/Los_Angeles",
         careRecipientLabel: "Care recipient",
         memberName,
-        memberRelation: relation,
+        memberRelation: "",
         memberTimezone: "America/Los_Angeles"
       });
     } catch (e) {
@@ -247,12 +253,6 @@ export function OnboardingScreen() {
             onChangeText={setHouseholdName}
           />
           <TextInput style={s.input} placeholder="Your name" value={memberName} onChangeText={setMemberName} />
-          <TextInput
-            style={s.input}
-            placeholder="Your relation (e.g. Primary caregiver)"
-            value={relation}
-            onChangeText={setRelation}
-          />
           <Text style={s.hint}>The first member is the Coordinator (admin). Others join by code.</Text>
           <TouchableOpacity style={s.button} onPress={onCreate} disabled={busy}>
             <Text style={s.buttonText}>{busy ? "..." : "Create household"}</Text>
@@ -292,55 +292,57 @@ const s = StyleSheet.create({
     width: "100%",
     maxWidth: 520,
     alignSelf: "center",
-    padding: 24,
+    padding: 20,
+    paddingTop: 28,
     justifyContent: "center",
     backgroundColor: "#f7faf7"
   },
-  title: { alignSelf: "stretch", flexShrink: 1, fontSize: 26, fontWeight: "700", color: "#0f766e", marginBottom: 4 },
-  subtitle: { alignSelf: "stretch", flexShrink: 1, fontSize: 14, color: "#64748b", marginBottom: 24 },
+  title: { alignSelf: "stretch", flexShrink: 1, fontSize: 30, fontWeight: "700", color: "#0f766e", marginBottom: 4 },
+  subtitle: { alignSelf: "stretch", flexShrink: 1, fontSize: 16, color: "#64748b", marginBottom: 18 },
   tabs: {
     alignSelf: "stretch",
     flexDirection: "row",
-    marginBottom: 16,
+    marginBottom: 14,
     borderRadius: 8,
     overflow: "hidden",
     backgroundColor: "#e2e8f0"
   },
-  tab: { flex: 1, paddingVertical: 10, alignItems: "center" },
+  tab: { flex: 1, paddingVertical: 12, alignItems: "center" },
   tabActive: { backgroundColor: "#0f766e" },
-  tabText: { color: "#475569" },
-  tabTextActive: { color: "#fff", fontWeight: "600" },
+  tabText: { color: "#475569", fontSize: 16 },
+  tabTextActive: { color: "#fff", fontWeight: "600", fontSize: 16 },
   input: {
     alignSelf: "stretch",
     width: "100%",
     borderWidth: 1,
     borderColor: "#cbd5e1",
     borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 14,
     marginBottom: 12,
+    fontSize: 17,
     backgroundColor: "#fff"
   },
   button: {
     alignSelf: "stretch",
     width: "100%",
     backgroundColor: "#0f766e",
-    paddingVertical: 12,
+    paddingVertical: 15,
     borderRadius: 8,
     alignItems: "center",
-    marginTop: 8
+    marginTop: 6
   },
-  buttonText: { color: "#fff", fontWeight: "600" },
-  hint: { fontSize: 12, color: "#64748b", marginTop: 8 },
-  link: { color: "#0f766e", marginTop: 16, textAlign: "center" },
+  buttonText: { color: "#fff", fontWeight: "600", fontSize: 17 },
+  hint: { fontSize: 13, color: "#64748b", marginTop: 8 },
+  link: { color: "#0f766e", marginTop: 14, textAlign: "center", fontSize: 15 },
   scanBtn: {
     alignSelf: "stretch",
     borderWidth: 1,
     borderColor: "#0f766e",
-    paddingVertical: 10,
+    paddingVertical: 13,
     borderRadius: 8,
     alignItems: "center",
     marginBottom: 4
   },
-  scanBtnText: { color: "#0f766e", fontWeight: "700" }
+  scanBtnText: { color: "#0f766e", fontWeight: "700", fontSize: 16 }
 });

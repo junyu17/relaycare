@@ -251,7 +251,8 @@ export async function addDocument(args: {
       sizeBytes,
       confidence: ocr.confidence,
       suggestedAction: ocr.suggestedAction ?? null,
-      storagePath: args.storagePath ?? null
+      storagePath: args.storagePath ?? null,
+      rawText: ocr.rawText ?? null
     });
   } catch (e) {
     // RPC 拒绝（配额/大小）或失败 -> 清理已上传的孤儿文件。

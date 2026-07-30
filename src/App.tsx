@@ -708,10 +708,9 @@ function LocalApp(props: { cloud?: CloudProps } = {}) {
             TaskKin Care
           </Text>
           <Text style={styles.productMeta} numberOfLines={1} allowFontScaling>
-            {t("app.subtitle")}
+            Non-PHI
           </Text>
         </View>
-        <Pill tone="safe" text="Non-PHI" />
         <TouchableOpacity
           style={styles.languageButton}
           accessibilityRole="button"
@@ -1383,7 +1382,11 @@ function renderTasks(
     <View>
       {canCreateTask && (
         <>
-          <SectionTitle icon="add-circle-outline" title={t("tasks.newRequest")} />
+          <SectionTitle
+            icon="add-circle-outline"
+            title={t("tasks.newRequest")}
+            onAction={() => onCreateTaskFromTemplate("ride")}
+          />
           <View style={styles.panel}>
             <Text style={styles.bodyText} allowFontScaling>
               {t("tasks.newRequestCopy")}
@@ -1451,7 +1454,11 @@ function renderTimeline(
     <View>
       {canAddTimeline && (
         <>
-          <SectionTitle icon="add-circle-outline" title={t("timeline.quickUpdate")} />
+          <SectionTitle
+            icon="add-circle-outline"
+            title={t("timeline.quickUpdate")}
+            onAction={() => onCreateTimelineEvent("checkin")}
+          />
           <View style={styles.panel}>
             <Text style={styles.bodyText} allowFontScaling>
               {t("timeline.quickUpdateCopy")}
@@ -1617,6 +1624,16 @@ function renderDocuments(
               action: documentSuggestedAction(document.id, document.suggestedAction, t)
             })}
           </Text>
+          {document.rawText ? (
+            <View style={styles.ocrTextBox}>
+              <Text style={styles.itemMeta} allowFontScaling>
+                {t("documents.ocrText")}
+              </Text>
+              <Text style={styles.ocrText} numberOfLines={6} allowFontScaling>
+                {document.rawText}
+              </Text>
+            </View>
+          ) : null}
           {document.status !== "confirmed" && (
             <ActionButton
               icon="checkmark-circle-outline"
@@ -2722,15 +2739,23 @@ function Metric({
   );
 }
 
-function SectionTitle({ icon, title }: { icon: IconName; title: string }) {
-  return (
-    <View style={styles.sectionTitle}>
+function SectionTitle({ icon, title, onAction }: { icon: IconName; title: string; onAction?: () => void }) {
+  const content = (
+    <>
       <Ionicons name={icon} size={20} color={palette.teal} />
       <Text style={styles.sectionTitleText} allowFontScaling>
         {title}
       </Text>
-    </View>
+    </>
   );
+  if (onAction) {
+    return (
+      <TouchableOpacity style={styles.sectionTitle} accessibilityRole="button" onPress={onAction}>
+        {content}
+      </TouchableOpacity>
+    );
+  }
+  return <View style={styles.sectionTitle}>{content}</View>;
 }
 
 function ActionButton({
@@ -2852,7 +2877,7 @@ const styles = StyleSheet.create({
     justifyContent: "center"
   },
   brandText: {
-    width: 150,
+    width: 175,
     flexShrink: 1
   },
   productName: {
@@ -3252,6 +3277,8 @@ const styles = StyleSheet.create({
     borderColor: palette.red,
     backgroundColor: "#fff5f5"
   },
+  ocrTextBox: { backgroundColor: "#f1f5f9", borderRadius: 6, padding: 8, marginTop: 4 },
+  ocrText: { fontSize: 12, color: "#334155", lineHeight: 17 },
   codeBox: {
     alignSelf: "center",
     paddingVertical: 8,

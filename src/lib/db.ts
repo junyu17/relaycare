@@ -103,6 +103,7 @@ interface DBDocument {
   suggested_action: string | null;
   storage_path: string | null;
   size_bytes: number;
+  raw_text: string | null;
 }
 interface DBAuditEvent {
   id: string;
@@ -218,7 +219,8 @@ const mapDocument = (r: DBDocument): DocumentRecord => ({
   source: r.source,
   suggestedAction: r.suggested_action ?? undefined,
   storagePath: r.storage_path ?? undefined,
-  sizeBytes: r.size_bytes ?? 0
+  sizeBytes: r.size_bytes ?? 0,
+  rawText: r.raw_text ?? undefined
 });
 const mapAuditEvent = (r: DBAuditEvent): AuditEvent => ({
   id: r.id,
@@ -439,6 +441,7 @@ export async function createDocumentRpc(args: {
   confidence: number;
   suggestedAction: string | null;
   storagePath: string | null;
+  rawText?: string | null;
 }): Promise<string> {
   const { data, error } = await supabase.rpc("create_document", {
     p_household_id: args.householdId,
@@ -448,7 +451,8 @@ export async function createDocumentRpc(args: {
     p_size_bytes: args.sizeBytes,
     p_confidence: args.confidence,
     p_suggested_action: args.suggestedAction,
-    p_storage_path: args.storagePath
+    p_storage_path: args.storagePath,
+    p_raw_text: args.rawText ?? null
   });
   if (error) throw error;
   return data as string;

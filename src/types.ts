@@ -135,6 +135,7 @@ export interface DocumentRecord {
   suggestedAction?: string;
   storagePath?: string;
   sizeBytes: number;
+  rawText?: string;
 }
 
 export interface AuditEvent {

@@ -2755,14 +2755,16 @@ function Metric({
   return (
     <View style={styles.metric}>
       <View style={[styles.metricIcon, { backgroundColor: toneColor(tone) }]}>
-        <Ionicons name={icon} size={18} color={palette.surface} />
+        <Ionicons name={icon} size={16} color={palette.surface} />
       </View>
-      <Text style={styles.metricValue} allowFontScaling>
-        {value}
-      </Text>
-      <Text style={styles.metricLabel} allowFontScaling>
-        {label}
-      </Text>
+      <View style={styles.metricText}>
+        <Text style={styles.metricValue} allowFontScaling>
+          {value}
+        </Text>
+        <Text style={styles.metricLabel} allowFontScaling>
+          {label}
+        </Text>
+      </View>
     </View>
   );
 }
@@ -3008,16 +3010,23 @@ const styles = StyleSheet.create({
   metric: {
     flexGrow: 1,
     flexBasis: "47%",
-    minHeight: 112,
+    minHeight: 64,
     backgroundColor: palette.surface,
     borderRadius: 8,
     borderWidth: 1,
     borderColor: palette.line,
-    padding: 12
+    padding: 10,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10
+  },
+  metricText: {
+    flex: 1,
+    flexShrink: 1
   },
   metricIcon: {
-    width: 30,
-    height: 30,
+    width: 28,
+    height: 28,
     borderRadius: 6,
     alignItems: "center",
     justifyContent: "center",

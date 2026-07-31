@@ -3176,12 +3176,12 @@ const styles = StyleSheet.create({
     flex: 1
   },
   content: {
-    padding: 16,
-    paddingBottom: 24
+    padding: 8,
+    paddingBottom: 16
   },
   actorRow: {
     gap: 10,
-    paddingBottom: 8
+    paddingBottom: 2
   },
   actorChip: {
     minWidth: 150,
@@ -3236,8 +3236,8 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
-    marginTop: 10,
-    marginBottom: 10
+    marginTop: 4,
+    marginBottom: 4
   },
   sectionTitleText: {
     fontSize: 17,

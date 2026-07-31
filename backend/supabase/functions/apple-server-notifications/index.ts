@@ -5,9 +5,8 @@
 //   指向本函数：https://<project>.functions.supabase.co/apple-server-notifications
 // Secrets：SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY（自动注入）/ APPLE_BUNDLE_ID。
 
-import { Environment, SignedDataVerifier } from "npm:@apple/app-store-server-library@1.4.0";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { Buffer } from "node:buffer";
+import { assertAppleBundleAndEnvironment, verifyAppleJws } from "../_shared/apple-jws.ts";
 
 const BUNDLE_ID = Deno.env.get("APPLE_BUNDLE_ID") ?? "cd.cc.relaycare";
 const APP_APPLE_ID = Number(Deno.env.get("APPLE_APPLE_ID") ?? Deno.env.get("APPLE_APP_APPLE_ID") ?? "6794837934");
@@ -19,71 +18,10 @@ const SKU_TO_PLAN: Record<string, "monthly" | "yearly"> = {
   "TaskKin.care.pro.mon": "monthly"
 };
 
-const ROOT_CERT_URLS = [
-  "https://www.apple.com/certificateauthority/AppleRootCA-G3.cer",
-  "https://www.apple.com/certificateauthority/AppleComputerRootCertificate.cer",
-  "https://www.apple.com/certificateauthority/AppleRootCA.cer"
-];
-
-type AppleEnvironment = Environment.SANDBOX | Environment.PRODUCTION;
-const verifierPromises = new Map<AppleEnvironment, Promise<SignedDataVerifier>>();
-let rootCertificatesPromise: Promise<Buffer[]> | null = null;
-
-async function getRootCertificates(): Promise<Buffer[]> {
-  if (!rootCertificatesPromise) {
-    rootCertificatesPromise = Promise.all(
-      ROOT_CERT_URLS.map(async (url) => {
-        const res = await fetch(url);
-        if (!res.ok) throw new Error(`Apple root certificate request failed: ${res.status}`);
-        return Buffer.from(await res.arrayBuffer());
-      })
-    );
-  }
-  try {
-    return await rootCertificatesPromise;
-  } catch (error) {
-    rootCertificatesPromise = null;
-    throw error;
-  }
-}
-
-async function getVerifier(environment: AppleEnvironment): Promise<SignedDataVerifier> {
-  let promise = verifierPromises.get(environment);
-  if (!promise) {
-    promise = getRootCertificates().then(
-      (certs) =>
-        new SignedDataVerifier(
-          certs,
-          true,
-          environment,
-          BUNDLE_ID,
-          environment === Environment.PRODUCTION ? APP_APPLE_ID : undefined
-        )
-    );
-    verifierPromises.set(environment, promise);
-  }
-  try {
-    return await promise;
-  } catch (error) {
-    verifierPromises.delete(environment);
-    throw error;
-  }
-}
-
 async function verifyNotification(signedPayload: string) {
-  let productionError: unknown;
-  try {
-    const verifier = await getVerifier(Environment.PRODUCTION);
-    return { verifier, notification: await verifier.verifyAndDecodeNotification(signedPayload) };
-  } catch (error) {
-    productionError = error;
-  }
-  try {
-    const verifier = await getVerifier(Environment.SANDBOX);
-    return { verifier, notification: await verifier.verifyAndDecodeNotification(signedPayload) };
-  } catch {
-    throw productionError;
-  }
+  const notification = await verifyAppleJws(signedPayload);
+  assertNotificationData(notification);
+  return notification;
 }
 
 // 通知类型 -> 订阅状态。DID_CHANGE_RENEWAL_PREF（关闭自动续订）不立即取消，到期前仍有效。
@@ -91,6 +29,21 @@ function statusFor(type: string): "active" | "expired" | "revoked" | "canceled" 
   if (type === "CANCEL" || type === "REFUND" || type === "REVOKE") return "revoked";
   if (type === "EXPIRED" || type === "GRACE_PERIOD_EXPIRED") return "expired";
   return "active"; // SUBSCRIBED, DID_RENEW, RECOVERY, PRICE_INCREASE, DID_CHANGE_RENEWAL_PREF, ...
+}
+
+function assertNotificationData(notification: Record<string, unknown>): void {
+  const data = notification.data as Record<string, unknown> | undefined;
+  if (!data) return;
+  if (data.bundleId !== BUNDLE_ID) {
+    throw new Error(`Invalid Apple notification bundleId: ${String(data.bundleId)}`);
+  }
+  if (data.environment !== "Sandbox" && data.environment !== "Production") {
+    throw new Error(`Invalid Apple notification environment: ${String(data.environment)}`);
+  }
+  const appAppleId = Number(data.appAppleId);
+  if (data.environment === "Production" && Number.isFinite(appAppleId) && appAppleId !== APP_APPLE_ID) {
+    throw new Error(`Invalid Apple notification appAppleId: ${String(data.appAppleId)}`);
+  }
 }
 
 Deno.serve(async (req) => {
@@ -101,13 +54,14 @@ Deno.serve(async (req) => {
     const { signedPayload } = await req.json();
     if (!signedPayload) return new Response("ok", { status: 200 });
 
-    const { verifier, notification } = await verifyNotification(signedPayload);
+    const notification = await verifyNotification(signedPayload);
     const type = notification.notificationType ?? "";
 
     // 解码内嵌的签名交易，取 productId / 到期 / originalTransactionId。
     const signedTx = notification.data?.signedTransactionInfo;
     if (!signedTx) return new Response("ok", { status: 200 }); // TEST 通知等无交易信息。
-    const tx = await verifier.verifyAndDecodeTransaction(signedTx);
+    const tx = await verifyAppleJws(signedTx);
+    assertAppleBundleAndEnvironment(tx, BUNDLE_ID);
 
     const productId = tx.productId;
     if (!productId) return new Response("ok", { status: 200 });

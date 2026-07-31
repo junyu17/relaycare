@@ -4,6 +4,7 @@ import { StatusBar } from "expo-status-bar";
 import { useEffect, useMemo, useState } from "react";
 import {
   Alert,
+  KeyboardAvoidingView,
   Modal,
   Platform,
   Pressable,
@@ -814,7 +815,10 @@ function LocalApp(props: { cloud?: CloudProps } = {}) {
 
   const onSaveName = () => {
     const trimmed = nameEditValue.trim();
-    if (!trimmed) return;
+    if (!trimmed) {
+      Alert.alert(t("tasks.errTitleEmpty"), "");
+      return;
+    }
     setNameEditorVisible(false);
     if (cloud) {
       runCloudAction(updateMyName(trimmed));
@@ -1111,28 +1115,38 @@ function LocalApp(props: { cloud?: CloudProps } = {}) {
         animationType="slide"
         onRequestClose={() => setNameEditorVisible(false)}
       >
-        <View style={styles.modalScrim}>
-          <View style={styles.roleModalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle} allowFontScaling>
-                {t("settings.updateName")}
-              </Text>
-              <IconButton icon="close-outline" label={t("paywall.close")} onPress={() => setNameEditorVisible(false)} />
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          keyboardVerticalOffset={Platform.OS === "ios" ? 12 : 0}
+          style={styles.keyboardModal}
+        >
+          <View style={styles.modalScrim}>
+            <View style={styles.roleModalContent}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle} allowFontScaling>
+                  {t("settings.updateName")}
+                </Text>
+                <IconButton
+                  icon="close-outline"
+                  label={t("paywall.close")}
+                  onPress={() => setNameEditorVisible(false)}
+                />
+              </View>
+              <TextInput
+                style={styles.roleNameInput}
+                value={nameEditValue}
+                onChangeText={setNameEditValue}
+                placeholder={t("settings.updateNameHelper")}
+                autoFocus
+              />
+              <TouchableOpacity style={styles.actionButton} onPress={onSaveName}>
+                <Text style={styles.actionTextLight} allowFontScaling>
+                  {t("settings.save")}
+                </Text>
+              </TouchableOpacity>
             </View>
-            <TextInput
-              style={styles.roleNameInput}
-              value={nameEditValue}
-              onChangeText={setNameEditValue}
-              placeholder={t("settings.updateNameHelper")}
-              autoFocus
-            />
-            <TouchableOpacity style={styles.actionButton} onPress={onSaveName}>
-              <Text style={styles.actionTextLight} allowFontScaling>
-                {t("settings.updateName")}
-              </Text>
-            </TouchableOpacity>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
 
       {cloud && (
@@ -2086,31 +2100,32 @@ function renderSettings(
             {member.inviteStatus === "pending" && <Pill tone="warning" text={t("settings.pendingInvite")} />}
 
             {canManageRoles && !isSelf && (
-              <TouchableOpacity
-                style={styles.roleChangeButton}
-                accessibilityRole="button"
-                accessibilityLabel={t("settings.changeRoleButtonFor", { name: memberDisplayName(member, t) })}
-                onPress={() => onOpenRoleEditor(member.id)}
-              >
-                <Ionicons name="swap-horizontal-outline" size={17} color={palette.teal} />
-                <Text style={styles.roleChangeButtonText} allowFontScaling>
-                  {t("settings.changeRoleButton")}
-                </Text>
-              </TouchableOpacity>
-            )}
-
-            {canManageRoles && !isSelf && onRemoveMember && (
-              <TouchableOpacity
-                style={[styles.roleChangeButton, { borderColor: palette.red }]}
-                accessibilityRole="button"
-                accessibilityLabel={t("settings.removeMember")}
-                onPress={() => onRemoveMember(member.id)}
-              >
-                <Ionicons name="trash-outline" size={17} color={palette.red} />
-                <Text style={[styles.roleChangeButtonText, { color: palette.red }]} allowFontScaling>
-                  {t("settings.removeMember")}
-                </Text>
-              </TouchableOpacity>
+              <View style={styles.settingsInlineActions}>
+                <TouchableOpacity
+                  style={[styles.roleChangeButton, styles.settingsInlineButton]}
+                  accessibilityRole="button"
+                  accessibilityLabel={t("settings.changeRoleButtonFor", { name: memberDisplayName(member, t) })}
+                  onPress={() => onOpenRoleEditor(member.id)}
+                >
+                  <Ionicons name="swap-horizontal-outline" size={17} color={palette.teal} />
+                  <Text style={styles.roleChangeButtonText} allowFontScaling>
+                    {t("settings.changeRoleButton")}
+                  </Text>
+                </TouchableOpacity>
+                {onRemoveMember && (
+                  <TouchableOpacity
+                    style={[styles.roleChangeButton, styles.settingsInlineButton, { borderColor: palette.red }]}
+                    accessibilityRole="button"
+                    accessibilityLabel={t("settings.removeMember")}
+                    onPress={() => onRemoveMember(member.id)}
+                  >
+                    <Ionicons name="trash-outline" size={17} color={palette.red} />
+                    <Text style={[styles.roleChangeButtonText, { color: palette.red }]} allowFontScaling>
+                      {t("settings.removeMember")}
+                    </Text>
+                  </TouchableOpacity>
+                )}
+              </View>
             )}
 
             <Text style={styles.itemMeta} allowFontScaling>
@@ -2219,72 +2234,76 @@ function renderSettings(
 
       <SectionTitle icon="exit-outline" title={state.household.name} />
       <View style={styles.panel}>
-        {onOpenNameEditor && (
-          <TouchableOpacity
-            style={styles.roleChangeButton}
-            accessibilityRole="button"
-            accessibilityLabel={t("settings.updateName")}
-            onPress={onOpenNameEditor}
-          >
-            <Ionicons name="person-outline" size={17} color={palette.teal} />
-            <Text style={styles.roleChangeButtonText} allowFontScaling>
-              {t("settings.updateName")}
-            </Text>
-          </TouchableOpacity>
-        )}
-        {canManageRoles
-          ? onDissolveHousehold && (
-              <TouchableOpacity
-                style={[styles.roleChangeButton, { borderColor: palette.red }]}
-                accessibilityRole="button"
-                accessibilityLabel={t("settings.dissolveHousehold")}
-                onPress={() => onDissolveHousehold?.()}
-              >
-                <Ionicons name="trash-outline" size={17} color={palette.red} />
-                <Text style={[styles.roleChangeButtonText, { color: palette.red }]} allowFontScaling>
-                  {t("settings.dissolveHousehold")}
-                </Text>
-              </TouchableOpacity>
-            )
-          : onLeaveHousehold && (
-              <TouchableOpacity
-                style={[styles.roleChangeButton, { borderColor: palette.red }]}
-                accessibilityRole="button"
-                accessibilityLabel={t("settings.leaveHousehold")}
-                onPress={() => onLeaveHousehold?.()}
-              >
-                <Ionicons name="log-out-outline" size={17} color={palette.red} />
-                <Text style={[styles.roleChangeButtonText, { color: palette.red }]} allowFontScaling>
-                  {t("settings.leaveHousehold")}
-                </Text>
-              </TouchableOpacity>
-            )}
+        <View style={styles.settingsInlineActions}>
+          {onOpenNameEditor && (
+            <TouchableOpacity
+              style={[styles.roleChangeButton, styles.settingsInlineButton]}
+              accessibilityRole="button"
+              accessibilityLabel={t("settings.updateName")}
+              onPress={onOpenNameEditor}
+            >
+              <Ionicons name="person-outline" size={17} color={palette.teal} />
+              <Text style={styles.roleChangeButtonText} allowFontScaling>
+                {t("settings.updateName")}
+              </Text>
+            </TouchableOpacity>
+          )}
+          {canManageRoles
+            ? onDissolveHousehold && (
+                <TouchableOpacity
+                  style={[styles.roleChangeButton, styles.settingsInlineButton, { borderColor: palette.red }]}
+                  accessibilityRole="button"
+                  accessibilityLabel={t("settings.dissolveHousehold")}
+                  onPress={() => onDissolveHousehold?.()}
+                >
+                  <Ionicons name="trash-outline" size={17} color={palette.red} />
+                  <Text style={[styles.roleChangeButtonText, { color: palette.red }]} allowFontScaling>
+                    {t("settings.dissolveHousehold")}
+                  </Text>
+                </TouchableOpacity>
+              )
+            : onLeaveHousehold && (
+                <TouchableOpacity
+                  style={[styles.roleChangeButton, styles.settingsInlineButton, { borderColor: palette.red }]}
+                  accessibilityRole="button"
+                  accessibilityLabel={t("settings.leaveHousehold")}
+                  onPress={() => onLeaveHousehold?.()}
+                >
+                  <Ionicons name="log-out-outline" size={17} color={palette.red} />
+                  <Text style={[styles.roleChangeButtonText, { color: palette.red }]} allowFontScaling>
+                    {t("settings.leaveHousehold")}
+                  </Text>
+                </TouchableOpacity>
+              )}
+        </View>
       </View>
 
       <SectionTitle icon="document-text-outline" title={t("settings.legalTitle")} />
       <View style={styles.panel}>
-        <TouchableOpacity
-          style={styles.roleChangeButton}
-          accessibilityRole="button"
-          accessibilityLabel={t("settings.openPrivacy")}
-          onPress={() => onOpenLegal("privacy")}
-        >
-          <Ionicons name="shield-outline" size={17} color={palette.teal} />
-          <Text style={styles.roleChangeButtonText} allowFontScaling>
-            {t("settings.openPrivacy")}
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={styles.roleChangeButton}
-          accessibilityRole="button"
-          accessibilityLabel={t("settings.openTerms")}
-          onPress={() => onOpenLegal("terms")}
-        >
-          <Ionicons name="document-text-outline" size={17} color={palette.teal} />
-          <Text style={styles.roleChangeButtonText} allowFontScaling>
-            {t("settings.openTerms")}
-          </Text>
-        </TouchableOpacity>
+        <View style={styles.settingsInlineActions}>
+          <TouchableOpacity
+            style={[styles.roleChangeButton, styles.settingsInlineButton]}
+            accessibilityRole="button"
+            accessibilityLabel={t("settings.openPrivacy")}
+            onPress={() => onOpenLegal("privacy")}
+          >
+            <Ionicons name="shield-outline" size={17} color={palette.teal} />
+            <Text style={styles.roleChangeButtonText} allowFontScaling>
+              {t("settings.openPrivacy")}
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.roleChangeButton, styles.settingsInlineButton]}
+            accessibilityRole="button"
+            accessibilityLabel={t("settings.openTerms")}
+            onPress={() => onOpenLegal("terms")}
+          >
+            <Ionicons name="document-text-outline" size={17} color={palette.teal} />
+            <Text style={styles.roleChangeButtonText} allowFontScaling>
+              {t("settings.openTerms")}
+            </Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       {onDeleteAccount && (
@@ -3446,6 +3465,19 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginVertical: 6
   },
+  settingsInlineActions: {
+    flexDirection: "row",
+    flexWrap: "nowrap",
+    gap: 8,
+    alignItems: "stretch",
+    alignSelf: "stretch"
+  },
+  settingsInlineButton: {
+    flex: 1,
+    minWidth: 0,
+    alignSelf: "stretch",
+    justifyContent: "center"
+  },
   actionButton: {
     minHeight: 42,
     borderRadius: 8,
@@ -3541,9 +3573,11 @@ const styles = StyleSheet.create({
     backgroundColor: "#f8fbfa"
   },
   roleChangeButtonText: {
+    flexShrink: 1,
     color: palette.teal,
     fontSize: 13,
-    fontWeight: "800"
+    fontWeight: "800",
+    lineHeight: 17
   },
   deleteButton: {
     borderColor: palette.red,
@@ -3761,6 +3795,9 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "rgba(23, 32, 38, 0.38)",
     justifyContent: "flex-end"
+  },
+  keyboardModal: {
+    flex: 1
   },
   modalContent: {
     maxHeight: "74%",

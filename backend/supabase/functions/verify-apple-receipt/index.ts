@@ -7,12 +7,10 @@
 // Sandbox and Production JWS values are both accepted so TestFlight testing
 // continues to work after the production notification URL is configured.
 
-import { Environment, SignedDataVerifier } from "npm:@apple/app-store-server-library@1.4.0";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { Buffer } from "node:buffer";
+import { assertAppleBundleAndEnvironment, describeAppleJws, verifyAppleJws } from "../_shared/apple-jws.ts";
 
 const BUNDLE_ID = Deno.env.get("APPLE_BUNDLE_ID") ?? "cd.cc.relaycare";
-const APP_APPLE_ID = Number(Deno.env.get("APPLE_APPLE_ID") ?? Deno.env.get("APPLE_APP_APPLE_ID") ?? "6794837934");
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 const ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY") ?? Deno.env.get("SUPABASE_PUBLISHABLE_KEY");
 const SUPA_URL = Deno.env.get("SUPABASE_URL");
@@ -22,71 +20,23 @@ const SKU_TO_PLAN: Record<string, "monthly" | "yearly"> = {
   "TaskKin.care.pro.mon": "monthly"
 };
 
-const ROOT_CERT_URLS = [
-  "https://www.apple.com/certificateauthority/AppleRootCA-G3.cer",
-  "https://www.apple.com/certificateauthority/AppleComputerRootCertificate.cer",
-  "https://www.apple.com/certificateauthority/AppleRootCA.cer"
-];
-
-type AppleEnvironment = Environment.SANDBOX | Environment.PRODUCTION;
-const verifierPromises = new Map<AppleEnvironment, Promise<SignedDataVerifier>>();
-let rootCertificatesPromise: Promise<Buffer[]> | null = null;
-
-async function getRootCertificates(): Promise<Buffer[]> {
-  if (!rootCertificatesPromise) {
-    rootCertificatesPromise = Promise.all(
-      ROOT_CERT_URLS.map(async (url) => {
-        const res = await fetch(url);
-        if (!res.ok) throw new Error(`Apple root certificate request failed: ${res.status}`);
-        return Buffer.from(await res.arrayBuffer());
-      })
-    );
-  }
-  try {
-    return await rootCertificatesPromise;
-  } catch (error) {
-    rootCertificatesPromise = null;
-    throw error;
-  }
-}
-
-async function getVerifier(environment: AppleEnvironment): Promise<SignedDataVerifier> {
-  let promise = verifierPromises.get(environment);
-  if (!promise) {
-    promise = (async () => {
-      const certs = await getRootCertificates();
-      return new SignedDataVerifier(
-        certs,
-        true,
-        environment,
-        BUNDLE_ID,
-        // appAppleId isn't present in Sandbox transactions.
-        environment === Environment.PRODUCTION ? APP_APPLE_ID : undefined
-      );
-    })();
-    verifierPromises.set(environment, promise);
-  }
-  try {
-    return await promise;
-  } catch (error) {
-    verifierPromises.delete(environment);
-    throw error;
-  }
-}
+const VERIFICATION_STATUS_NAMES: Record<number, string> = {
+  1: "verification-failure",
+  2: "invalid-app-identifier",
+  3: "invalid-environment",
+  4: "invalid-chain-length",
+  5: "invalid-certificate",
+  6: "failure"
+};
 
 async function verifyTransaction(purchaseToken: string) {
-  let productionError: unknown;
+  const jwsSummary = describeAppleJws(purchaseToken);
   try {
-    const verifier = await getVerifier(Environment.PRODUCTION);
-    return { tx: await verifier.verifyAndDecodeTransaction(purchaseToken), environment: Environment.PRODUCTION };
+    const tx = await verifyAppleJws(purchaseToken);
+    assertAppleBundleAndEnvironment(tx, BUNDLE_ID);
+    return { tx, environment: String(tx.environment) };
   } catch (error) {
-    productionError = error;
-  }
-  try {
-    const verifier = await getVerifier(Environment.SANDBOX);
-    return { tx: await verifier.verifyAndDecodeTransaction(purchaseToken), environment: Environment.SANDBOX };
-  } catch {
-    throw productionError;
+    throw new Error(`Apple JWS verification failed: ${errorMessage(error)}; JWS: ${JSON.stringify(jwsSummary)}`);
   }
 }
 
@@ -102,24 +52,63 @@ function json(body: unknown, status = 200): Response {
   });
 }
 
+function errorMessage(error: unknown): string {
+  if (error instanceof Error && error.message) return error.message;
+  if (error && typeof error === "object") {
+    const status = (error as { status?: unknown }).status;
+    if (typeof status === "number") {
+      const cause = (error as { cause?: unknown }).cause;
+      const causeText = cause ? `; cause: ${errorMessage(cause)}` : "";
+      return `${VERIFICATION_STATUS_NAMES[status] ?? `status-${status}`}${causeText}`;
+    }
+    const message = (error as { message?: unknown }).message;
+    if (typeof message === "string" && message) return message;
+    const name = (error as { name?: unknown }).name;
+    const code = (error as { code?: unknown }).code;
+    const serialized = JSON.stringify(error);
+    if (serialized && serialized !== "{}") return serialized;
+    if (typeof name === "string" && name) return name;
+    if (typeof code === "string" && code) return code;
+  }
+  return String(error);
+}
+
+function fail(code: string, message: string, status: number, extra?: Record<string, unknown>): Response {
+  console.error("verify-apple-receipt failed", JSON.stringify({ code, status, ...extra }));
+  return json({ ok: false, code, error: message }, status);
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { status: 200 });
-  if (!SERVICE_ROLE || !SUPA_URL || !ANON_KEY) return json({ ok: false, error: "Server misconfigured" }, 500);
+  if (!SERVICE_ROLE || !SUPA_URL || !ANON_KEY) {
+    return fail("SERVER_MISCONFIGURED", "Server misconfigured", 500, {
+      hasServiceRole: Boolean(SERVICE_ROLE),
+      hasSupabaseUrl: Boolean(SUPA_URL),
+      hasAnonKey: Boolean(ANON_KEY)
+    });
+  }
 
   try {
     const { productId, transactionId, purchaseToken, householdId } = await req.json();
     if (!purchaseToken || !householdId || !productId) {
-      return json({ ok: false, error: "Missing required fields" }, 400);
+      return fail("MISSING_REQUIRED_FIELDS", "Missing required fields", 400, {
+        hasProductId: Boolean(productId),
+        hasTransactionId: Boolean(transactionId),
+        hasPurchaseToken: Boolean(purchaseToken),
+        hasHouseholdId: Boolean(householdId)
+      });
     }
     const plan = SKU_TO_PLAN[productId];
-    if (!plan) return json({ ok: false, error: "Unknown product id" }, 400);
+    if (!plan) return fail("UNKNOWN_PRODUCT_ID", "Unknown product id", 400, { productId });
 
     const authHeader = req.headers.get("Authorization") ?? "";
     const token = authHeader.replace(/^Bearer\s+/i, "");
-    if (!token) return json({ ok: false, error: "Not authenticated" }, 401);
+    if (!token) return fail("NOT_AUTHENTICATED", "Not authenticated", 401);
     const userClient = createClient(SUPA_URL, ANON_KEY, { global: { headers: { Authorization: `Bearer ${token}` } } });
     const { data: userData, error: userError } = await userClient.auth.getUser();
-    if (userError || !userData.user) return json({ ok: false, error: "Invalid session" }, 401);
+    if (userError || !userData.user) {
+      return fail("INVALID_SESSION", "Invalid session", 401, { authError: userError?.message ?? null });
+    }
 
     const admin = createClient(SUPA_URL, SERVICE_ROLE);
     const { data: member, error: memberError } = await admin
@@ -129,20 +118,33 @@ Deno.serve(async (req) => {
       .eq("user_id", userData.user.id)
       .eq("invite_status", "active")
       .maybeSingle();
-    if (memberError) return json({ ok: false, error: "Unable to verify household membership" }, 500);
-    if (!member || member.role !== "coordinator")
-      return json({ ok: false, error: "Only a household coordinator can purchase" }, 403);
+    if (memberError) {
+      return fail("MEMBERSHIP_LOOKUP_FAILED", "Unable to verify household membership", 500, {
+        dbError: memberError.message
+      });
+    }
+    if (!member) {
+      return fail("NOT_HOUSEHOLD_MEMBER", "You are not an active member of this household", 403, { householdId });
+    }
+    if (member.role !== "coordinator") {
+      return fail("COORDINATOR_REQUIRED", "Only a household coordinator can purchase", 403, { role: member.role });
+    }
 
     const { tx, environment } = await verifyTransaction(purchaseToken); // 验签 + bundleId + environment
 
-    if (tx.productId !== productId) return json({ ok: false, error: "Product id mismatch" }, 400);
+    if (tx.productId !== productId) {
+      return fail("PRODUCT_ID_MISMATCH", "Product id mismatch", 400, {
+        expectedProductId: productId,
+        transactionProductId: tx.productId
+      });
+    }
     // 退款/撤销：不授权。
-    if (tx.revocationDate) return json({ ok: false, error: "Transaction revoked/refunded" }, 400);
+    if (tx.revocationDate) return fail("TRANSACTION_REVOKED", "Transaction revoked/refunded", 400);
     // 必须是带到期时间的订阅。
     const expiresMs = tx.expiresDate;
-    if (!expiresMs) return json({ ok: false, error: "Not a subscription (no expiry)" }, 400);
+    if (!expiresMs) return fail("NOT_SUBSCRIPTION", "Not a subscription (no expiry)", 400);
     // 已过期：不授权（防止旧交易刷新）。
-    if (Date.now() > expiresMs) return json({ ok: false, error: "Subscription expired" }, 400);
+    if (Date.now() > expiresMs) return fail("SUBSCRIPTION_EXPIRED", "Subscription expired", 400);
 
     const plusUntil = new Date(expiresMs).toISOString();
     const originalTxId = tx.originalTransactionId ?? tx.transactionId ?? transactionId;
@@ -158,11 +160,21 @@ Deno.serve(async (req) => {
       p_owner_member_id: member.id,
       p_owner_user_id: userData.user.id
     });
-    if (upErr) return json({ ok: false, error: upErr.message }, 500);
+    if (upErr) {
+      return fail("SUBSCRIPTION_REGISTER_FAILED", upErr.message, 500, {
+        plan,
+        environment,
+        householdId,
+        originalTransactionId: originalTxId
+      });
+    }
 
+    console.log(
+      "verify-apple-receipt succeeded",
+      JSON.stringify({ plan, environment, householdId, originalTransactionId: originalTxId })
+    );
     return json({ ok: true, plan, plusUntil, originalTransactionId: originalTxId }, 200);
   } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e);
-    return json({ ok: false, error: `Verification failed: ${msg}` }, 500);
+    return fail("VERIFICATION_FAILED", `Verification failed: ${errorMessage(e)}`, 500);
   }
 });

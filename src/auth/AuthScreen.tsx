@@ -1,5 +1,15 @@
 import { useEffect, useState } from "react";
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, ScrollView } from "react-native";
+import {
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  StyleSheet,
+  Alert,
+  ScrollView,
+  KeyboardAvoidingView,
+  Platform
+} from "react-native";
 import { useAuth } from "./AuthContext";
 import { QRScanner } from "../components/QRScanner";
 import { makeTranslator } from "../i18n";
@@ -45,6 +55,10 @@ export function AuthScreen() {
         Alert.alert("Invalid code", "Enter the 6-digit family code.");
         return;
       }
+      if (!displayName.trim()) {
+        Alert.alert("Name required", "Please enter your name.");
+        return;
+      }
       setBusy(true);
       try {
         await joinByCode(joinCode, displayName.trim() || undefined);
@@ -86,107 +100,118 @@ export function AuthScreen() {
           : "Join household";
 
   return (
-    <ScrollView contentContainerStyle={s.container}>
-      <Text style={s.title}>TaskKin Care</Text>
-      <Text style={s.subtitle}>Family care coordination</Text>
-      {mode !== "reset" && mode !== "join" && (
-        <View style={s.tabs}>
-          <TouchableOpacity style={[s.tab, mode === "signin" && s.tabActive]} onPress={() => setMode("signin")}>
-            <Text style={mode === "signin" ? s.tabTextActive : s.tabText}>Sign in</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={[s.tab, mode === "signup" && s.tabActive]} onPress={() => setMode("signup")}>
-            <Text style={mode === "signup" ? s.tabTextActive : s.tabText}>Sign up</Text>
-          </TouchableOpacity>
-        </View>
-      )}
+    <KeyboardAvoidingView
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+      keyboardVerticalOffset={Platform.OS === "ios" ? 8 : 0}
+      style={{ flex: 1 }}
+    >
+      <ScrollView
+        automaticallyAdjustKeyboardInsets
+        keyboardDismissMode="interactive"
+        keyboardShouldPersistTaps="handled"
+        contentContainerStyle={s.container}
+      >
+        <Text style={s.title}>TaskKin Care</Text>
+        <Text style={s.subtitle}>Family care coordination</Text>
+        {mode !== "reset" && mode !== "join" && (
+          <View style={s.tabs}>
+            <TouchableOpacity style={[s.tab, mode === "signin" && s.tabActive]} onPress={() => setMode("signin")}>
+              <Text style={mode === "signin" ? s.tabTextActive : s.tabText}>Sign in</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={[s.tab, mode === "signup" && s.tabActive]} onPress={() => setMode("signup")}>
+              <Text style={mode === "signup" ? s.tabTextActive : s.tabText}>Sign up</Text>
+            </TouchableOpacity>
+          </View>
+        )}
 
-      {mode === "join" ? (
-        <>
-          <Text style={s.hint}>Enter the 6-digit code your family coordinator shared, or scan their QR code.</Text>
-          <TextInput
-            style={s.input}
-            placeholder="6-digit family code"
-            value={joinCode}
-            onChangeText={(v) => setJoinCode(v.replace(/\D/g, "").slice(0, 6))}
-            keyboardType="number-pad"
-            autoCapitalize="none"
-          />
-          <TouchableOpacity style={s.scanBtn} onPress={() => setScannerVisible(true)}>
-            <Text style={s.scanBtnText}>{t("join.scanQR")}</Text>
-          </TouchableOpacity>
-          <TextInput
-            style={s.input}
-            placeholder="Your name (optional)"
-            value={displayName}
-            onChangeText={setDisplayName}
-          />
-        </>
-      ) : (
-        <>
-          <TextInput
-            style={s.input}
-            placeholder="Email"
-            value={email}
-            onChangeText={setEmail}
-            autoCapitalize="none"
-            keyboardType="email-address"
-          />
-          {mode !== "reset" && (
+        {mode === "join" ? (
+          <>
+            <Text style={s.hint}>Enter the 6-digit code your family coordinator shared, or scan their QR code.</Text>
             <TextInput
               style={s.input}
-              placeholder="Password"
-              value={password}
-              onChangeText={setPassword}
-              secureTextEntry
+              placeholder="6-digit family code"
+              value={joinCode}
+              onChangeText={(v) => setJoinCode(v.replace(/\D/g, "").slice(0, 6))}
+              keyboardType="number-pad"
+              autoCapitalize="none"
             />
-          )}
-          {mode === "signup" && <Text style={s.hint}>Password must be at least 6 characters.</Text>}
-        </>
-      )}
+            <TouchableOpacity style={s.scanBtn} onPress={() => setScannerVisible(true)}>
+              <Text style={s.scanBtnText}>{t("join.scanQR")}</Text>
+            </TouchableOpacity>
+            <TextInput
+              style={s.input}
+              placeholder="Your name (required)"
+              value={displayName}
+              onChangeText={setDisplayName}
+            />
+          </>
+        ) : (
+          <>
+            <TextInput
+              style={s.input}
+              placeholder="Email"
+              value={email}
+              onChangeText={setEmail}
+              autoCapitalize="none"
+              keyboardType="email-address"
+            />
+            {mode !== "reset" && (
+              <TextInput
+                style={s.input}
+                placeholder="Password"
+                value={password}
+                onChangeText={setPassword}
+                secureTextEntry
+              />
+            )}
+            {mode === "signup" && <Text style={s.hint}>Password must be at least 6 characters.</Text>}
+          </>
+        )}
 
-      <TouchableOpacity style={s.button} onPress={submit} disabled={busy}>
-        <Text style={s.buttonText}>{submitLabel}</Text>
-      </TouchableOpacity>
+        <TouchableOpacity style={s.button} onPress={submit} disabled={busy}>
+          <Text style={s.buttonText}>{submitLabel}</Text>
+        </TouchableOpacity>
 
-      {mode === "signin" && (
-        <>
-          <TouchableOpacity onPress={() => setMode("reset")}>
-            <Text style={s.link}>Forgot password?</Text>
+        {mode === "signin" && (
+          <>
+            <TouchableOpacity onPress={() => setMode("reset")}>
+              <Text style={s.link}>Forgot password?</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => setMode("join")}>
+              <Text style={s.link}>Have a family code? Join</Text>
+            </TouchableOpacity>
+          </>
+        )}
+        {mode === "reset" && (
+          <TouchableOpacity onPress={() => setMode("signin")}>
+            <Text style={s.link}>Back to sign in</Text>
           </TouchableOpacity>
-          <TouchableOpacity onPress={() => setMode("join")}>
-            <Text style={s.link}>Have a family code? Join</Text>
+        )}
+        {mode === "join" && (
+          <TouchableOpacity onPress={() => setMode("signin")}>
+            <Text style={s.link}>Coordinator? Sign in / sign up</Text>
           </TouchableOpacity>
-        </>
-      )}
-      {mode === "reset" && (
-        <TouchableOpacity onPress={() => setMode("signin")}>
-          <Text style={s.link}>Back to sign in</Text>
-        </TouchableOpacity>
-      )}
-      {mode === "join" && (
-        <TouchableOpacity onPress={() => setMode("signin")}>
-          <Text style={s.link}>Coordinator? Sign in / sign up</Text>
-        </TouchableOpacity>
-      )}
-      <Text style={s.hint}>
-        {mode === "signup"
-          ? "After signup, confirm via email if required, then sign in."
-          : mode === "reset"
-            ? "Enter your account email and we'll send a reset link."
-            : mode === "join"
-              ? "Joining creates a device-linked identity; no email needed."
-              : ""}
-      </Text>
-      <QRScanner
-        visible={scannerVisible}
-        onClose={() => setScannerVisible(false)}
-        onCode={(code) => {
-          setJoinCode(code);
-          setScannerVisible(false);
-        }}
-        t={t}
-      />
-    </ScrollView>
+        )}
+        <Text style={s.hint}>
+          {mode === "signup"
+            ? "After signup, confirm via email if required, then sign in."
+            : mode === "reset"
+              ? "Enter your account email and we'll send a reset link."
+              : mode === "join"
+                ? "Joining creates a device-linked identity; no email needed."
+                : ""}
+        </Text>
+        <QRScanner
+          visible={scannerVisible}
+          onClose={() => setScannerVisible(false)}
+          onCode={(code) => {
+            setJoinCode(code);
+            setScannerVisible(false);
+          }}
+          t={t}
+        />
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 
@@ -223,6 +248,10 @@ export function OnboardingScreen() {
       Alert.alert("Invalid code", "Enter the 6-digit family code.");
       return;
     }
+    if (!memberName.trim()) {
+      Alert.alert("Name required", "Please enter your name.");
+      return;
+    }
     setBusy(true);
     try {
       await joinByCode(joinCode, memberName.trim() || undefined);
@@ -234,55 +263,66 @@ export function OnboardingScreen() {
   };
 
   return (
-    <ScrollView contentContainerStyle={s.container}>
-      <Text style={s.title}>Set up your care circle</Text>
-      <View style={s.tabs}>
-        <TouchableOpacity style={[s.tab, tab === "create" && s.tabActive]} onPress={() => setTab("create")}>
-          <Text style={tab === "create" ? s.tabTextActive : s.tabText}>Create</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={[s.tab, tab === "join" && s.tabActive]} onPress={() => setTab("join")}>
-          <Text style={tab === "join" ? s.tabTextActive : s.tabText}>Join</Text>
-        </TouchableOpacity>
-      </View>
-      {tab === "create" ? (
-        <>
-          <TextInput
-            style={s.input}
-            placeholder="Household name (e.g. Chen Family)"
-            value={householdName}
-            onChangeText={setHouseholdName}
-          />
-          <TextInput style={s.input} placeholder="Your name" value={memberName} onChangeText={setMemberName} />
-          <Text style={s.hint}>The first member is the Coordinator (admin). Others join by code.</Text>
-          <TouchableOpacity style={s.button} onPress={onCreate} disabled={busy}>
-            <Text style={s.buttonText}>{busy ? "..." : "Create household"}</Text>
+    <KeyboardAvoidingView
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+      keyboardVerticalOffset={Platform.OS === "ios" ? 8 : 0}
+      style={{ flex: 1 }}
+    >
+      <ScrollView
+        automaticallyAdjustKeyboardInsets
+        keyboardDismissMode="interactive"
+        keyboardShouldPersistTaps="handled"
+        contentContainerStyle={s.container}
+      >
+        <Text style={s.title}>Set up your care circle</Text>
+        <View style={s.tabs}>
+          <TouchableOpacity style={[s.tab, tab === "create" && s.tabActive]} onPress={() => setTab("create")}>
+            <Text style={tab === "create" ? s.tabTextActive : s.tabText}>Create</Text>
           </TouchableOpacity>
-        </>
-      ) : (
-        <>
-          <Text style={s.hint}>Enter the 6-digit code your coordinator shared.</Text>
-          <TextInput
-            style={s.input}
-            placeholder="6-digit family code"
-            value={joinCode}
-            onChangeText={(v) => setJoinCode(v.replace(/\D/g, "").slice(0, 6))}
-            keyboardType="number-pad"
-          />
-          <TextInput
-            style={s.input}
-            placeholder="Your name (optional)"
-            value={memberName}
-            onChangeText={setMemberName}
-          />
-          <TouchableOpacity style={s.button} onPress={onJoin} disabled={busy}>
-            <Text style={s.buttonText}>{busy ? "..." : "Join household"}</Text>
+          <TouchableOpacity style={[s.tab, tab === "join" && s.tabActive]} onPress={() => setTab("join")}>
+            <Text style={tab === "join" ? s.tabTextActive : s.tabText}>Join</Text>
           </TouchableOpacity>
-        </>
-      )}
-      <TouchableOpacity onPress={signOut}>
-        <Text style={s.link}>Sign out</Text>
-      </TouchableOpacity>
-    </ScrollView>
+        </View>
+        {tab === "create" ? (
+          <>
+            <TextInput
+              style={s.input}
+              placeholder="Household name (e.g. Chen Family)"
+              value={householdName}
+              onChangeText={setHouseholdName}
+            />
+            <TextInput style={s.input} placeholder="Your name" value={memberName} onChangeText={setMemberName} />
+            <Text style={s.hint}>The first member is the Coordinator (admin). Others join by code.</Text>
+            <TouchableOpacity style={s.button} onPress={onCreate} disabled={busy}>
+              <Text style={s.buttonText}>{busy ? "..." : "Create household"}</Text>
+            </TouchableOpacity>
+          </>
+        ) : (
+          <>
+            <Text style={s.hint}>Enter the 6-digit code your coordinator shared.</Text>
+            <TextInput
+              style={s.input}
+              placeholder="6-digit family code"
+              value={joinCode}
+              onChangeText={(v) => setJoinCode(v.replace(/\D/g, "").slice(0, 6))}
+              keyboardType="number-pad"
+            />
+            <TextInput
+              style={s.input}
+              placeholder="Your name (required)"
+              value={memberName}
+              onChangeText={setMemberName}
+            />
+            <TouchableOpacity style={s.button} onPress={onJoin} disabled={busy}>
+              <Text style={s.buttonText}>{busy ? "..." : "Join household"}</Text>
+            </TouchableOpacity>
+          </>
+        )}
+        <TouchableOpacity onPress={signOut}>
+          <Text style={s.link}>Sign out</Text>
+        </TouchableOpacity>
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 
@@ -294,6 +334,7 @@ const s = StyleSheet.create({
     alignSelf: "center",
     padding: 20,
     paddingTop: 28,
+    paddingBottom: 72,
     justifyContent: "center",
     backgroundColor: "#f7faf7"
   },

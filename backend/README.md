@@ -23,6 +23,7 @@ backend/supabase/migrations/
   0015_member_notifications.sql # 成员变动通知（加入/退出通知协调人；解散/移除通知成员）
   0016_document_raw_text.sql  # 持久化 OCR 原始文本，文档页可显示识别结果
   0017_delete_task_timeline.sql # 删除误建的 task / timeline 事件（带归属校验+审计）
+  0018_update_my_name.sql      # 成员自助修改显示名
 ```
 
 ## 数据模型 → Postgres 映射
@@ -65,7 +66,7 @@ npx supabase login
 npx supabase link --project-ref <your-project-ref>
 npx supabase db push            # 执行 migrations
 
-# 方式二：Supabase Dashboard → SQL Editor → 按编号依次执行 0001 到 0017
+# 方式二：Supabase Dashboard → SQL Editor → 按编号依次执行 0001 到 0018
 ```
 
 > 新 Supabase 项目已完成 `0001` 到 `0006` 的迁移与角色 API 验收。上线前需补执行 `0007_invite_tokens.sql`（邀请 token 安全）。不要只执行旧版 `all_in_one.sql`，它没有包含 storage、RBAC、原子任务 RPC 或邀请 token。

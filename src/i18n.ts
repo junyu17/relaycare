@@ -448,6 +448,8 @@ const translations: Record<Language, Record<string, string>> = {
     "settings.removeMember": "Remove",
     "settings.leaveHousehold": "Leave household",
     "settings.dissolveHousehold": "Dissolve household",
+    "settings.updateName": "Update name",
+    "settings.updateNameHelper": "Change your display name in this household.",
     "settings.dissolveConfirm":
       "This permanently deletes the household and ALL its data (tasks, timeline, documents, audit). All members lose access. This cannot be undone. Continue?",
     "settings.leaveConfirm": "Leave this household? You will lose access to its tasks and timeline.",
@@ -887,6 +889,8 @@ const translations: Record<Language, Record<string, string>> = {
     "settings.removeMember": "移除",
     "settings.leaveHousehold": "退出家庭",
     "settings.dissolveHousehold": "解散家庭",
+    "settings.updateName": "修改名字",
+    "settings.updateNameHelper": "修改你在这个家庭中的显示名。",
     "settings.dissolveConfirm":
       "这将永久删除该家庭及全部数据（任务、时间线、文件、审计），所有成员将失去访问权限。不可撤销。是否继续？",
     "settings.leaveConfirm": "确定退出该家庭？你将无法再访问其任务与时间线。",
@@ -1345,6 +1349,8 @@ const translations: Record<Language, Record<string, string>> = {
     "settings.removeMember": "Eliminar",
     "settings.leaveHousehold": "Salir del hogar",
     "settings.dissolveHousehold": "Disolver hogar",
+    "settings.updateName": "Cambiar nombre",
+    "settings.updateNameHelper": "Cambia tu nombre para mostrar en este hogar.",
     "settings.dissolveConfirm":
       "Esto elimina permanentemente el hogar y TODOS sus datos (tareas, línea, documentos, auditoría). Los miembros pierden acceso. No se puede deshacer. ¿Continuar?",
     "settings.leaveConfirm": "¿Salir de este hogar? Perderás acceso a sus tareas y línea de tiempo.",

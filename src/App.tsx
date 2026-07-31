@@ -11,6 +11,7 @@ import {
   Share,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View
 } from "react-native";
@@ -34,6 +35,7 @@ import {
   leaveHousehold,
   removeMember,
   dissolveHousehold,
+  updateMyName,
   subscribeUserNotifications,
   type HouseholdCode,
   type HouseholdSummary
@@ -171,6 +173,8 @@ function LocalApp(props: { cloud?: CloudProps } = {}) {
   const [joinCode, setJoinCode] = useState<HouseholdCode | null>(null);
   const [customTaskVisible, setCustomTaskVisible] = useState(false);
   const [otherTimelineVisible, setOtherTimelineVisible] = useState(false);
+  const [nameEditorVisible, setNameEditorVisible] = useState(false);
+  const [nameEditValue, setNameEditValue] = useState("");
 
   const t = useMemo(() => makeTranslator(language), [language]);
 
@@ -803,6 +807,25 @@ function LocalApp(props: { cloud?: CloudProps } = {}) {
     ]);
   };
 
+  const onOpenNameEditor = () => {
+    setNameEditValue(actor.name);
+    setNameEditorVisible(true);
+  };
+
+  const onSaveName = () => {
+    const trimmed = nameEditValue.trim();
+    if (!trimmed) return;
+    setNameEditorVisible(false);
+    if (cloud) {
+      runCloudAction(updateMyName(trimmed));
+    } else {
+      setState((current) => ({
+        ...current,
+        members: current.members.map((m) => (m.id === actor.id ? { ...m, name: trimmed } : m))
+      }));
+    }
+  };
+
   const metrics = useMemo(() => {
     const open = state.tasks.filter((task) => task.status !== "completed");
     const ownerRate = state.tasks.length
@@ -1013,7 +1036,8 @@ function LocalApp(props: { cloud?: CloudProps } = {}) {
             onGenerateCode,
             cloud ? onRemoveMember : undefined,
             cloud ? onLeaveHousehold : undefined,
-            cloud ? onDissolveHousehold : undefined
+            cloud ? onDissolveHousehold : undefined,
+            cloud ? onOpenNameEditor : undefined
           )}
         {activeTab === "audit" && can("audit:read") && renderAudit(state, language, t, () => setActiveTab("settings"))}
       </ScrollView>
@@ -1080,6 +1104,36 @@ function LocalApp(props: { cloud?: CloudProps } = {}) {
         canCreateTask={can("task:create")}
         onCreate={onCreateOtherUpdate}
       />
+
+      <Modal
+        visible={nameEditorVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setNameEditorVisible(false)}
+      >
+        <View style={styles.modalScrim}>
+          <View style={styles.roleModalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle} allowFontScaling>
+                {t("settings.updateName")}
+              </Text>
+              <IconButton icon="close-outline" label={t("paywall.close")} onPress={() => setNameEditorVisible(false)} />
+            </View>
+            <TextInput
+              style={styles.roleNameInput}
+              value={nameEditValue}
+              onChangeText={setNameEditValue}
+              placeholder={t("settings.updateNameHelper")}
+              autoFocus
+            />
+            <TouchableOpacity style={styles.actionButton} onPress={onSaveName}>
+              <Text style={styles.actionTextLight} allowFontScaling>
+                {t("settings.updateName")}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
 
       {cloud && (
         <HouseholdSwitcher
@@ -1571,15 +1625,24 @@ function renderTasks(
                 </TouchableOpacity>
               ))}
             </View>
+            {canCreateTask && (
+              <TouchableOpacity
+                style={styles.templateButton}
+                accessibilityRole="button"
+                accessibilityLabel={t("tasks.customTask")}
+                onPress={onOpenCustomTask}
+              >
+                <View style={styles.templateIcon}>
+                  <Ionicons name="create-outline" size={18} color={palette.surface} />
+                </View>
+                <View style={styles.listText}>
+                  <Text style={styles.templateTitle} allowFontScaling>
+                    {t("tasks.customTask")}
+                  </Text>
+                </View>
+              </TouchableOpacity>
+            )}
           </View>
-          {canCreateTask && (
-            <TouchableOpacity style={styles.roleChangeButton} onPress={onOpenCustomTask}>
-              <Ionicons name="add-circle-outline" size={17} color={palette.teal} />
-              <Text style={styles.roleChangeButtonText} allowFontScaling>
-                {t("tasks.customTask")}
-              </Text>
-            </TouchableOpacity>
-          )}
         </>
       )}
       <SectionTitle icon="list-outline" title={t("tasks.claimableWork")} />
@@ -1650,15 +1713,24 @@ function renderTimeline(
                 </TouchableOpacity>
               ))}
             </View>
+            {canAddTimeline && (
+              <TouchableOpacity
+                style={styles.templateButton}
+                accessibilityRole="button"
+                accessibilityLabel={t("timeline.otherUpdate")}
+                onPress={onOpenOtherUpdate}
+              >
+                <View style={styles.templateIcon}>
+                  <Ionicons name="create-outline" size={18} color={palette.surface} />
+                </View>
+                <View style={styles.listText}>
+                  <Text style={styles.templateTitle} allowFontScaling>
+                    {t("timeline.otherUpdate")}
+                  </Text>
+                </View>
+              </TouchableOpacity>
+            )}
           </View>
-          {canAddTimeline && (
-            <TouchableOpacity style={styles.roleChangeButton} onPress={onOpenOtherUpdate}>
-              <Ionicons name="add-circle-outline" size={17} color={palette.teal} />
-              <Text style={styles.roleChangeButtonText} allowFontScaling>
-                {t("timeline.otherUpdate")}
-              </Text>
-            </TouchableOpacity>
-          )}
         </>
       )}
 
@@ -1885,7 +1957,8 @@ function renderSettings(
   onGenerateCode?: () => void,
   onRemoveMember?: (memberId: string) => void,
   onLeaveHousehold?: () => void,
-  onDissolveHousehold?: () => void
+  onDissolveHousehold?: () => void,
+  onOpenNameEditor?: () => void
 ) {
   const canManageRoles = hasPermission(state, actor.role, "member:role_update");
   const canGenerateReport = hasPermission(state, actor.role, "report:export");
@@ -2146,6 +2219,19 @@ function renderSettings(
 
       <SectionTitle icon="exit-outline" title={state.household.name} />
       <View style={styles.panel}>
+        {onOpenNameEditor && (
+          <TouchableOpacity
+            style={styles.roleChangeButton}
+            accessibilityRole="button"
+            accessibilityLabel={t("settings.updateName")}
+            onPress={onOpenNameEditor}
+          >
+            <Ionicons name="person-outline" size={17} color={palette.teal} />
+            <Text style={styles.roleChangeButtonText} allowFontScaling>
+              {t("settings.updateName")}
+            </Text>
+          </TouchableOpacity>
+        )}
         {canManageRoles
           ? onDissolveHousehold && (
               <TouchableOpacity
@@ -3150,7 +3236,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
-    marginTop: 18,
+    marginTop: 10,
     marginBottom: 10
   },
   sectionTitleText: {
@@ -3462,6 +3548,16 @@ const styles = StyleSheet.create({
   deleteButton: {
     borderColor: palette.red,
     backgroundColor: "#fff5f5"
+  },
+  roleNameInput: {
+    borderWidth: 1,
+    borderColor: palette.line,
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 16,
+    backgroundColor: "#fff",
+    marginBottom: 12
   },
   ocrTextBox: { backgroundColor: "#f1f5f9", borderRadius: 6, padding: 8, marginTop: 4 },
   ocrText: { fontSize: 12, color: "#334155", lineHeight: 17 },

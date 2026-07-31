@@ -519,6 +519,12 @@ export async function dissolveHousehold(): Promise<void> {
   if (error) throw error;
 }
 
+// 成员自助修改显示名。
+export async function updateMyName(displayName: string): Promise<void> {
+  const { error } = await supabase.rpc("update_my_name", { p_display_name: displayName });
+  if (error) throw error;
+}
+
 // ============ 用户级通知（解散/移除；家庭删除后仍存活）============
 
 export interface UserNotification {

@@ -39,6 +39,7 @@ import {
   type HouseholdSummary
 } from "./lib/db";
 import { QRCode } from "./components/QRCode";
+import { CustomTaskModal, OtherTimelineModal } from "./components/CustomEntryModals";
 import * as Notifications from "expo-notifications";
 import * as Clipboard from "expo-clipboard";
 import * as cloudActions from "./lib/actions";
@@ -168,6 +169,8 @@ function LocalApp(props: { cloud?: CloudProps } = {}) {
   const [paywallVisible, setPaywallVisible] = useState(false);
   const [householdSwitcherVisible, setHouseholdSwitcherVisible] = useState(false);
   const [joinCode, setJoinCode] = useState<HouseholdCode | null>(null);
+  const [customTaskVisible, setCustomTaskVisible] = useState(false);
+  const [otherTimelineVisible, setOtherTimelineVisible] = useState(false);
 
   const t = useMemo(() => makeTranslator(language), [language]);
 
@@ -381,6 +384,123 @@ function LocalApp(props: { cloud?: CloudProps } = {}) {
         }
       }
     ]);
+  };
+
+  // 自定义任务创建。
+  const onCreateCustomTask = (args: {
+    title: string;
+    dueAt: string;
+    expectedMinutes: number;
+    priority: "normal" | "critical";
+  }) => {
+    runIfAllowed("task:create", () => {
+      const quota = checkTaskQuota(state);
+      if (!quota.ok) {
+        Alert.alert(t("quota.taskTitle"), t("quota.taskBody"), [
+          { text: t("quota.upgrade"), onPress: () => setPaywallVisible(true) },
+          { style: "cancel", text: t("paywall.close") }
+        ]);
+        return;
+      }
+      if (cloud) {
+        runCloudAction(
+          cloudActions.createTask({
+            householdId: cloud.householdId,
+            actor,
+            title: args.title,
+            expectedMinutes: args.expectedMinutes,
+            dueAt: args.dueAt,
+            priority: args.priority,
+            subtasks: []
+          })
+        );
+      } else {
+        setState((current) =>
+          createTask(
+            current,
+            actor,
+            {
+              title: args.title,
+              expectedMinutes: args.expectedMinutes,
+              dueAt: args.dueAt,
+              priority: args.priority,
+              subtasks: []
+            },
+            t
+          )
+        );
+      }
+    });
+  };
+
+  // 其他时间线更新（可选创建关联任务）。
+  const onCreateOtherUpdate = (args: {
+    type: string;
+    title: string;
+    startsAt: string;
+    ownerId?: string;
+    createTask: boolean;
+    taskTitle?: string;
+    taskDueAt?: string;
+    taskMinutes?: number;
+    taskPriority?: "normal" | "critical";
+  }) => {
+    runIfAllowed("timeline:add", () => {
+      if (cloud) {
+        // 先建时间线事件，再建关联任务（如有）。
+        cloudActions
+          .addTimelineEvent({
+            householdId: cloud.householdId,
+            actor,
+            type: args.type,
+            title: args.title,
+            startsAt: args.startsAt,
+            location: ""
+          })
+          .then(() => {
+            if (args.createTask && args.taskTitle && args.taskDueAt && args.taskMinutes && args.taskPriority) {
+              return cloudActions.createTask({
+                householdId: cloud.householdId,
+                actor,
+                title: args.taskTitle,
+                expectedMinutes: args.taskMinutes,
+                dueAt: args.taskDueAt,
+                priority: args.taskPriority,
+                subtasks: []
+              });
+            }
+            return undefined;
+          })
+          .catch((e) => {
+            // 时间线已保存但任务创建失败 -> 明确提示。
+            showMessage(t("alerts.actionFailedTitle"), errorMessage(e));
+          });
+      } else {
+        setState((current) => {
+          const withEvent = addTimelineEvent(
+            current,
+            actor,
+            { type: args.type as EventType, title: args.title, startsAt: args.startsAt, location: "" },
+            t
+          );
+          if (args.createTask && args.taskTitle && args.taskDueAt && args.taskMinutes && args.taskPriority) {
+            return createTask(
+              withEvent,
+              actor,
+              {
+                title: args.taskTitle,
+                expectedMinutes: args.taskMinutes,
+                dueAt: args.taskDueAt,
+                priority: args.taskPriority,
+                subtasks: []
+              },
+              t
+            );
+          }
+          return withEvent;
+        });
+      }
+    });
   };
 
   const onPickDocument = async () => {
@@ -843,7 +963,8 @@ function LocalApp(props: { cloud?: CloudProps } = {}) {
             onReject,
             onHandoff,
             onComplete,
-            onDeleteTask
+            onDeleteTask,
+            () => setCustomTaskVisible(true)
           )}
         {activeTab === "timeline" &&
           renderTimeline(
@@ -857,7 +978,8 @@ function LocalApp(props: { cloud?: CloudProps } = {}) {
             language,
             t,
             onCreateTimelineEvent,
-            onDeleteEvent
+            onDeleteEvent,
+            () => setOtherTimelineVisible(true)
           )}
         {activeTab === "documents" &&
           renderDocuments(
@@ -941,6 +1063,22 @@ function LocalApp(props: { cloud?: CloudProps } = {}) {
         householdId={cloud?.householdId}
         onPurchased={() => setPaywallVisible(false)}
         onDevSetPlus={onDevSetPlus}
+      />
+
+      <CustomTaskModal
+        visible={customTaskVisible}
+        onClose={() => setCustomTaskVisible(false)}
+        t={t}
+        onCreate={onCreateCustomTask}
+      />
+      <OtherTimelineModal
+        visible={otherTimelineVisible}
+        onClose={() => setOtherTimelineVisible(false)}
+        t={t}
+        state={state}
+        actor={actor}
+        canCreateTask={can("task:create")}
+        onCreate={onCreateOtherUpdate}
       />
 
       {cloud && (
@@ -1396,7 +1534,8 @@ function renderTasks(
   onReject: (task: Task) => void,
   onHandoff: (task: Task) => void,
   onComplete: (task: Task) => void,
-  onDeleteTask: (task: Task) => void
+  onDeleteTask: (task: Task) => void,
+  onOpenCustomTask: () => void
 ) {
   const canCreateTask = hasPermission(state, actor.role, "task:create");
 
@@ -1433,6 +1572,14 @@ function renderTasks(
               ))}
             </View>
           </View>
+          {canCreateTask && (
+            <TouchableOpacity style={styles.roleChangeButton} onPress={onOpenCustomTask}>
+              <Ionicons name="add-circle-outline" size={17} color={palette.teal} />
+              <Text style={styles.roleChangeButtonText} allowFontScaling>
+                {t("tasks.customTask")}
+              </Text>
+            </TouchableOpacity>
+          )}
         </>
       )}
       <SectionTitle icon="list-outline" title={t("tasks.claimableWork")} />
@@ -1466,7 +1613,8 @@ function renderTimeline(
   language: Language,
   t: Translate,
   onCreateTimelineEvent: (templateKey: TimelineTemplateKey) => void,
-  onDeleteEvent: (eventId: string) => void
+  onDeleteEvent: (eventId: string) => void,
+  onOpenOtherUpdate: () => void
 ) {
   const canAddTimeline = hasPermission(state, actor.role, "timeline:add");
 
@@ -1503,6 +1651,14 @@ function renderTimeline(
               ))}
             </View>
           </View>
+          {canAddTimeline && (
+            <TouchableOpacity style={styles.roleChangeButton} onPress={onOpenOtherUpdate}>
+              <Ionicons name="add-circle-outline" size={17} color={palette.teal} />
+              <Text style={styles.roleChangeButtonText} allowFontScaling>
+                {t("timeline.otherUpdate")}
+              </Text>
+            </TouchableOpacity>
+          )}
         </>
       )}
 

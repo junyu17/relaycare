@@ -721,7 +721,7 @@ function LocalApp(props: { cloud?: CloudProps } = {}) {
         onPress: () => {
           deleteAccount()
             .then(() => cloud.onSignOut())
-            .catch((e) => Alert.alert("Error", e instanceof Error ? e.message : String(e)));
+            .catch((e) => Alert.alert("Error", errorMessage(e)));
         }
       }
     ]);
@@ -732,7 +732,7 @@ function LocalApp(props: { cloud?: CloudProps } = {}) {
     if (!cloud) return;
     generateHouseholdCode()
       .then(setJoinCode)
-      .catch((e) => Alert.alert("Error", e instanceof Error ? e.message : String(e)));
+      .catch((e) => Alert.alert("Error", errorMessage(e)));
   };
 
   // 移除成员（协调人，不能移除自己）。
@@ -750,7 +750,7 @@ function LocalApp(props: { cloud?: CloudProps } = {}) {
               style: "destructive",
               text: t("settings.removeMember"),
               onPress: () => {
-                removeMember(memberId).catch((e) => Alert.alert("Error", e instanceof Error ? e.message : String(e)));
+                removeMember(memberId).catch((e) => Alert.alert("Error", errorMessage(e)));
               }
             }
           ])
@@ -775,7 +775,7 @@ function LocalApp(props: { cloud?: CloudProps } = {}) {
               onPress: () => {
                 leaveHousehold(cloud.householdId)
                   .then(() => cloud.onSignOut())
-                  .catch((e) => Alert.alert("Error", e instanceof Error ? e.message : String(e)));
+                  .catch((e) => Alert.alert("Error", errorMessage(e)));
               }
             }
           ])
@@ -800,7 +800,7 @@ function LocalApp(props: { cloud?: CloudProps } = {}) {
               onPress: () => {
                 dissolveHousehold()
                   .then(() => cloud.onSignOut())
-                  .catch((e) => Alert.alert("Error", e instanceof Error ? e.message : String(e)));
+                  .catch((e) => Alert.alert("Error", errorMessage(e)));
               }
             }
           ])
@@ -1311,7 +1311,7 @@ function CloudApp() {
         if (!active) return;
         const cached = await getCachedHouseholdState(householdId);
         if (cached) setState(cached);
-        else setErr(e instanceof Error ? e.message : String(e));
+        else setErr(errorMessage(e));
       });
     channel = subscribeHouseholdState(householdId, () => {
       fetchHouseholdState(householdId)

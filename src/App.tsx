@@ -821,7 +821,11 @@ function LocalApp(props: { cloud?: CloudProps } = {}) {
     }
     setNameEditorVisible(false);
     if (cloud) {
-      runCloudAction(updateMyName(trimmed));
+      updateMyName(trimmed)
+        .then(() => {
+          Alert.alert(t("settings.save"), t("settings.updateNameHelper"));
+        })
+        .catch((e) => Alert.alert("Error", errorMessage(e)));
     } else {
       setState((current) => ({
         ...current,

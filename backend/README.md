@@ -25,6 +25,7 @@ backend/supabase/migrations/
   0017_delete_task_timeline.sql # 删除误建的 task / timeline 事件（带归属校验+审计）
   0018_update_my_name.sql      # 成员自助修改显示名
   0019_soft_delete_members.sql # 软删除成员（解决 tasks/audit 外键约束）
+  0019b_fix_update_my_name.sql # 修复 update_my_name RPC（不依赖 current_household_id）
   0019_paywall_rpc_permissions.sql # 付费 RPC 仅允许 service_role 执行
 ```
 

@@ -248,7 +248,7 @@ export async function fetchHouseholdState(householdId: string): Promise<AppState
   const [householdRes, membersRes, rolesRes, prefsRes, notesRes, tasksRes, eventsRes, docsRes, auditRes] =
     await Promise.all([
       supabase.from("households").select("*").eq("id", householdId).single(),
-      supabase.from("members").select("*").eq("household_id", householdId),
+      supabase.from("members").select("*").eq("household_id", householdId).neq("invite_status", "removed"),
       supabase.from("role_definitions").select("*"),
       supabase.from("notification_preferences").select("*").eq("household_id", householdId),
       supabase.from("role_notifications").select("*").eq("household_id", householdId),

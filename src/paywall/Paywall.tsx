@@ -8,7 +8,8 @@ import {
   StyleSheet,
   Alert,
   ActivityIndicator,
-  Linking
+  Linking,
+  Platform
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import type { Translate } from "../i18n";
@@ -98,10 +99,18 @@ export function Paywall({
   ) => {
     if (!householdId) return;
     try {
-      // I1: 先从 StoreKit 完成交易（finish 前置，避免弱网/Edge 故障时 pending 交易死循环；
+      // I1: iOS 先从 StoreKit 完成交易（finish 前置，避免弱网/Edge 故障时 pending 交易死循环；
       // verify 失败时用户可通过"恢复购买"重新校验 entitlement）。
-      await finishIosPurchase(purchase);
+      // Android：先 verify 成功再 acknowledge（Play 有 3 天未 ack 自动退款保护；ack 不可逆，
+      // verify 失败保留交易供重试）。
+      const isAndroid = Platform.OS === "android";
+      if (!isAndroid) {
+        await finishIosPurchase(purchase);
+      }
       const result = await verifyApplePurchase({ purchase, householdId });
+      if (isAndroid && result.ok) {
+        await finishIosPurchase(purchase);
+      }
       if (result.ok) {
         onPurchased?.();
         Alert.alert(t("paywall.title"), t("paywall.plusActive"));

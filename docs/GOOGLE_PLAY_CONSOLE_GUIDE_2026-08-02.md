@@ -22,7 +22,7 @@
 
 1. 左侧 **Monetize → Products → Subscriptions → Create subscription**
 2. 创建两个订阅，**Product ID 必须与代码一致**：
-   - `TaskKin.care.pro.monthly`？——**注意**：代码 SKU 是 `TaskKin.care.pro.mon`（月）与 `TaskKin.care.pro.yearly`（年），Product ID 照抄这两串
+   - **注意**：代码 SKU 是 `TaskKin.care.pro.mon`（月）与 `TaskKin.care.pro.yearly`（年），Play 的 Product ID 必须照抄这两串
    - 定价：月 $9.99、年 $99.99（与 iOS 一致）；订阅基期：月/年；自动续订开
 3. 激活并提交（需完成商店信息）
 

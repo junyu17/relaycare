@@ -103,7 +103,7 @@ export async function purchaseIosSubscription(plan: "monthly" | "yearly"): Promi
     const result = await requestPurchase({
       request: {
         apple: { sku: skuForPlan(plan), appAccountToken: userId },
-        google: { skus: [skuForPlan(plan)], obfuscatedAccountId: userId }
+        google: { skus: [skuForPlan(plan)], obfuscatedAccountId: userId ? `u_${userId}` : null }
       },
       type: "subs"
     });
@@ -143,7 +143,7 @@ export async function verifyApplePurchase(args: {
   const transactionJws = isAndroid ? null : await getTransactionJwsIOS(args.purchase.productId).catch(() => null);
   const purchaseToken = isAndroid
     ? (args.purchase.purchaseToken ?? null) // Android: Play purchaseToken
-    : (transactionJws || args.purchase.purchaseToken || null); // iOS: JWS（签名交易）
+    : transactionJws || args.purchase.purchaseToken || null; // iOS: JWS（签名交易）
   const functionName = isAndroid ? "verify-google-purchase" : "verify-apple-receipt";
   const { data, error } = await supabase.functions.invoke(functionName, {
     headers: { Authorization: `Bearer ${accessToken}` },

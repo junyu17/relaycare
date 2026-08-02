@@ -43,8 +43,13 @@ function errorMessage(error: unknown): string {
   return String(error);
 }
 
-// 服务账号 JWT → Google OAuth access token（Play Developer API）
+// Google OAuth access token 缓存（1 小时有效，缓存至过期前 5 分钟）
+let googleTokenCache: { token: string; expiresAt: number } | null = null;
+
 async function getGoogleAccessToken(): Promise<string> {
+  if (googleTokenCache && googleTokenCache.expiresAt > Date.now() + 5 * 60 * 1000) {
+    return googleTokenCache.token;
+  }
   const sa = JSON.parse(GOOGLE_SA_JSON ?? "{}");
   if (!sa.private_key || !sa.client_email) throw new Error("GOOGLE_SERVICE_ACCOUNT_JSON is invalid");
   const now = Math.floor(Date.now() / 1000);
@@ -68,22 +73,33 @@ async function getGoogleAccessToken(): Promise<string> {
     const body = await res.text();
     throw new Error(`Google OAuth failed: ${res.status} ${body.slice(0, 200)}`);
   }
-  const data = await res.json() as { access_token?: string };
+  const data = (await res.json()) as { access_token?: string };
   if (!data.access_token) throw new Error("Google OAuth returned no access_token");
+  googleTokenCache = { token: data.access_token, expiresAt: Date.now() + 3600 * 1000 };
   return data.access_token;
 }
 
 // Play Developer API 订阅验证
-async function verifyPlaySubscription(accessToken: string, productId: string, purchaseToken: string): Promise<{
+async function verifyPlaySubscription(
+  accessToken: string,
+  productId: string,
+  purchaseToken: string
+): Promise<{
   subscriptionState: number;
   expiryTimeMillis?: string;
   startTimeMillis?: string;
-  obfuscatedAccountId?: string;
+  obfuscatedExternalAccountId?: string;
 }> {
   const url = `https://androidpublisher.googleapis.com/androidpublisher/v3/applications/${PACKAGE}/purchases/subscriptions/${productId}/tokens/${encodeURIComponent(purchaseToken)}`;
   const res = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}` } });
   if (!res.ok) {
     const body = await res.text();
+    if (res.status === 404 || res.status === 400) {
+      // 无效/未知 token：按业务错误返回（catch 转 400）
+      const err = new Error("Purchase token not found or invalid") as Error & { playStatus?: number };
+      err.playStatus = res.status;
+      throw err;
+    }
     throw new Error(`Play API failed: ${res.status} ${body.slice(0, 200)}`);
   }
   return await res.json();
@@ -126,9 +142,15 @@ Deno.serve(async (req) => {
     if (!Number.isFinite(expiresMs) || expiresMs <= Date.now()) {
       return fail("SUBSCRIPTION_EXPIRED", "This subscription has expired", 400);
     }
-    // 交易必须绑定当前用户（obfuscatedAccountId = auth.uid()，购买时客户端传入）
-    if (!sub.obfuscatedAccountId || sub.obfuscatedAccountId !== userData.user.id) {
-      return fail("ACCOUNT_TOKEN_MISMATCH", "This purchase is not bound to your account. Please restore purchases.", 403);
+    // 交易必须绑定当前用户：客户端购买时传 obfuscatedAccountId = 'u_' + auth.uid()
+    // （Play Billing 要求 [a-zA-Z0-9_] 且不以数字开头，故加 'u_' 前缀）。
+    const expectedObfuscatedId = `u_${userData.user.id}`;
+    if (!sub.obfuscatedExternalAccountId || sub.obfuscatedExternalAccountId !== expectedObfuscatedId) {
+      return fail(
+        "ACCOUNT_TOKEN_MISMATCH",
+        "This purchase is not bound to your account. Please restore purchases.",
+        403
+      );
     }
 
     // coordinator 校验 + 登记
@@ -141,7 +163,9 @@ Deno.serve(async (req) => {
       .eq("invite_status", "active")
       .maybeSingle();
     if (memberError) {
-      return fail("MEMBERSHIP_LOOKUP_FAILED", "Unable to verify household membership", 500, { dbError: memberError.message });
+      return fail("MEMBERSHIP_LOOKUP_FAILED", "Unable to verify household membership", 500, {
+        dbError: memberError.message
+      });
     }
     if (!member) return fail("NOT_HOUSEHOLD_MEMBER", "You are not an active member of this household", 403);
     if (member.role !== "coordinator") {
@@ -159,17 +183,26 @@ Deno.serve(async (req) => {
       p_owner_user_id: userData.user.id
     });
     if (upErr) {
-      return fail("SUBSCRIPTION_REGISTER_FAILED", "Unable to register subscription. Please try again or restore purchases.", 500, {
-        dbError: upErr.message,
-        plan,
-        originalTransactionId: `g:${purchaseToken.slice(0, 12)}...`
-      });
+      return fail(
+        "SUBSCRIPTION_REGISTER_FAILED",
+        "Unable to register subscription. Please try again or restore purchases.",
+        500,
+        {
+          dbError: upErr.message,
+          plan,
+          originalTransactionId: `g:${purchaseToken.slice(0, 12)}...`
+        }
+      );
     }
 
     console.log("verify-google-purchase succeeded", JSON.stringify({ plan, householdId }));
     return json({ ok: true, plan, plusUntil }, 200);
   } catch (e) {
     console.error("verify-google-purchase unexpected failure", errorMessage(e));
+    const playStatus = (e as { playStatus?: number }).playStatus;
+    if (playStatus === 404 || playStatus === 400) {
+      return fail("INVALID_PURCHASE_TOKEN", "Unable to verify purchase. Please try again or restore purchases.", 400);
+    }
     return fail("VERIFICATION_FAILED", "Unable to verify purchase. Please try again or restore purchases.", 500);
   }
 });

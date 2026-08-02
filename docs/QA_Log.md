@@ -833,3 +833,10 @@ Actual artifact verification:
 - P1-1 对抗脚本加固：全部 curl 加 --max-time 20、trap EXIT 清理临时用户、补 get_household_code 用例；完整重跑 PASS=19 FAIL=0（含读码回归）
 - P2 format:check：9 个文件 prettier 修复，format:check 全绿；ci.yml quality job 加 npm run format:check；SAST semgrep 改阻断（移除 continue-on-error）
 - 提交：d197b59（已推送，76ededa..d197b59）
+
+## adversarial 脚本 P1 修复 2026-08-02（FINAL_LAUNCH_RECHECK）
+
+- 修复：第 10 节删除重复 INSERT members（caregiver 第 5 节已 join_by_code 入家）；查询 caregiver 的 members.id（G_MID）传给 update_member_role（不再错传 auth.users.id）；removed 用例按 members.id 软删
+- review verdict=pass（与 recheck 整改要求一致）；残留 info：G_MID 空值有 bad 兜底、文件头注释待补
+- commit 1730120（02b3281..1730120 已推送）
+- 待办：提供 SERVICE_ROLE 后完整重跑（含第 10 节越权/removed 用例）

@@ -70,6 +70,23 @@ export function assertAppleBundleAndEnvironment(
   }
 }
 
+/**
+ * B5: 计算允许的 Apple JWS 环境集合。
+ * 显式 `APPLE_ACCEPTED_ENVIRONMENTS`（逗号分隔）优先；否则默认仅 Production，
+ * 仅当 `ALLOW_SANDBOX_PURCHASES=true`（TestFlight/沙盒调试）时追加 Sandbox。
+ */
+export function acceptedEnvironmentsFromEnv(
+  explicit: string | undefined,
+  allowSandbox: string | undefined
+): Set<string> {
+  if (explicit && explicit.trim()) {
+    return new Set(explicit.split(",").map((s) => s.trim()).filter(Boolean));
+  }
+  const set = new Set(["Production"]);
+  if (allowSandbox === "true") set.add("Sandbox");
+  return set;
+}
+
 export function describeAppleJws(jws: string): Record<string, unknown> {
   const parts = jws.split(".");
   const header = parts[0] ? decodeBase64UrlJson(parts[0]) : null;
@@ -199,7 +216,7 @@ async function isIssuedBy(issuer: X509Certificate, child: X509Certificate): Prom
   return child.issuer === issuer.subject && (await child.verify({ publicKey: issuer.publicKey, signatureOnly: true }));
 }
 
-function shorten(value: unknown): string | null {
+export function shorten(value: unknown): string | null {
   if (typeof value !== "string" || !value) return null;
   return value.length <= 12 ? value : `${value.slice(0, 4)}...${value.slice(-4)}`;
 }

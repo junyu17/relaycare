@@ -4,16 +4,31 @@
 //
 // 部署：supabase functions deploy verify-apple-receipt
 // Secrets：SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY（自动注入）/ SUPABASE_ANON_KEY / APPLE_BUNDLE_ID。
-// Sandbox and Production JWS values are both accepted so TestFlight testing
-// continues to work after the production notification URL is configured.
+// 环境策略（B5）：生产默认只接受 Production JWS。
+//   APPLE_ACCEPTED_ENVIRONMENTS=Production（显式覆盖，逗号分隔）
+//   ALLOW_SANDBOX_PURCHASES=true（仅 TestFlight/沙盒调试时追加 Sandbox）
+// 客户端购买必须携带 appAccountToken=auth.uid()（服务端校验绑定，防订阅劫持）；
+// signedDate 超过 24h 的旧交易拒绝（防退款/状态变更后重放）。
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { assertAppleBundleAndEnvironment, describeAppleJws, verifyAppleJws } from "../_shared/apple-jws.ts";
+import { acceptedEnvironmentsFromEnv, assertAppleBundleAndEnvironment, describeAppleJws, shorten, verifyAppleJws } from "../_shared/apple-jws.ts";
 
 const BUNDLE_ID = Deno.env.get("APPLE_BUNDLE_ID") ?? "cd.cc.relaycare";
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 const ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY") ?? Deno.env.get("SUPABASE_PUBLISHABLE_KEY");
 const SUPA_URL = Deno.env.get("SUPABASE_URL");
+
+const ACCEPTED_ENVIRONMENTS = acceptedEnvironmentsFromEnv(
+  Deno.env.get("APPLE_ACCEPTED_ENVIRONMENTS"),
+  Deno.env.get("ALLOW_SANDBOX_PURCHASES")
+);
+// B5: signedDate 新鲜度阈值。StoreKit 2 的 signedDate 是交易创建/续订时间（非 JWS 签发时间），
+// 首次购买严格 24h；恢复购买（restore）按订阅周期放宽（月付 31 天 / 年付 370 天），避免误伤合法恢复。
+const STALE_SIGNED_DATE_MS = 24 * 60 * 60 * 1000;
+const RESTORE_STALE_MS: Record<string, number> = {
+  monthly: 31 * 24 * 60 * 60 * 1000,
+  yearly: 370 * 24 * 60 * 60 * 1000
+};
 
 const SKU_TO_PLAN: Record<string, "monthly" | "yearly"> = {
   "TaskKin.care.pro.yearly": "yearly",
@@ -33,10 +48,15 @@ async function verifyTransaction(purchaseToken: string) {
   const jwsSummary = describeAppleJws(purchaseToken);
   try {
     const tx = await verifyAppleJws(purchaseToken);
-    assertAppleBundleAndEnvironment(tx, BUNDLE_ID);
+    assertAppleBundleAndEnvironment(tx, BUNDLE_ID, ACCEPTED_ENVIRONMENTS);
     return { tx, environment: String(tx.environment) };
   } catch (error) {
-    throw new Error(`Apple JWS verification failed: ${errorMessage(error)}; JWS: ${JSON.stringify(jwsSummary)}`);
+    // B5: 细节只进服务端日志；客户端只收到通用失败消息。
+    console.error(
+      "verify-apple-receipt: JWS verification failed",
+      JSON.stringify({ jwsSummary, detail: errorMessage(error) })
+    );
+    throw new Error("Apple JWS verification failed");
   }
 }
 
@@ -89,7 +109,8 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { productId, transactionId, purchaseToken, householdId } = await req.json();
+    const { productId, transactionId, purchaseToken, householdId, mode } = await req.json();
+    const isRestore = mode === "restore"; // 恢复购买路径（StoreKit getAvailablePurchases）
     if (!purchaseToken || !householdId || !productId) {
       return fail("MISSING_REQUIRED_FIELDS", "Missing required fields", 400, {
         hasProductId: Boolean(productId),
@@ -107,7 +128,7 @@ Deno.serve(async (req) => {
     const userClient = createClient(SUPA_URL, ANON_KEY, { global: { headers: { Authorization: `Bearer ${token}` } } });
     const { data: userData, error: userError } = await userClient.auth.getUser();
     if (userError || !userData.user) {
-      return fail("INVALID_SESSION", "Invalid session", 401, { authError: userError?.message ?? null });
+      return fail("INVALID_SESSION", "Invalid session", 401);
     }
 
     const admin = createClient(SUPA_URL, SERVICE_ROLE);
@@ -138,6 +159,21 @@ Deno.serve(async (req) => {
         transactionProductId: tx.productId
       });
     }
+    // B5: 交易必须绑定当前用户（appAccountToken = auth.uid()），防订阅劫持。
+    if (!tx.appAccountToken || String(tx.appAccountToken) !== userData.user.id) {
+      return fail("ACCOUNT_TOKEN_MISMATCH", "This purchase is not bound to your account. Please restore purchases.", 403, {
+        jwsHasAccountToken: Boolean(tx.appAccountToken)
+      });
+    }
+    // B5: signedDate 新鲜度，防退款/状态变更前的旧 JWS 重放。恢复购买按订阅周期放宽阈值。
+    const signedMs = Number(tx.signedDate);
+    const staleMs = isRestore ? (RESTORE_STALE_MS[plan] ?? STALE_SIGNED_DATE_MS) : STALE_SIGNED_DATE_MS;
+    if (!Number.isFinite(signedMs) || signedMs <= 0 || Date.now() - signedMs > staleMs) {
+      return fail("STALE_TRANSACTION", "This purchase receipt is too old to verify. Please restore purchases.", 400, {
+        staleMs,
+        mode
+      });
+    }
     // 退款/撤销：不授权。
     if (tx.revocationDate) return fail("TRANSACTION_REVOKED", "Transaction revoked/refunded", 400);
     // 必须是带到期时间的订阅。
@@ -148,6 +184,30 @@ Deno.serve(async (req) => {
 
     const plusUntil = new Date(expiresMs).toISOString();
     const originalTxId = tx.originalTransactionId ?? tx.transactionId ?? transactionId;
+
+    // B5: 交易状态一致性（purchase 与 restore 统一执行，防 mode 切换绕过）——
+    // 已登记的订阅若处于 revoked/expired 不允许重新激活（退款/过期后旧 JWS 重放防护）。
+    // 首次购买（无记录）放行；恢复购买必须已有登记记录且属于本用户。
+    const { data: sub, error: subErr } = await admin
+      .from("subscriptions")
+      .select("status, owner_user_id")
+      .eq("original_transaction_id", originalTxId)
+      .maybeSingle();
+    if (subErr) {
+      return fail("SUBSCRIPTION_LOOKUP_FAILED", "Unable to verify subscription. Please try again.", 500, {
+        dbError: subErr.message
+      });
+    }
+    if (sub && (sub.status === "revoked" || sub.status === "expired")) {
+      return fail(
+        "SUBSCRIPTION_NOT_RESTORABLE",
+        "This subscription has been revoked or expired and cannot be reactivated.",
+        400
+      );
+    }
+    if (isRestore && (!sub || (sub.owner_user_id !== null && sub.owner_user_id !== userData.user.id))) {
+      return fail("RESTORE_NOT_ALLOWED", "This subscription cannot be restored in its current state.", 400);
+    }
     // Register against the authenticated coordinator's household. The database
     // rejects an original transaction previously linked elsewhere.
     const { error: upErr } = await admin.rpc("register_apple_subscription", {
@@ -161,20 +221,28 @@ Deno.serve(async (req) => {
       p_owner_user_id: userData.user.id
     });
     if (upErr) {
-      return fail("SUBSCRIPTION_REGISTER_FAILED", upErr.message, 500, {
-        plan,
-        environment,
-        householdId,
-        originalTransactionId: originalTxId
-      });
+      return fail(
+        "SUBSCRIPTION_REGISTER_FAILED",
+        "Unable to register subscription. Please try again or restore purchases.",
+        500,
+        {
+          dbError: upErr.message,
+          plan,
+          environment,
+          householdId,
+          originalTransactionId: shorten(originalTxId)
+        }
+      );
     }
 
     console.log(
       "verify-apple-receipt succeeded",
-      JSON.stringify({ plan, environment, householdId, originalTransactionId: originalTxId })
+      JSON.stringify({ plan, environment, householdId, originalTransactionId: shorten(originalTxId) })
     );
-    return json({ ok: true, plan, plusUntil, originalTransactionId: originalTxId }, 200);
+    return json({ ok: true, plan, plusUntil }, 200);
   } catch (e) {
-    return fail("VERIFICATION_FAILED", `Verification failed: ${errorMessage(e)}`, 500);
+    // B5: 客户端只收到通用失败消息，细节进服务端日志。
+    console.error("verify-apple-receipt unexpected failure", errorMessage(e));
+    return fail("VERIFICATION_FAILED", "Unable to verify purchase. Please try again or restore purchases.", 500);
   }
 });

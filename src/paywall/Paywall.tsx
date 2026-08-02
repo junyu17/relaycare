@@ -13,6 +13,7 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import type { Translate } from "../i18n";
 import type { Plan } from "../types";
+import { errorMessage } from "../lib/error";
 import {
   fetchIosSubscriptions,
   purchaseIosSubscription,
@@ -97,8 +98,10 @@ export function Paywall({
   ) => {
     if (!householdId) return;
     try {
-      const result = await verifyApplePurchase({ purchase, householdId });
+      // I1: 先从 StoreKit 完成交易（finish 前置，避免弱网/Edge 故障时 pending 交易死循环；
+      // verify 失败时用户可通过"恢复购买"重新校验 entitlement）。
       await finishIosPurchase(purchase);
+      const result = await verifyApplePurchase({ purchase, householdId });
       if (result.ok) {
         onPurchased?.();
         Alert.alert(t("paywall.title"), t("paywall.plusActive"));
@@ -106,7 +109,7 @@ export function Paywall({
         Alert.alert(t("paywall.title"), t("paywall.purchaseNotVerified"));
       }
     } catch (e) {
-      Alert.alert("Error", e instanceof Error ? e.message : String(e));
+      Alert.alert(t("paywall.title"), `${t("paywall.purchaseNotVerified")}\n\n${errorMessage(e)}`);
     }
   };
 
@@ -119,7 +122,7 @@ export function Paywall({
       setBusy(true);
       purchaseIosSubscription(plan)
         .then((purchase) => handlePurchased(plan, purchase))
-        .catch((e) => Alert.alert("Error", e instanceof Error ? e.message : String(e)))
+        .catch((e) => Alert.alert(t("paywall.title"), errorMessage(e)))
         .finally(() => setBusy(false));
       return;
     }
@@ -156,7 +159,7 @@ export function Paywall({
             Alert.alert(t("paywall.title"), t("paywall.restoreNone"));
           }
         })
-        .catch((e) => Alert.alert("Error", e instanceof Error ? e.message : String(e)))
+        .catch((e) => Alert.alert(t("paywall.title"), `${t("paywall.purchaseNotVerified")}\n\n${errorMessage(e)}`))
         .finally(() => setBusy(false));
       return;
     }

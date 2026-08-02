@@ -72,6 +72,7 @@ C_TOK="$(token "$C_EMAIL")"; G_TOK="$(token "$G_EMAIL")"; V_TOK="$(token "$V_EMA
 say "coordinator 建家庭并生成 6 位码"
 HID=$(curl -s -X POST "$REST/rpc/create_household" -H "$API_H" -H "Authorization: Bearer $C_TOK" -H "$JSON_H" \
   -d "{\"p_household_name\":\"QA $TS\",\"p_timezone\":\"UTC\",\"p_care_recipient_label\":\"Dad\",\"p_member_name\":\"QA Coordinator\",\"p_member_relation\":\"self\",\"p_member_timezone\":\"UTC\"}")
+HID=$(printf '%s' "$HID" | python3 -c 'import sys,json;print(json.loads(sys.stdin.read()))' 2>/dev/null || echo "$HID")
 if [ "${#HID}" -eq 36 ]; then ok "create_household -> $HID"; else bad "create_household 失败：$HID"; exit 2; fi
 CODE=$(curl -s -X POST "$REST/rpc/generate_household_code" -H "$API_H" -H "Authorization: Bearer $C_TOK" -H "$JSON_H" -d '{}' | python3 -c 'import sys,json;d=json.load(sys.stdin);print(d[0]["code"] if isinstance(d,list) and d else "")' 2>/dev/null)
 [ "${#CODE}" -eq 6 ] && ok "生成 6 位码 $CODE" || bad "generate_household_code 失败/非 6 位：$CODE"
@@ -98,6 +99,7 @@ if [ -n "$CODE" ]; then
     -d "{\"p_code\":\"$CODE\",\"p_display_name\":\"QA Caregiver\"}")
   JOIN_CODE="${JOIN_RESP##*|}"
   JOIN_BODY="${JOIN_RESP%|*}"
+  JOIN_BODY=$(printf '%s' "$JOIN_BODY" | python3 -c 'import sys,json;print(json.loads(sys.stdin.read()))' 2>/dev/null || echo "$JOIN_BODY")
   if [ "$JOIN_CODE" = "200" ] && [ "${#JOIN_BODY}" -eq 36 ]; then
     ok "join_by_code 成功（HTTP 200, uuid ${#JOIN_BODY} 位）"
   else

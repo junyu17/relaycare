@@ -10,12 +10,12 @@
 
 | 操作 | 文件 | 状态 |
 |---|---|---|
-| RENAME | `0014_auth_email_autoconfirm.sql` → `0026_auth_email_autoconfirm.sql` | 待执行 |
-| RENAME | `0019_paywall_rpc_permissions.sql` → `0027_paywall_rpc_permissions.sql` | 待执行 |
-| DELETE | `0019b_fix_update_my_name.sql`（从未被 CLI 应用，0022 已覆盖） | 待执行 |
-| COPY（新） | `0028_fix_register_revoked.sql`、`0029_confirm_document_atomic.sql`、`0030_revoke_audit_cleanup.sql`、`0031_harden_member_ops.sql` | 待执行 |
-| COPY（改） | `backend/README.md`、`src/lib/actions.ts`、`src/lib/db.ts`、`src/paywall/iap.ts`、`src/paywall/Paywall.tsx`、`src/auth/AuthScreen.tsx`、`src/auth/AuthContext.tsx`、`src/components/QRScanner.tsx`、`src/i18n.ts`、`src/App.tsx`、`backend/supabase/functions/verify-apple-receipt/index.ts`、`backend/supabase/functions/_shared/apple-jws.ts`、`app.json`、`plugins/with-dev-team.js`、`.github/workflows/ci.yml` | 待执行 |
-| COPY（新） | `backend/qa/adversarial_tests.sh`、`backend/qa/README.md`、`backend/qa/DEPLOY.md`、`docs/legal/COMPLIANCE_CHECKLIST.md`、`PROGRESS.md` | 待执行 |
+| RENAME | `0014_auth_email_autoconfirm.sql` → `0026_auth_email_autoconfirm.sql` | ✅ 已执行 2026-08-02 |
+| RENAME | `0019_paywall_rpc_permissions.sql` → `0027_paywall_rpc_permissions.sql` | ✅ 已执行 2026-08-02 |
+| DELETE | `0019b_fix_update_my_name.sql`（从未被 CLI 应用，0022 已覆盖） | ✅ 已执行 2026-08-02 |
+| COPY（新） | `0028_fix_register_revoked.sql`、`0029_confirm_document_atomic.sql`、`0030_revoke_audit_cleanup.sql`、`0031_harden_member_ops.sql` | ✅ 已执行 2026-08-02 |
+| COPY（改） | `backend/README.md`、`src/lib/actions.ts`、`src/lib/db.ts`、`src/paywall/iap.ts`、`src/paywall/Paywall.tsx`、`src/auth/AuthScreen.tsx`、`src/auth/AuthContext.tsx`、`src/components/QRScanner.tsx`、`src/i18n.ts`、`src/App.tsx`、`backend/supabase/functions/verify-apple-receipt/index.ts`、`backend/supabase/functions/_shared/apple-jws.ts`、`app.json`、`plugins/with-dev-team.js`、`.github/workflows/ci.yml` | ✅ 已执行 2026-08-02 |
+| COPY（新） | `backend/qa/adversarial_tests.sh`、`backend/qa/README.md`、`backend/qa/DEPLOY.md`、`docs/legal/COMPLIANCE_CHECKLIST.md`、`PROGRESS.md` | ✅ 已执行 2026-08-02 |
 | 已落地 | `0024_harden_households_update.sql`、`0025_fix_invite_member_definer.sql` | 2026-08-01 完成 |
 
 ## 1. 落地同步（终端执行一次，sudo）
@@ -89,7 +89,7 @@ git push origin main
 cd /Users/jun/Documents/Project/relaycare-mvp/backend/supabase
 npx supabase link --project-ref bwvtypmnhwzchrubziqy
 npx supabase migration list
-# 若远端含旧编号记录（0014_auth_email_autoconfirm / 0019_paywall_rpc_permissions / 0019b 视实际）：
+# 若远端 history 含旧编号记录（先 supabase migration list 按实际）：
 npx supabase migration repair --status reverted 0014_auth_email_autoconfirm 0019_paywall_rpc_permissions
 # 对"已手工执行但 schema_migrations 无记录"的版本（含 0019b 若曾执行）用 --status applied 补录（按实际）
 npx supabase migration list   # 确认 local/remote 全绿

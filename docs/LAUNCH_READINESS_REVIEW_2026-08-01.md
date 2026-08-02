@@ -307,3 +307,42 @@ grant execute on function public.invite_member(uuid, text) to authenticated;
 ---
 
 *本报告由 Reasonix 多成员评审生成：4 位并行评审成员（前端/后端/安全/发布）+ security_review ×2 + skill:review ×1 + 静态验证（tsc/lint/vitest/expo-doctor/audit）。*
+
+
+---
+
+# 附录 C：整改完成记录（2026-08-02）
+
+依据 `docs/CODEX_REAUDIT_RESPONSE_2026-08-01.md` §5 执行完毕，全部修复经 review/security_review 复审（最终安全结论 pass，无 CRITICAL/HIGH），已落地原项目并提交。
+
+## 第一批（上线阻断）
+
+| 项 | 修复 | 迁移/文件 |
+|---|---|---|
+| B3 | 迁移重编号（0014→0026、0019_paywall→0027、删 0019b），0001-0031 连续 | 0026/0027 |
+| B5 | IAP 环境隔离（APPLE_ACCEPTED_ENVIRONMENTS 默认仅 Production）、appAccountToken=auth.uid() 绑定、signedDate 新鲜度（purchase 24h/restore 按周期）、统一状态检查（revoked/expired 拒绝）、错误脱敏 | verify-apple-receipt + 0028 |
+| B7 | 文档确认→任务创建原子 RPC（for update 防并发） | 0029 + actions.ts |
+| B6 | 产品决策：6 位码 + autoconfirm 接受（客户端全链路 6 位、COMPLIANCE/PROGRESS 一致声明） | 客户端 + 文档 |
+| B1/B2 | 0024/0025（revoke 直写 + guard triggers + invite_member definer）+ adversarial 测试脚本 | 0024/0025 + backend/qa/ |
+| B4 | 部署手册 | backend/qa/DEPLOY.md |
+
+## 第二批（重要级）
+
+I1（finish 前置/restore 分类）、I2（update_my_name 显式 householdId，0031）、I4（0030 audit revoke）、I5（actor 错误态）、I6（缓存剔除 rawText + 登出清理）、I7（realtime 非静默）、I8（invite 标注）、I14（allowBackup）、I15（join advisory lock）、发布配置（版本 1.0.0、麦克风权限移除、nodePath/teamId env 参数化、CI audit 阻塞门）、**I9（AuthScreen/OnboardingScreen 三语本地化，37 个 auth.* keys）**
+
+## 第三批（验收）
+
+typecheck 0 错 / lint 0/0 / vitest 30/30 / expo-doctor 20/20 / npm audit 0 high（10 moderate Expo SDK 传递依赖）
+
+## 落地
+
+commit SHA：634e932(security/db) / 9314c80(iap) / a68ec12(ui) / 86425b4(chore+release) / 9cd74ae(docs)
+
+## 剩余部署步骤（未执行，见 backend/qa/DEPLOY.md）
+
+migration repair/push → Edge deploy + env（APPLE_ACCEPTED_ENVIRONMENTS=Production）→ adversarial 全 PASS → TestFlight 真机验收（购买/恢复/退款/删账号）
+
+## 已知残留（非阻断）
+
+- MEDIUM：autoconfirm + 6 位码组合下 join 限速按用户非 IP（产品决策权衡，建议后续 IP/全局限速）
+- LOW：appAccountToken 续订字段需真机验证；app.json 默认本机 nodePath（env 可覆盖）；invite_member 成员数未排除 removed

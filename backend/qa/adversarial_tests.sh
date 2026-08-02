@@ -54,12 +54,12 @@ http() { # http <method> <url> <bearer|null> <json|''> -> HTTP 状态码
 rpc() { http POST "$REST/rpc/$1" "$2" "$3"; }
 signup() { http POST "$AUTH/signup" "" "{\"email\":\"$1\",\"password\":\"TestPass123!\"}"; }
 token() {
-  curl -s -X POST "$AUTH/token?grant_type=password" -H "$API_H" -H "$JSON_H" \
+  curl -s --max-time 20 -X POST "$AUTH/token?grant_type=password" -H "$API_H" -H "$JSON_H" \
     -d "{\"email\":\"$1\",\"password\":\"TestPass123!\"}" |
     python3 -c 'import sys,json;print(json.load(sys.stdin)["access_token"])' 2>/dev/null || echo ""
 }
 uid_of() { # uid_of <email> -> user id
-  curl -s "$AUTH/user" -H "$API_H" -H "Authorization: Bearer $1" |
+  curl -s --max-time 20 "$AUTH/user" -H "$API_H" -H "Authorization: Bearer $1" |
     python3 -c 'import sys,json;print(json.load(sys.stdin)["id"])' 2>/dev/null || echo ""
 }
 expect_fail() { # expect_fail <desc> <actual_http>
@@ -68,7 +68,7 @@ expect_fail() { # expect_fail <desc> <actual_http>
 
 # ---------- 0. 环境检查 ----------
 say "环境检查"
-curl -s -o /dev/null -w '%{http_code}' "$REST/households" -H "$API_H" >/dev/null 2>&1 || { echo "无法连接 $REST"; exit 2; }
+curl -s --max-time 20 -o /dev/null -w '%{http_code}' "$REST/households" -H "$API_H" >/dev/null 2>&1 || { echo "无法连接 $REST"; exit 2; }
 echo "  连接 OK：$REST"
 
 # ---------- 1. 准备测试账号 ----------
@@ -82,11 +82,11 @@ C_TOK="$(token "$C_EMAIL")"; G_TOK="$(token "$G_EMAIL")"; V_TOK="$(token "$V_EMA
 
 # ---------- 2. 建立测试家庭 + 真实 6 位码 ----------
 say "coordinator 建家庭并生成 6 位码"
-HID=$(curl -s -X POST "$REST/rpc/create_household" -H "$API_H" -H "Authorization: Bearer $C_TOK" -H "$JSON_H" \
+HID=$(curl -s --max-time 20 -X POST "$REST/rpc/create_household" -H "$API_H" -H "Authorization: Bearer $C_TOK" -H "$JSON_H" \
   -d "{\"p_household_name\":\"QA $TS\",\"p_timezone\":\"UTC\",\"p_care_recipient_label\":\"Dad\",\"p_member_name\":\"QA Coordinator\",\"p_member_relation\":\"self\",\"p_member_timezone\":\"UTC\"}")
 HID=$(printf '%s' "$HID" | python3 -c 'import sys,json;print(json.loads(sys.stdin.read()))' 2>/dev/null || echo "$HID")
 if [ "${#HID}" -eq 36 ]; then ok "create_household -> $HID"; else bad "create_household 失败：$HID"; exit 2; fi
-CODE=$(curl -s -X POST "$REST/rpc/generate_household_code" -H "$API_H" -H "Authorization: Bearer $C_TOK" -H "$JSON_H" -d '{}' | python3 -c 'import sys,json;d=json.load(sys.stdin);print(d[0]["code"] if isinstance(d,list) and d else "")' 2>/dev/null)
+CODE=$(curl -s --max-time 20 -X POST "$REST/rpc/generate_household_code" -H "$API_H" -H "Authorization: Bearer $C_TOK" -H "$JSON_H" -d '{}' | python3 -c 'import sys,json;d=json.load(sys.stdin);print(d[0]["code"] if isinstance(d,list) and d else "")' 2>/dev/null)
 [ "${#CODE}" -eq 6 ] && ok "生成 6 位码 $CODE" || bad "generate_household_code 失败/非 6 位：$CODE"
 
 # ---------- 3. B1：households 表级写必须失败（0024 revoke） ----------
@@ -107,7 +107,7 @@ expect_fail "INSERT members（绑定任意 user_id）" \
 # ---------- 5. caregiver 合法入家 + 入家后直写仍被 0024 拒绝 ----------
 say "caregiver 凭 6 位码加入（合法路径），入家后表级写仍必须失败"
 if [ -n "$CODE" ]; then
-  JOIN_RESP=$(curl -s -w '|%{http_code}' -X POST "$REST/rpc/join_by_code" -H "$API_H" -H "Authorization: Bearer $G_TOK" -H "$JSON_H" \
+  JOIN_RESP=$(curl -s --max-time 20 -w '|%{http_code}' -X POST "$REST/rpc/join_by_code" -H "$API_H" -H "Authorization: Bearer $G_TOK" -H "$JSON_H" \
     -d "{\"p_code\":\"$CODE\",\"p_display_name\":\"QA Caregiver\"}")
   JOIN_CODE="${JOIN_RESP##*|}"
   JOIN_BODY="${JOIN_RESP%|*}"
@@ -160,7 +160,7 @@ if [ -n "$SERVICE_ROLE" ] && [ -n "$G_UID" ]; then
   say "非 coordinator 越权调用必须失败（service_role 辅助）"
   SR_H="apikey: $SERVICE_ROLE"
   # 用 service_role 把 caregiver 入家（绕过生成码），再断言其越权调用失败
-  curl -s -o /dev/null -X POST "$REST/members" -H "$SR_H" -H "Authorization: Bearer $SERVICE_ROLE" -H "$JSON_H" \
+  curl -s --max-time 20 -o /dev/null -X POST "$REST/members" -H "$SR_H" -H "Authorization: Bearer $SERVICE_ROLE" -H "$JSON_H" \
     -d "{\"household_id\":\"$HID\",\"user_id\":\"$G_UID\",\"name\":\"QA Caregiver\",\"role\":\"caregiver\",\"invite_status\":\"active\",\"timezone\":\"UTC\"}" 2>/dev/null || true
   expect_fail "caregiver 调 update_member_role（改自己为 coordinator）" \
     "$(rpc update_member_role "$G_TOK" "{\"p_member_id\":\"$G_UID\",\"p_role\":\"coordinator\"}")"
@@ -168,8 +168,8 @@ if [ -n "$SERVICE_ROLE" ] && [ -n "$G_UID" ]; then
   expect_fail "caregiver 调 invite_member（非目标家庭 coordinator）" \
     "$(rpc invite_member "$G_TOK" "{\"p_household_id\":\"$HID\",\"p_role\":\"caregiver\"}")"
   # removed member 不能读旧 household
-  curl -s -o /dev/null -X PATCH "$REST/members?user_id=eq.$G_UID&household_id=eq.$HID" -H "$SR_H" -H "Authorization: Bearer $SERVICE_ROLE" -H "$JSON_H" -d '{"invite_status":"removed"}' 2>/dev/null || true
-  REM_RESP=$(curl -s -w '|%{http_code}' "$REST/households?id=eq.$HID" -H "$API_H" -H "Authorization: Bearer $G_TOK")
+  curl -s --max-time 20 -o /dev/null -X PATCH "$REST/members?user_id=eq.$G_UID&household_id=eq.$HID" -H "$SR_H" -H "Authorization: Bearer $SERVICE_ROLE" -H "$JSON_H" -d '{"invite_status":"removed"}' 2>/dev/null || true
+  REM_RESP=$(curl -s --max-time 20 -w '|%{http_code}' "$REST/households?id=eq.$HID" -H "$API_H" -H "Authorization: Bearer $G_TOK")
   REM_CODE="${REM_RESP##*|}"
   REM_BODY="${REM_RESP%|*}"
   if [ "$REM_CODE" = "200" ] && [ "$REM_BODY" = "[]" ]; then
@@ -185,10 +185,10 @@ fi
 if [ -n "$SERVICE_ROLE" ]; then
   say "清理测试数据"
   SR_H="apikey: $SERVICE_ROLE"
-  curl -s -o /dev/null -X POST "$FUN/delete-account" -H "Authorization: Bearer $C_TOK" -H "$JSON_H" -d '{}' 2>/dev/null || true
+  curl -s --max-time 20 -o /dev/null -X POST "$FUN/delete-account" -H "Authorization: Bearer $C_TOK" -H "$JSON_H" -d '{}' 2>/dev/null || true
   for E in "$G_EMAIL" "$V_EMAIL"; do
-    UID_=$(curl -s "$AUTH/admin/users" -H "$SR_H" -H "Authorization: Bearer $SERVICE_ROLE" 2>/dev/null | python3 -c "import sys,json;d=json.load(sys.stdin);print(next((u['id'] for u in d.get('users',[]) if u.get('email')=='$E'),''))" 2>/dev/null)
-    [ -n "$UID_" ] && curl -s -o /dev/null -X DELETE "$AUTH/admin/users/$UID_" -H "$SR_H" -H "Authorization: Bearer $SERVICE_ROLE" 2>/dev/null || true
+    UID_=$(curl -s --max-time 20 "$AUTH/admin/users" -H "$SR_H" -H "Authorization: Bearer $SERVICE_ROLE" 2>/dev/null | python3 -c "import sys,json;d=json.load(sys.stdin);print(next((u['id'] for u in d.get('users',[]) if u.get('email')=='$E'),''))" 2>/dev/null)
+    [ -n "$UID_" ] && curl -s --max-time 20 -o /dev/null -X DELETE "$AUTH/admin/users/$UID_" -H "$SR_H" -H "Authorization: Bearer $SERVICE_ROLE" 2>/dev/null || true
   done
   ok "清理完成"
 else

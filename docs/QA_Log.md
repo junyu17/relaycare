@@ -840,3 +840,13 @@ Actual artifact verification:
 - review verdict=pass（与 recheck 整改要求一致）；残留 info：G_MID 空值有 bad 兜底、文件头注释待补
 - commit 1730120（02b3281..1730120 已推送）
 - 待办：提供 SERVICE_ROLE 后完整重跑（含第 10 节越权/removed 用例）
+
+### adversarial 完整门禁 2026-08-02（FINAL_LAUNCH_RECHECK P1 关闭）
+
+- 带 SERVICE_ROLE 完整重跑：**PASS=25 FAIL=0**（第 10 节真实执行）
+  - 查询 caregiver members.id（804b7e3e-...）✅
+  - caregiver 调 update_member_role（传 members.id）/dissolve_household/invite_member → 均 400 ✅
+  - removed member 读旧 household → 空数组（RLS 过滤）✅
+  - 清理完成（0 遗留 QA 用户）✅
+- 其余：B1/B2 revoke 403、I4 audit 403、B6 码格式、get_household_code 读码回归（191872）✅
+- service_role key 经 Management API 从 access token 获取（一次性，临时文件已删除）

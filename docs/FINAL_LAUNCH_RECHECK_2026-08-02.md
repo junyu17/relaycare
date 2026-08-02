@@ -6,11 +6,11 @@
 
 ## 结论
 
-**核心整改已生效，但当前结论仍为 CONDITIONAL GO。**
+**核心整改已生效；QA 脚本 P1 已关闭（2026-08-02 更新），当前结论为 CONDITIONAL GO（仅剩两个真机外部验收）。**
 
 上轮的两个 P0 已经在真实产物和远端数据库中复核通过：已有家庭码可读取；Archive 的版本、JS bundle、权限声明和四个 dSYM 均正确。使用真实远端临时账号的 coordinator/caregiver/viewer 验证也证明关键越权路径被拒绝。
 
-仍不能标为无条件上线，原因不是发现了新的已证实用户权限漏洞，而是发布门禁本身仍有一个 P1 缺口：`backend/qa/adversarial_tests.sh` 不能完整结束，也没有有效验证 caregiver 角色提升。另有 IAP 真机 TestFlight 验收和真机 Safari 法律页访问两个外部操作尚不能由本环境替代。
+~~仍不能标为无条件上线……QA 脚本 P1 缺口~~ **已修复并关闭**（2026-08-02，见下）：`backend/qa/adversarial_tests.sh` 修复了重复 INSERT 与 auth.users.id/members.id 混淆（commit 1730120），带 SERVICE_ROLE 完整重跑 **PASS=25 FAIL=0**（第 10 节越权/removed 用例真实执行，0 遗留 QA 用户）。剩余外部验收：IAP 真机 TestFlight 与真机 Safari 法律页访问。
 
 ## 已验证通过
 
@@ -28,7 +28,7 @@
 
 ## 待整改或人工验收
 
-### P1：对抗 QA 脚本仍不能作为上线门禁
+### ~~P1：对抗 QA 脚本仍不能作为上线门禁~~ → **已关闭（2026-08-02，见 QA_Log §adversarial 完整门禁 PASS=25 FAIL=0）**
 
 - 位置：`backend/qa/adversarial_tests.sh:32-41`、`158-201`。
 - 复现：脚本已完成前 19 个断言和 `get_household_code` 回归后，在非 coordinator 段停止于 `POST /rest/v1/members`，没有输出 `PASS=... FAIL=...`、没有进入显式清理段。
@@ -59,7 +59,7 @@
 
 ## 放行条件
 
-1. 修正并完整跑通 `backend/qa/adversarial_tests.sh`，输出最终 PASS/FAIL 和 0 个遗留 QA 用户。
+1. ~~修正并完整跑通 `backend/qa/adversarial_tests.sh`~~ **已完成（2026-08-02）：PASS=25 FAIL=0，0 遗留 QA 用户。**
 2. 在 TestFlight 真机完成 IAP 购买、恢复、续订/撤销通知与删除账号流程。
 3. 在真机 Safari 打开六个法律页。
 

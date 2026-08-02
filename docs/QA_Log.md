@@ -850,3 +850,11 @@ Actual artifact verification:
   - 清理完成（0 遗留 QA 用户）✅
 - 其余：B1/B2 revoke 403、I4 audit 403、B6 码格式、get_household_code 读码回归（191872）✅
 - service_role key 经 Management API 从 access token 获取（一次性，临时文件已删除）
+
+### Android 部署记录 2026-08-02（Google 审计整改后）
+
+- 迁移：0034_register_google_subscription、0035_sync_subscription_state 已 db push 应用（migration list 本地=远端 0001-0035）
+- Edge Functions 已部署：verify-google-purchase（V2 subscriptionsv2、productId 映射 plan 防提权）、play-rtdn（Pub/Sub、REVOKED/CANCELED/EXPIRED 状态语义、RTDN_TOKEN 严格校验）——Deployed Functions on project bwvtypmnhwzchrubziqy
+- secrets：GOOGLE_PLAY_PACKAGE=cd.cc.taskkincare 已设；GOOGLE_SERVICE_ACCOUNT_JSON、RTDN_VERIFICATION_TOKEN 待用户按 GOOGLE_PLAY_CONSOLE_GUIDE 提供
+- SKU：Android 小写独立 ID（taskkin.care.pro.monthly/yearly），与客户端 ANDROID_SUB_SKUS/两个 Edge 的 SKU_TO_PLAN 一致
+- commit：05fdbb7（Google 审计整改）、6cc697d（定价提权/RTDN 状态修复），均已推送

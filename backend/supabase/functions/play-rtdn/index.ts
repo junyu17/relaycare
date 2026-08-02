@@ -43,6 +43,10 @@ async function getGoogleAccessToken(): Promise<string> {
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({ grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer", assertion: jwt })
   });
+  if (!res.ok) {
+    const bodyText = await res.text();
+    throw new Error(`Google OAuth failed: ${res.status} ${bodyText.slice(0, 200)}`);
+  }
   const data = (await res.json()) as { access_token?: string };
   if (!data.access_token) throw new Error("Google OAuth failed");
   googleTokenCache = { token: data.access_token, expiresAt: Date.now() + 3600 * 1000 };
@@ -116,10 +120,17 @@ async function syncEntitlement(
           if (r.error) console.error("play-rtdn: sync active failed", r.error.message);
         });
     } else {
+      // 状态语义对齐：EXPIRED=到期、CANCELED=用户取消续订、REVOKED=退款；其余非活跃归 revoked。
+      const finalStatus =
+        v2.subscriptionState === "SUBSCRIPTION_STATE_EXPIRED"
+          ? "expired"
+          : v2.subscriptionState === "SUBSCRIPTION_STATE_CANCELED"
+            ? "canceled"
+            : "revoked";
       await admin
         .rpc("sync_subscription_state", {
           p_original_transaction_id: originalTxId,
-          p_status: v2.subscriptionState === "SUBSCRIPTION_STATE_EXPIRED" ? "expired" : "revoked",
+          p_status: finalStatus,
           p_plan: sub.plan, // 保留已购 plan（同步状态时不改写 plan）
           p_expires_at: new Date().toISOString()
         })

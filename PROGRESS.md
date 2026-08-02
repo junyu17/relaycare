@@ -81,7 +81,8 @@
 - [x] 第二批重要级：I1（IAP finish 前置/restore 分类）、I2（update_my_name 显式 householdId，0031）、I5（actor 错误态）、I6（缓存剔除 rawText + 登出清理）、I7（realtime 非静默）、I8（invite 标注）、I14（allowBackup=false，待 prebuild 生效）、I15（join advisory lock）、发布配置（版本 1.0.0、麦克风权限移除、nodePath/teamId env 参数化、CI audit 阻塞门）。
 - [x] I9：AuthScreen/OnboardingScreen 三语本地化（2026-08-02 完成，37 个 auth.* keys）。
 - [x] 落地执行（2026-08-02）：全部变更已同步原项目并提交，commit SHA：634e932(security/db) / 9314c80(iap) / a68ec12(ui) / 86425b4(chore+release)。
-- [ ] 上线部署剩余步骤：按 backend/qa/DEPLOY.md（migration repair/push → Edge deploy + env → adversarial 全 PASS → TestFlight 真机验收）。
+- [x] 上线部署（2026-08-02 完成）：migration db push 应用 0020-0031（本地=远端 0001-0031 全绿，无 repair 需求）；3 个 Edge Functions 部署（verify-apple-receipt / apple-server-notifications / delete-account）；secrets 设置 APPLE_BUNDLE_ID=cd.cc.relaycare + APPLE_ACCEPTED_ENVIRONMENTS=Production（无 ALLOW_SANDBOX_PURCHASES）；adversarial 门禁 PASS=18 FAIL=0（B1/B2 revoke 403、I4 cleanup_old_audit 403、B6 码格式、caregiver 6 位码加入）。Release evidence 见 docs/QA_Log.md。
+- [ ] 剩余：TestFlight 真机验收（购买/恢复/退款/删账号 + appAccountToken 续订字段）+ 3 个 LOW 残留（DB 错误回传脱敏、server-notifications Sandbox 拒绝）排期。
 - [x] OCR 真实接入：on-device 已实施 + 原生 build 验证通过（expo prebuild + pod install 92 pods + xcodebuild BUILD SUCCEEDED；dariyd 编译链接 OK；node_modules .sh 执行位已 chmod 修复）。真机 OCR 端到端（上传文档→识别）待 cloud 登录交互测试。
 
 ## 待用户决策

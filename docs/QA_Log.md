@@ -799,3 +799,22 @@ Actual artifact verification:
 - Prettier and `git diff --check` passed.
 - Every local HTML asset reference resolves; both local pages returned HTTP 200 during preview.
 - Rendered desktop previews showed no clipping or overlap and no debug-error imagery.
+
+---
+
+## Release evidence 2026-08-02（生产部署）
+
+- git commit：1913c72（main，junyu17/relaycare；含 634e932/9314c80/a68ec12/86425b4/948f3cf 整改提交）
+- Supabase project：bwvtypmnhwzchrubziqy（RelayCare, West US）
+- migration db push：0020-0031 应用成功，migration list 本地=远端 0001-0031 全绿（无版本冲突，无需 repair；0014/0019 重编号与远端 history 对齐）
+- Edge Functions 部署：verify-apple-receipt / apple-server-notifications / delete-account（--no-verify-jwt，共享 apple-jws.ts）
+- secrets：APPLE_BUNDLE_ID=cd.cc.relaycare、APPLE_ACCEPTED_ENVIRONMENTS=Production（未设置 ALLOW_SANDBOX_PURCHASES）
+- adversarial 门禁（backend/qa/adversarial_tests.sh）：PASS=18 FAIL=0
+  - B1：PATCH/INSERT households → 403（0024 revoke 生效）
+  - B2：PATCH/INSERT members → 403/400（0024 revoke + RLS 生效）
+  - caregiver 6 位码加入成功；入家后表级直写仍 403
+  - viewer 直写 tasks/documents → 400
+  - I4：cleanup_old_audit authenticated → 403（0030 生效）
+  - B6：8 位/7 位码拒、6 位格式通过（0030/0014 校验生效）
+  - 跳过：SANDBOX_JWS（支付面，真机验收覆盖）、SERVICE_ROLE 用例（越权/removed，需 service role key）
+- 遗留：TestFlight 真机验收（购买/恢复/退款/删账号）；LOW 残留（DB 错误回传 2 处、server-notifications Sandbox 拒绝）排期

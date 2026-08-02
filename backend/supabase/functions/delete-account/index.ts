@@ -41,13 +41,20 @@ Deno.serve(async (req) => {
     const admin = createClient(SUPA_URL, SERVICE_ROLE);
     // 删家庭/成员数据，再删 auth 账号。
     const { error: de } = await admin.rpc("delete_account_data", { p_user_id: uid });
-    if (de) return json({ ok: false, error: de.message }, 500);
+    if (de) {
+      // 细节只进服务端日志；客户端仅收到通用消息。
+      console.error("delete-account: delete_account_data failed", de.message);
+      return json({ ok: false, error: "Unable to delete account data. Please try again later." }, 500);
+    }
     const { error: ae } = await admin.auth.admin.deleteUser(uid);
-    if (ae) return json({ ok: false, error: ae.message }, 500);
+    if (ae) {
+      console.error("delete-account: deleteUser failed", ae.message);
+      return json({ ok: false, error: "Unable to delete account. Please try again later." }, 500);
+    }
 
     return json({ ok: true }, 200);
   } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e);
-    return json({ ok: false, error: msg }, 500);
+    console.error("delete-account: unexpected failure", e instanceof Error ? e.message : String(e));
+    return json({ ok: false, error: "Unable to delete account. Please try again later." }, 500);
   }
 });

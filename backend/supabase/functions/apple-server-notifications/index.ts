@@ -6,7 +6,13 @@
 // Secrets：SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY（自动注入）/ APPLE_BUNDLE_ID。
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { assertAppleBundleAndEnvironment, verifyAppleJws } from "../_shared/apple-jws.ts";
+import { acceptedEnvironmentsFromEnv, assertAppleBundleAndEnvironment, verifyAppleJws } from "../_shared/apple-jws.ts";
+
+// 环境策略（与 verify-apple-receipt 一致）：生产默认仅 Production；TestFlight 用 ALLOW_SANDBOX_PURCHASES=true 追加。
+const ACCEPTED_ENVIRONMENTS = acceptedEnvironmentsFromEnv(
+  Deno.env.get("APPLE_ACCEPTED_ENVIRONMENTS"),
+  Deno.env.get("ALLOW_SANDBOX_PURCHASES")
+);
 
 const BUNDLE_ID = Deno.env.get("APPLE_BUNDLE_ID") ?? "cd.cc.relaycare";
 const APP_APPLE_ID = Number(Deno.env.get("APPLE_APPLE_ID") ?? Deno.env.get("APPLE_APP_APPLE_ID") ?? "6794837934");
@@ -37,7 +43,7 @@ function assertNotificationData(notification: Record<string, unknown>): void {
   if (data.bundleId !== BUNDLE_ID) {
     throw new Error(`Invalid Apple notification bundleId: ${String(data.bundleId)}`);
   }
-  if (data.environment !== "Sandbox" && data.environment !== "Production") {
+  if (!ACCEPTED_ENVIRONMENTS.has(String(data.environment))) {
     throw new Error(`Invalid Apple notification environment: ${String(data.environment)}`);
   }
   const appAppleId = Number(data.appAppleId);
@@ -61,7 +67,7 @@ Deno.serve(async (req) => {
     const signedTx = notification.data?.signedTransactionInfo;
     if (!signedTx) return new Response("ok", { status: 200 }); // TEST 通知等无交易信息。
     const tx = await verifyAppleJws(signedTx);
-    assertAppleBundleAndEnvironment(tx, BUNDLE_ID);
+    assertAppleBundleAndEnvironment(tx, BUNDLE_ID, ACCEPTED_ENVIRONMENTS);
 
     const productId = tx.productId;
     if (!productId) return new Response("ok", { status: 200 });

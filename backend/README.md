@@ -36,6 +36,7 @@ backend/supabase/migrations/
   0028_fix_register_revoked.sql     # register_apple_subscription 禁止重新激活 revoked/expired 订阅（B5）
   0029_confirm_document_atomic.sql  # 文档确认→任务创建原子化 RPC（B7）
   0030_revoke_audit_cleanup.sql     # cleanup_old_audit 仅 service_role（I4）
+  0032_harden_low_hanging.sql       # guard_member INSERT 分支 + 任务标题校验（LOW 加固）
   # 注：加入码维持 6 位数字（产品决策 2026-08-02，8 位加强方案已回退）
 ```
 

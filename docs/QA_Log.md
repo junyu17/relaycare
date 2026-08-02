@@ -818,3 +818,9 @@ Actual artifact verification:
   - B6：8 位/7 位码拒、6 位格式通过（0030/0014 校验生效）
   - 跳过：SANDBOX_JWS（支付面，真机验收覆盖）、SERVICE_ROLE 用例（越权/removed，需 service role key）
 - 遗留：TestFlight 真机验收（购买/恢复/退款/删账号）；LOW 残留（DB 错误回传 2 处、server-notifications Sandbox 拒绝）排期
+
+### LOW 加固 2026-08-02（0032 + Edge 脱敏）
+
+- 0032_harden_low_hanging.sql：guard_member_key_columns 补 BEFORE INSERT（拒绝 anon/authenticated 直插 members）；confirm_document_and_create_task 补标题非空/≤200 校验
+- delete-account：DB 错误/异常回传脱敏（通用消息，细节仅服务端日志）
+- apple-server-notifications：环境过滤统一（生产默认仅 Production 通知与交易，ALLOW_SANDBOX_PURCHASES 追加 Sandbox）

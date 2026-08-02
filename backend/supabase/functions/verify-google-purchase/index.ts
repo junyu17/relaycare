@@ -119,8 +119,6 @@ Deno.serve(async (req) => {
     if (!productId || !purchaseToken || !householdId) {
       return fail("MISSING_REQUIRED_FIELDS", "Missing required fields", 400);
     }
-    const plan = SKU_TO_PLAN[productId];
-    if (!plan) return fail("UNKNOWN_PRODUCT_ID", "Unknown product id", 400, { productId });
 
     // 调用者身份
     const authHeader = req.headers.get("Authorization") ?? "";
@@ -148,6 +146,15 @@ Deno.serve(async (req) => {
     if (!Number.isFinite(expiresMs) || expiresMs <= Date.now()) {
       return fail("SUBSCRIPTION_EXPIRED", "This subscription has expired", 400);
     }
+    // 以 V2 返回的 lineItems[0].productId 映射 plan——服务端事实，忽略客户端传入的 productId，
+    // 防止"购买 monthly 却以 yearly 名义登记"的定价提权（对称 iOS verify-apple-receipt 的 productId 校验）。
+    const actualProductId = sub.lineItems?.[0]?.productId;
+    if (!actualProductId) {
+      return fail("SUBSCRIPTION_NO_PRODUCT", "This subscription response is missing product id", 400);
+    }
+    const plan = SKU_TO_PLAN[actualProductId];
+    if (!plan) return fail("UNKNOWN_PRODUCT_ID", "Unknown product id", 400, { productId: actualProductId });
+
     // 交易必须绑定当前用户：客户端购买时传 obfuscatedAccountId = 'u_' + auth.uid()（去连字符）。
     // 客户端经 setObfuscatedAccountId 传入 → V2 响应 accountIdentifiers.obfuscatedExternalAccountId
     // （externalAccountId 为普通账户标识，IAP 不填充）；两字段兼容读取。

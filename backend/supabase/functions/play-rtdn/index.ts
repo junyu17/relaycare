@@ -60,7 +60,8 @@ async function queryV2(
   const url = `https://androidpublisher.googleapis.com/androidpublisher/v3/applications/${PACKAGE}/purchases/subscriptionsv2/tokens/${encodeURIComponent(purchaseToken)}`;
   const res = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}` } });
   if (!res.ok) {
-    console.error("play-rtdn: V2 query failed", res.status, await res.text());
+    const bodyText = await res.text();
+    console.error("play-rtdn: V2 query failed", res.status, bodyText);
     return null; // 查询失败：调用方保守跳过，不做降级
   }
   return await res.json();
@@ -95,8 +96,11 @@ async function syncEntitlement(
   // 仅当明确过期/撤销时才回退 free。
   const expiryStr = v2.lineItems?.[0]?.expiryTime;
   const expiresMs = expiryStr ? Date.parse(expiryStr) : NaN;
+  // REVOKED（退款）强制回退 free——即使 Google 未同步修改 expiryTime，也立即回收权益。
+  const isRevoked = v2.subscriptionState === "SUBSCRIPTION_STATE_REVOKED";
   const isActive =
-    v2.subscriptionState === "SUBSCRIPTION_STATE_ACTIVE" || (Number.isFinite(expiresMs) && expiresMs > Date.now());
+    !isRevoked &&
+    (v2.subscriptionState === "SUBSCRIPTION_STATE_ACTIVE" || (Number.isFinite(expiresMs) && expiresMs > Date.now()));
 
   for (const sub of subs) {
     if (isActive) {

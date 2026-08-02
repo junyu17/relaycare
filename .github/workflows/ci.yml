@@ -21,9 +21,10 @@ jobs:
       - run: npm run lint
       - run: npm run test
 
-  # Security scans run as informational (non-blocking) until the Expo SDK is
-  # upgraded to clear the known transitive vulnerabilities. Before pilot
-  # launch, review the findings, fix high+ issues, and drop `continue-on-error`.
+  # Security: production dependency audit blocks on high+ (2026-08-02, B4 整改——
+  # known transitive vulns resolved via brace-expansion override, audit shows 0 high).
+  # SAST (semgrep) stays informational: upstream auto config may flag false positives;
+  # re-evaluate to blocking after first clean run.
   security:
     name: Dependency audit · SAST
     runs-on: ubuntu-latest
@@ -35,8 +36,7 @@ jobs:
           cache: npm
       - run: npm ci
       - name: Dependency audit (production, high+)
-        run: npm audit --omit=dev --audit-level=high
-        continue-on-error: true
+        run: npm audit --omit=dev --audit-level=high --registry=https://registry.npmjs.org
       - name: SAST (semgrep)
         uses: returntocorp/semgrep-action@v1
         with:

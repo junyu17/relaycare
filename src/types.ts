@@ -84,6 +84,7 @@ export interface Member {
   role: Role;
   timezone: string;
   availability: string;
+  createdAt?: string;
   inviteStatus?: "active" | "pending";
   inviteExpiresAt?: string;
   userId?: string | null;
@@ -110,6 +111,7 @@ export interface Task {
   proof?: string;
   rejectionReason?: string;
   handoffToId?: string;
+  createdAt?: string;
 }
 
 export interface CareEvent {
@@ -121,6 +123,7 @@ export interface CareEvent {
   ownerId?: string;
   taskId?: string;
   documentId?: string;
+  createdAt?: string;
 }
 
 export interface DocumentRecord {

@@ -125,8 +125,9 @@ function ensureDsymBuildPhase(project, targetName) {
 }
 
 module.exports = function withDevelopmentTeam(config, props) {
-  const teamId = props?.teamId;
-  const nodePath = props?.nodePath;
+  // I10: 优先读环境变量（CI/EAS/他人机器用 env 覆盖本机写死的值），props 为 app.json 默认。
+  const teamId = (process.env.TASK_KIN_TEAM_ID || undefined) ?? props?.teamId;
+  const nodePath = (process.env.TASK_KIN_NODE_PATH || undefined) ?? props?.nodePath;
   return withXcodeProject(config, (config) => {
     const project = config.modResults;
     if (teamId) {

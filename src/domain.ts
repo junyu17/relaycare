@@ -178,11 +178,13 @@ export function createTask(
   t?: Translate
 ): AppState {
   const taskId = uniqueId("task");
+  const now = new Date().toISOString();
   const task: Task = {
     ...taskInput,
     id: taskId,
     status: "open",
-    requestedById: actor.id
+    requestedById: actor.id,
+    createdAt: now
   };
 
   const notified = withRoleNotification(
@@ -345,10 +347,12 @@ export function addTimelineEvent(
   t?: Translate
 ): AppState {
   const eventId = uniqueId("event");
+  const now = new Date().toISOString();
   const event: CareEvent = {
     id: eventId,
     ...eventInput,
-    ownerId: actor.id
+    ownerId: actor.id,
+    createdAt: now
   };
 
   const notified = withRoleNotification(
@@ -513,7 +517,8 @@ export function addDocument(
     startsAt: documentRecord.uploadedAt,
     location: text(t, "event.location.sharedDocuments", "Shared documents"),
     ownerId: actor.id,
-    documentId
+    documentId,
+    createdAt: documentRecord.uploadedAt
   };
 
   const notified = withRoleNotification(
@@ -553,6 +558,7 @@ export function confirmDocumentAndCreateTask(
 ): AppState {
   const documentRecord = state.documents.find((document) => document.id === documentId);
   const taskId = uniqueId("task");
+  const now = new Date().toISOString();
   const task: Task = {
     id: taskId,
     title: documentRecord?.suggestedAction ?? text(t, "task.dynamic.uploadedReview", "Review uploaded document"),
@@ -562,6 +568,7 @@ export function confirmDocumentAndCreateTask(
     status: "open",
     requestedById: actor.id,
     documentId,
+    createdAt: now,
     subtasks: [
       text(t, "task.dynamic.subtask.0", "Review extracted candidate"),
       text(t, "task.dynamic.subtask.1", "Confirm action wording"),

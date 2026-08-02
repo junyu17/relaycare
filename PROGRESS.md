@@ -67,8 +67,20 @@
 - [ ] 运行时 UI 交互验证（iOS/Android 模拟器或真机：登录/建家庭/操作任务/多设备同步/推送）。
 - [x] 以 Coordinator / Caregiver / Viewer 三个真实会话执行 API 级 RLS 验收。
 - [x] 将 P0 任务创建、认领、拒绝、交接、完成及其通知/审计收敛为原子 RPC。
-- [ ] 将文档确认、任务创建和其通知/审计收敛为原子 RPC。
-- [ ] 试点前门禁：开启 email confirmation + 隐私政策/ToS + 真机设备矩阵 QA。
+- [x] 将文档确认、任务创建和其通知/审计收敛为原子 RPC（2026-08-02：0029_confirm_document_atomic.sql + 客户端单 RPC 调用，B7）。
+- [x] 试点前门禁决策：接受 autoconfirm + 6 位家庭码（产品决策 2026-08-02，B6/B6b；COMPLIANCE_CHECKLIST §9 同步）。
+
+## 上线阻断整改（2026-08-02 第一批完成，见 backend/qa/ 与迁移 0024-0031）
+
+- [x] B1/B2：0024 撤销客户端直写 households/members + guard triggers；0025 invite_member definer 化（须与 0024 同批上线）。
+- [x] B3：迁移重编号 0014→0026、0019_paywall→0027、删除 0019b；0001-0031 连续。
+- [x] B5：IAP 环境隔离（APPLE_ACCEPTED_ENVIRONMENTS 默认仅 Production）、appAccountToken 绑定、signedDate 新鲜度、统一撤销状态检查（0028 register 兜底）、错误脱敏。
+- [x] B6：加入码维持 6 位数字（产品决策）+ 15 分钟过期 + 每用户限速（IP 级限速列为后续）。
+- [x] B7：0029 文档确认→任务创建原子 RPC。
+- [x] I4：0030 收回 cleanup_old_audit 的 authenticated 执行权（仅 service_role）。
+- [x] 第二批重要级：I1（IAP finish 前置/restore 分类）、I2（update_my_name 显式 householdId，0031）、I5（actor 错误态）、I6（缓存剔除 rawText + 登出清理）、I7（realtime 非静默）、I8（invite 标注）、I14（allowBackup=false，待 prebuild 生效）、I15（join advisory lock）、发布配置（版本 1.0.0、麦克风权限移除、nodePath/teamId env 参数化、CI audit 阻塞门）。
+- [ ] I9：AuthScreen 硬编码英文本地化（专项）。
+- [ ] 落地执行：按 backend/qa/DEPLOY.md（sudo 同步 → 门禁 → 提交 → migration push → Edge deploy → adversarial 全 PASS → TestFlight 真机）。
 - [x] OCR 真实接入：on-device 已实施 + 原生 build 验证通过（expo prebuild + pod install 92 pods + xcodebuild BUILD SUCCEEDED；dariyd 编译链接 OK；node_modules .sh 执行位已 chmod 修复）。真机 OCR 端到端（上传文档→识别）待 cloud 登录交互测试。
 
 ## 待用户决策
@@ -88,7 +100,7 @@
 
 ## 风险与备注
 
-- Supabase 项目 email confirmation 已关闭（开发测试）；上线前需开启 + 配邮件。
+- Supabase 项目 email confirmation 已关闭；**产品决策（2026-08-02）：接受 autoconfirm + 6 位家庭码加入（非强身份认证模型）**，文档已同步（docs/legal/COMPLIANCE_CHECKLIST.md §9）；真实邮箱注册/投递验收不再作为上线前置，列为后续增强。
 - 新项目的普通注册端点对合成测试地址受邮箱校验与发送频率限制；真实邮箱注册及邮件投递仍需在上线前真机验收。
 - 邀请流程：当前 invite 生成 pending member（member_id 作为邀请码）；生产可加邀请链接/deep link。
 - 原生 app 持久化：cloud 模式数据在 Supabase（不丢）；本地 demo 模式不持久化（纯内存，web localStorage 已随 web 能力移除）。

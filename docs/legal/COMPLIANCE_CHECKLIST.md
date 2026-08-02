@@ -50,7 +50,7 @@ This checklist tracks the pre-launch compliance items required by the project ch
 - **Storage:** Encrypted database and object storage (provider-managed).
 - **Isolation:** Row-level security policies enforce household boundaries; a user can never read another household's data.
 - **Access control:** Least-privilege role-based permissions (coordinator / caregiver / viewer) enforced in-app; sensitive operations audited.
-- **Auth:** Email/password via Supabase Auth. **Pre-launch: enable email confirmation** (currently disabled for dev) and configure MFA option.
+- **Auth:** Email/password via Supabase Auth. **Decision (2026-08-02): autoconfirm accepted** for MVP launch — family members join via 6-digit household code / QR (non-strong-identity model); email confirmation re-evaluated for future releases.
 - **Audit:** Immutable audit log for all write actions and sensitive document/report/AI actions.
 - **Secrets:** `EXPO_PUBLIC_SUPABASE_*` via environment; service-role keys never shipped to the client.
 - **Dependency hygiene:** `npm audit` + Semgrep SAST in CI (informational until Expo upgrade clears known transitive vulns).
@@ -86,7 +86,7 @@ Per charter (§6.2), the app supports Dynamic Type / font scaling (`allowFontSca
 ## 9. Pre-Launch Sign-off
 
 - [ ] Legal review of Privacy Policy, ToS, Clinical Disclaimer, AI/OCR Notice.
-- [x] Email confirmation enabled + email configured. (Operator-verified 2026-07-26.)
+- [x] Email confirmation policy: **autoconfirm accepted** (product decision 2026-08-02). Non-email-verified family members join via 6-digit household code / QR; documented as non-strong-identity model. (Operator-verified 2026-07-26 → superseded 2026-08-02.)
 - [ ] Incident response owner assigned; SOP finalized.
 - [ ] Deletion/export SOP finalized (retention period + self-service or manual flow).
 - [ ] Device-matrix QA passed (iOS + Android).

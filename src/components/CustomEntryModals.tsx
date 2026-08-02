@@ -1,5 +1,16 @@
 import { useEffect, useState } from "react";
-import { Modal, View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, ScrollView } from "react-native";
+import {
+  Alert,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View
+} from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import type { Translate } from "../i18n";
 import type { AppState, Member, EventType } from "../types";
@@ -72,61 +83,71 @@ export function CustomTaskModal({
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <View style={s.scrim}>
-        <View style={s.sheet}>
-          <View style={s.header}>
-            <Text style={s.title} allowFontScaling>
-              {t("tasks.customTask")}
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        keyboardVerticalOffset={Platform.OS === "ios" ? 12 : 0}
+        style={s.keyboardView}
+      >
+        <View style={s.scrim}>
+          <View style={s.sheet}>
+            <View style={s.header}>
+              <Text style={s.title} allowFontScaling>
+                {t("tasks.customTask")}
+              </Text>
+              <TouchableOpacity onPress={onClose}>
+                <Ionicons name="close-outline" size={24} color="#0f766e" />
+              </TouchableOpacity>
+            </View>
+            <Text style={s.helper} allowFontScaling>
+              {t("tasks.customTaskHelper")}
             </Text>
-            <TouchableOpacity onPress={onClose}>
-              <Ionicons name="close-outline" size={24} color="#0f766e" />
+            <ScrollView
+              keyboardDismissMode="interactive"
+              keyboardShouldPersistTaps="handled"
+              contentContainerStyle={s.scrollContent}
+            >
+              <Text style={s.label} allowFontScaling>
+                {t("tasks.fieldTitle")}
+              </Text>
+              <TextInput style={s.input} value={title} onChangeText={setTitle} placeholder={t("tasks.fieldTitle")} />
+              <Text style={s.label} allowFontScaling>
+                {t("tasks.fieldDue")}
+              </Text>
+              <TextInput style={s.input} value={due} onChangeText={setDue} placeholder="2026-08-01 18:00" />
+              <Text style={s.label} allowFontScaling>
+                {t("tasks.fieldMinutes")}
+              </Text>
+              <TextInput
+                style={s.input}
+                value={minutes}
+                onChangeText={(v) => setMinutes(v.replace(/\D/g, ""))}
+                keyboardType="number-pad"
+              />
+              <Text style={s.label} allowFontScaling>
+                {t("tasks.fieldPriority")}
+              </Text>
+              <View style={s.segRow}>
+                {(["normal", "critical"] as const).map((p) => (
+                  <TouchableOpacity
+                    key={p}
+                    style={[s.segBtn, priority === p && s.segActive]}
+                    onPress={() => setPriority(p)}
+                  >
+                    <Text style={priority === p ? s.segTextActive : s.segText} allowFontScaling>
+                      {p === "normal" ? t("tasks.normal") : t("tasks.critical")}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </ScrollView>
+            <TouchableOpacity style={s.btn} onPress={submit}>
+              <Text style={s.btnText} allowFontScaling>
+                {t("tasks.create")}
+              </Text>
             </TouchableOpacity>
           </View>
-          <Text style={s.helper} allowFontScaling>
-            {t("tasks.customTaskHelper")}
-          </Text>
-          <ScrollView>
-            <Text style={s.label} allowFontScaling>
-              {t("tasks.fieldTitle")}
-            </Text>
-            <TextInput style={s.input} value={title} onChangeText={setTitle} placeholder={t("tasks.fieldTitle")} />
-            <Text style={s.label} allowFontScaling>
-              {t("tasks.fieldDue")}
-            </Text>
-            <TextInput style={s.input} value={due} onChangeText={setDue} placeholder="2026-08-01 18:00" />
-            <Text style={s.label} allowFontScaling>
-              {t("tasks.fieldMinutes")}
-            </Text>
-            <TextInput
-              style={s.input}
-              value={minutes}
-              onChangeText={(v) => setMinutes(v.replace(/\D/g, ""))}
-              keyboardType="number-pad"
-            />
-            <Text style={s.label} allowFontScaling>
-              {t("tasks.fieldPriority")}
-            </Text>
-            <View style={s.segRow}>
-              {(["normal", "critical"] as const).map((p) => (
-                <TouchableOpacity
-                  key={p}
-                  style={[s.segBtn, priority === p && s.segActive]}
-                  onPress={() => setPriority(p)}
-                >
-                  <Text style={priority === p ? s.segTextActive : s.segText} allowFontScaling>
-                    {p === "normal" ? t("tasks.normal") : t("tasks.critical")}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          </ScrollView>
-          <TouchableOpacity style={s.btn} onPress={submit}>
-            <Text style={s.btnText} allowFontScaling>
-              {t("tasks.create")}
-            </Text>
-          </TouchableOpacity>
         </View>
-      </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
@@ -227,125 +248,137 @@ export function OtherTimelineModal({
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <View style={s.scrim}>
-        <View style={s.sheet}>
-          <View style={s.header}>
-            <Text style={s.title} allowFontScaling>
-              {t("timeline.otherUpdate")}
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        keyboardVerticalOffset={Platform.OS === "ios" ? 12 : 0}
+        style={s.keyboardView}
+      >
+        <View style={s.scrim}>
+          <View style={s.sheet}>
+            <View style={s.header}>
+              <Text style={s.title} allowFontScaling>
+                {t("timeline.otherUpdate")}
+              </Text>
+              <TouchableOpacity onPress={onClose}>
+                <Ionicons name="close-outline" size={24} color="#0f766e" />
+              </TouchableOpacity>
+            </View>
+            <Text style={s.helper} allowFontScaling>
+              {t("timeline.otherUpdateHelper")}
             </Text>
-            <TouchableOpacity onPress={onClose}>
-              <Ionicons name="close-outline" size={24} color="#0f766e" />
+            <ScrollView
+              keyboardDismissMode="interactive"
+              keyboardShouldPersistTaps="handled"
+              contentContainerStyle={s.scrollContent}
+            >
+              <Text style={s.label} allowFontScaling>
+                {t("timeline.fieldType")}
+              </Text>
+              <View style={s.segRow}>
+                {EVENT_TYPES.map((et) => (
+                  <TouchableOpacity key={et} style={[s.segBtn, type === et && s.segActive]} onPress={() => setType(et)}>
+                    <Text style={type === et ? s.segTextActive : s.segText} allowFontScaling>
+                      {et}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+              <Text style={s.label} allowFontScaling>
+                {t("timeline.fieldTime")}
+              </Text>
+              <TextInput style={s.input} value={time} onChangeText={setTime} placeholder="2026-08-01 14:30" />
+              <Text style={s.label} allowFontScaling>
+                {t("timeline.fieldTitle")}
+              </Text>
+              <TextInput style={s.input} value={title} onChangeText={setTitle} placeholder={t("timeline.fieldTitle")} />
+              <Text style={s.label} allowFontScaling>
+                {t("timeline.relatedMember")}
+              </Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.memberScroll}>
+                {state.members.map((m) => (
+                  <TouchableOpacity
+                    key={m.id}
+                    style={[s.segBtn, memberId === m.id && s.segActive]}
+                    onPress={() => setMemberId(m.id)}
+                  >
+                    <Text style={memberId === m.id ? s.segTextActive : s.segText} allowFontScaling>
+                      {m.name}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+              {canCreateTask && (
+                <TouchableOpacity style={s.toggleRow} onPress={() => setCreateTask((v) => !v)}>
+                  <Ionicons name={createTask ? "checkbox-outline" : "square-outline"} size={20} color="#0f766e" />
+                  <Text style={s.toggleText} allowFontScaling>
+                    {t("timeline.createRelatedTask")}
+                  </Text>
+                </TouchableOpacity>
+              )}
+              {createTask && canCreateTask && (
+                <View style={s.taskSection}>
+                  <Text style={s.label} allowFontScaling>
+                    {t("tasks.fieldTitle")}
+                  </Text>
+                  <TextInput
+                    style={s.input}
+                    value={taskTitle}
+                    onChangeText={setTaskTitle}
+                    placeholder={title || t("tasks.fieldTitle")}
+                  />
+                  <Text style={s.label} allowFontScaling>
+                    {t("tasks.fieldDue")}
+                  </Text>
+                  <TextInput style={s.input} value={taskDue} onChangeText={setTaskDue} placeholder="2026-08-02 14:30" />
+                  <Text style={s.label} allowFontScaling>
+                    {t("tasks.fieldMinutes")}
+                  </Text>
+                  <TextInput
+                    style={s.input}
+                    value={taskMinutes}
+                    onChangeText={(v) => setTaskMinutes(v.replace(/\D/g, ""))}
+                    keyboardType="number-pad"
+                  />
+                  <Text style={s.label} allowFontScaling>
+                    {t("tasks.fieldPriority")}
+                  </Text>
+                  <View style={s.segRow}>
+                    {(["normal", "critical"] as const).map((p) => (
+                      <TouchableOpacity
+                        key={p}
+                        style={[s.segBtn, taskPriority === p && s.segActive]}
+                        onPress={() => setTaskPriority(p)}
+                      >
+                        <Text style={taskPriority === p ? s.segTextActive : s.segText} allowFontScaling>
+                          {p === "normal" ? t("tasks.normal") : t("tasks.critical")}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                </View>
+              )}
+            </ScrollView>
+            <TouchableOpacity style={s.btn} onPress={submit}>
+              <Text style={s.btnText} allowFontScaling>
+                {t("timeline.create")}
+              </Text>
             </TouchableOpacity>
           </View>
-          <Text style={s.helper} allowFontScaling>
-            {t("timeline.otherUpdateHelper")}
-          </Text>
-          <ScrollView>
-            <Text style={s.label} allowFontScaling>
-              {t("timeline.fieldType")}
-            </Text>
-            <View style={s.segRow}>
-              {EVENT_TYPES.map((et) => (
-                <TouchableOpacity key={et} style={[s.segBtn, type === et && s.segActive]} onPress={() => setType(et)}>
-                  <Text style={type === et ? s.segTextActive : s.segText} allowFontScaling>
-                    {et}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-            <Text style={s.label} allowFontScaling>
-              {t("timeline.fieldTime")}
-            </Text>
-            <TextInput style={s.input} value={time} onChangeText={setTime} placeholder="2026-08-01 14:30" />
-            <Text style={s.label} allowFontScaling>
-              {t("timeline.fieldTitle")}
-            </Text>
-            <TextInput style={s.input} value={title} onChangeText={setTitle} placeholder={t("timeline.fieldTitle")} />
-            <Text style={s.label} allowFontScaling>
-              {t("timeline.relatedMember")}
-            </Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.memberScroll}>
-              {state.members.map((m) => (
-                <TouchableOpacity
-                  key={m.id}
-                  style={[s.segBtn, memberId === m.id && s.segActive]}
-                  onPress={() => setMemberId(m.id)}
-                >
-                  <Text style={memberId === m.id ? s.segTextActive : s.segText} allowFontScaling>
-                    {m.name}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-            {canCreateTask && (
-              <TouchableOpacity style={s.toggleRow} onPress={() => setCreateTask((v) => !v)}>
-                <Ionicons name={createTask ? "checkbox-outline" : "square-outline"} size={20} color="#0f766e" />
-                <Text style={s.toggleText} allowFontScaling>
-                  {t("timeline.createRelatedTask")}
-                </Text>
-              </TouchableOpacity>
-            )}
-            {createTask && canCreateTask && (
-              <View style={s.taskSection}>
-                <Text style={s.label} allowFontScaling>
-                  {t("tasks.fieldTitle")}
-                </Text>
-                <TextInput
-                  style={s.input}
-                  value={taskTitle}
-                  onChangeText={setTaskTitle}
-                  placeholder={title || t("tasks.fieldTitle")}
-                />
-                <Text style={s.label} allowFontScaling>
-                  {t("tasks.fieldDue")}
-                </Text>
-                <TextInput style={s.input} value={taskDue} onChangeText={setTaskDue} placeholder="2026-08-02 14:30" />
-                <Text style={s.label} allowFontScaling>
-                  {t("tasks.fieldMinutes")}
-                </Text>
-                <TextInput
-                  style={s.input}
-                  value={taskMinutes}
-                  onChangeText={(v) => setTaskMinutes(v.replace(/\D/g, ""))}
-                  keyboardType="number-pad"
-                />
-                <Text style={s.label} allowFontScaling>
-                  {t("tasks.fieldPriority")}
-                </Text>
-                <View style={s.segRow}>
-                  {(["normal", "critical"] as const).map((p) => (
-                    <TouchableOpacity
-                      key={p}
-                      style={[s.segBtn, taskPriority === p && s.segActive]}
-                      onPress={() => setTaskPriority(p)}
-                    >
-                      <Text style={taskPriority === p ? s.segTextActive : s.segText} allowFontScaling>
-                        {p === "normal" ? t("tasks.normal") : t("tasks.critical")}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              </View>
-            )}
-          </ScrollView>
-          <TouchableOpacity style={s.btn} onPress={submit}>
-            <Text style={s.btnText} allowFontScaling>
-              {t("timeline.create")}
-            </Text>
-          </TouchableOpacity>
         </View>
-      </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
 
 // ============ 共享样式 ============
 const s = StyleSheet.create({
+  keyboardView: { flex: 1 },
   scrim: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" },
-  sheet: { backgroundColor: "#fff", borderTopLeftRadius: 18, borderTopRightRadius: 18, padding: 20, maxHeight: "90%" },
+  sheet: { backgroundColor: "#fff", borderTopLeftRadius: 18, borderTopRightRadius: 18, padding: 20, maxHeight: "88%" },
   header: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 4 },
   title: { fontSize: 20, fontWeight: "800", color: "#0f766e" },
   helper: { fontSize: 13, color: "#64748b", marginBottom: 14 },
+  scrollContent: { paddingBottom: 8 },
   label: { fontSize: 13, fontWeight: "600", color: "#334155", marginTop: 10, marginBottom: 4 },
   input: {
     borderWidth: 1,

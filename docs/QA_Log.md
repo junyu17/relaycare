@@ -824,4 +824,4 @@ Actual artifact verification:
 - 0032_harden_low_hanging.sql：guard_member_key_columns 补 BEFORE INSERT（拒绝 anon/authenticated 直插 members）；confirm_document_and_create_task 补标题非空/≤200 校验
 - delete-account：DB 错误/异常回传脱敏（通用消息，细节仅服务端日志）
 - apple-server-notifications：环境过滤统一（生产默认仅 Production 通知与交易，ALLOW_SANDBOX_PURCHASES 追加 Sandbox）
-- 验证（2026-08-02 部署后）：migration list 0032 本地=远端；3 个 Edge Functions 重新部署成功；adversarial 回归 PASS=18 FAIL=0；commit 8404233（push 待网络恢复重试）
+- 验证（2026-08-02 部署后）：migration list 0032 本地=远端；3 个 Edge Functions 重新部署成功；adversarial 回归 PASS=18 FAIL=0；本地门禁 typecheck 0 错 / eslint 0/0 / vitest 30/30；commit 8404233 + fba77e9（push 待网络恢复重试）

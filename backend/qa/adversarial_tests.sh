@@ -159,16 +159,19 @@ fi
 if [ -n "$SERVICE_ROLE" ] && [ -n "$G_UID" ]; then
   say "非 coordinator 越权调用必须失败（service_role 辅助）"
   SR_H="apikey: $SERVICE_ROLE"
-  # 用 service_role 把 caregiver 入家（绕过生成码），再断言其越权调用失败
-  curl -s --max-time 20 -o /dev/null -X POST "$REST/members" -H "$SR_H" -H "Authorization: Bearer $SERVICE_ROLE" -H "$JSON_H" \
-    -d "{\"household_id\":\"$HID\",\"user_id\":\"$G_UID\",\"name\":\"QA Caregiver\",\"role\":\"caregiver\",\"invite_status\":\"active\",\"timezone\":\"UTC\"}" 2>/dev/null || true
+  # caregiver 已通过 join_by_code 入家（第 5 节），此处不重复插入；
+  # 查询其 members.id——update_member_role 等 RPC 需要 members.id，而非 auth.users.id（G_UID）。
+  G_MID=$(curl -s --max-time 20 "$REST/members?user_id=eq.$G_UID&household_id=eq.$HID&select=id" \
+    -H "$API_H" -H "Authorization: Bearer $C_TOK" 2>/dev/null | \
+    python3 -c 'import sys,json;d=json.load(sys.stdin);print(d[0]["id"] if d else "")' 2>/dev/null)
+  if [ "${#G_MID}" -eq 36 ]; then ok "查询 caregiver members.id=$G_MID"; else bad "查询 caregiver member id 失败：$G_MID"; fi
   expect_fail "caregiver 调 update_member_role（改自己为 coordinator）" \
-    "$(rpc update_member_role "$G_TOK" "{\"p_member_id\":\"$G_UID\",\"p_role\":\"coordinator\"}")"
+    "$(rpc update_member_role "$G_TOK" "{\"p_member_id\":\"$G_MID\",\"p_role\":\"coordinator\"}")"
   expect_fail "caregiver 调 dissolve_household" "$(rpc dissolve_household "$G_TOK" '{}')"
   expect_fail "caregiver 调 invite_member（非目标家庭 coordinator）" \
     "$(rpc invite_member "$G_TOK" "{\"p_household_id\":\"$HID\",\"p_role\":\"caregiver\"}")"
-  # removed member 不能读旧 household
-  curl -s --max-time 20 -o /dev/null -X PATCH "$REST/members?user_id=eq.$G_UID&household_id=eq.$HID" -H "$SR_H" -H "Authorization: Bearer $SERVICE_ROLE" -H "$JSON_H" -d '{"invite_status":"removed"}' 2>/dev/null || true
+  # removed member 不能读旧 household（按 members.id 软删，service_role 直写）
+  curl -s --max-time 20 -o /dev/null -X PATCH "$REST/members?id=eq.$G_MID" -H "$SR_H" -H "Authorization: Bearer $SERVICE_ROLE" -H "$JSON_H" -d '{"invite_status":"removed"}' 2>/dev/null || true
   REM_RESP=$(curl -s --max-time 20 -w '|%{http_code}' "$REST/households?id=eq.$HID" -H "$API_H" -H "Authorization: Bearer $G_TOK")
   REM_CODE="${REM_RESP##*|}"
   REM_BODY="${REM_RESP%|*}"

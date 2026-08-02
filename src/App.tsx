@@ -123,6 +123,30 @@ Notifications.setNotificationHandler({
   })
 });
 
+// Android 8+ 需要通知 channel（Android 13+ 无 channel 则本地通知不显示）。
+// 在 app 启动时幂等创建；channel 一经创建不可改名，后续仅更新描述。
+async function ensureAndroidNotificationChannels(): Promise<void> {
+  if (Platform.OS !== "android") return;
+  try {
+    await Notifications.setNotificationChannelAsync("default", {
+      name: "TaskKin Care",
+      importance: Notifications.AndroidImportance.HIGH,
+      vibrationPattern: [0, 250, 250, 250],
+      lightColor: "#0f766e"
+    });
+    await Notifications.setNotificationChannelAsync("critical", {
+      name: "Critical tasks",
+      importance: Notifications.AndroidImportance.MAX,
+      vibrationPattern: [0, 250, 250, 250],
+      bypassDnd: true,
+      lightColor: "#b91c1c"
+    });
+  } catch (e) {
+    console.warn("ensureAndroidNotificationChannels failed", e);
+  }
+}
+void ensureAndroidNotificationChannels();
+
 const roleOptions: Role[] = ["coordinator", "caregiver", "viewer"];
 type TaskTemplateKey = "ride" | "paperwork" | "supplies";
 type TimelineTemplateKey = "checkin" | "pickup" | "paperwork";

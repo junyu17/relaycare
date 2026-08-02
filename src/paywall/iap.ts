@@ -32,8 +32,14 @@ export function skuForPlan(plan: "monthly" | "yearly"): string {
   return plan === "yearly" ? IOS_SUB_SKUS.yearly : IOS_SUB_SKUS.monthly;
 }
 
+export function isIapAvailable(): boolean {
+  // iOS（StoreKit 2）与 Android（Google Play Billing）均支持；Play 产品与订阅需在
+  // Google Play Console 以相同 SKU 创建（TaskKin.care.pro.yearly / TaskKin.care.pro.mon）。
+  return Platform.OS === "ios" || Platform.OS === "android";
+}
+// 兼容旧名（调用方迁移到 isIapAvailable）
 export function isIosIapAvailable(): boolean {
-  return Platform.OS === "ios";
+  return isIapAvailable();
 }
 
 // ============ 连接 + 监听（listener 作为 requestPurchase 返回值的兜底）============
@@ -43,7 +49,7 @@ let pendingResolver: ((p: Purchase) => void) | null = null;
 let pendingRejecter: ((e: Error) => void) | null = null;
 
 export async function initIap(): Promise<void> {
-  if (!isIosIapAvailable()) return;
+  if (!isIapAvailable()) return;
   if (!listenerInstalled) {
     listenerInstalled = true;
     purchaseUpdatedListener((purchase) => {
@@ -76,7 +82,7 @@ export async function initIap(): Promise<void> {
 // ============ 拉取订阅产品（含本地化价格）============
 export async function fetchIosSubscriptions(): Promise<ProductSubscription[]> {
   await initIap();
-  if (!isIosIapAvailable()) return [];
+  if (!isIapAvailable()) return [];
   const result = await fetchProducts({ skus: Object.values(IOS_SUB_SKUS), type: "subs" });
   return (result ?? []) as ProductSubscription[];
 }
@@ -84,17 +90,21 @@ export async function fetchIosSubscriptions(): Promise<ProductSubscription[]> {
 // ============ 发起购买 ============
 export async function purchaseIosSubscription(plan: "monthly" | "yearly"): Promise<Purchase> {
   await initIap();
-  if (!isIosIapAvailable()) throw new Error("In-app purchase is only available on iOS.");
+  if (!isIapAvailable()) throw new Error("In-app purchase is not available on this platform.");
   const listenerPromise = new Promise<Purchase>((resolve, reject) => {
     pendingResolver = resolve;
     pendingRejecter = reject;
   });
   try {
-    // B5: appAccountToken = 当前用户 id（UUID），服务端 verify-apple-receipt 据此校验交易绑定，防订阅劫持。
+    // B5/Android: 绑定当前用户——iOS appAccountToken、Android obfuscatedAccountId，
+    // 服务端据此校验交易归属（防订阅劫持）。
     const { data: sessionData } = await supabase.auth.getSession();
-    const appAccountToken = sessionData.session?.user.id ?? null;
+    const userId = sessionData.session?.user.id ?? null;
     const result = await requestPurchase({
-      request: { apple: { sku: skuForPlan(plan), appAccountToken } },
+      request: {
+        apple: { sku: skuForPlan(plan), appAccountToken: userId },
+        google: { skus: [skuForPlan(plan)], obfuscatedAccountId: userId }
+      },
       type: "subs"
     });
     const purchase = Array.isArray(result) ? result[0] : result;
@@ -115,7 +125,8 @@ export async function purchaseIosSubscription(plan: "monthly" | "yearly"): Promi
   return listenerPromise;
 }
 
-// ============ 收据校验：发到 Supabase Edge Function 验证 StoreKit 2 JWS ============
+// ============ 收据校验：发到 Supabase Edge Function 验证 ============
+// iOS：verify-apple-receipt（StoreKit 2 JWS）；Android：verify-google-purchase（Play purchaseToken）。
 export async function verifyApplePurchase(args: {
   purchase: Purchase;
   householdId: string;
@@ -128,14 +139,18 @@ export async function verifyApplePurchase(args: {
   if (sessionError || !accessToken) {
     throw new Error("Not signed in. Please sign in again, then restore or retry the purchase.");
   }
-  const transactionJws = await getTransactionJwsIOS(args.purchase.productId).catch(() => null);
-  const purchaseToken = transactionJws || args.purchase.purchaseToken || null;
-  const { data, error } = await supabase.functions.invoke("verify-apple-receipt", {
+  const isAndroid = Platform.OS === "android";
+  const transactionJws = isAndroid ? null : await getTransactionJwsIOS(args.purchase.productId).catch(() => null);
+  const purchaseToken = isAndroid
+    ? (args.purchase.purchaseToken ?? null) // Android: Play purchaseToken
+    : (transactionJws || args.purchase.purchaseToken || null); // iOS: JWS（签名交易）
+  const functionName = isAndroid ? "verify-google-purchase" : "verify-apple-receipt";
+  const { data, error } = await supabase.functions.invoke(functionName, {
     headers: { Authorization: `Bearer ${accessToken}` },
     body: {
       productId: args.purchase.productId,
       transactionId: args.purchase.transactionId,
-      purchaseToken, // iOS JWS（签名交易）
+      purchaseToken, // iOS JWS / Android Play purchaseToken
       householdId: args.householdId,
       mode: args.mode ?? "purchase"
     }

@@ -79,8 +79,9 @@
 - [x] B7：0029 文档确认→任务创建原子 RPC。
 - [x] I4：0030 收回 cleanup_old_audit 的 authenticated 执行权（仅 service_role）。
 - [x] 第二批重要级：I1（IAP finish 前置/restore 分类）、I2（update_my_name 显式 householdId，0031）、I5（actor 错误态）、I6（缓存剔除 rawText + 登出清理）、I7（realtime 非静默）、I8（invite 标注）、I14（allowBackup=false，待 prebuild 生效）、I15（join advisory lock）、发布配置（版本 1.0.0、麦克风权限移除、nodePath/teamId env 参数化、CI audit 阻塞门）。
-- [ ] I9：AuthScreen 硬编码英文本地化（专项）。
-- [ ] 落地执行：按 backend/qa/DEPLOY.md（sudo 同步 → 门禁 → 提交 → migration push → Edge deploy → adversarial 全 PASS → TestFlight 真机）。
+- [x] I9：AuthScreen/OnboardingScreen 三语本地化（2026-08-02 完成，37 个 auth.* keys）。
+- [x] 落地执行（2026-08-02）：全部变更已同步原项目并提交，commit SHA：634e932(security/db) / 9314c80(iap) / a68ec12(ui) / 86425b4(chore+release)。
+- [ ] 上线部署剩余步骤：按 backend/qa/DEPLOY.md（migration repair/push → Edge deploy + env → adversarial 全 PASS → TestFlight 真机验收）。
 - [x] OCR 真实接入：on-device 已实施 + 原生 build 验证通过（expo prebuild + pod install 92 pods + xcodebuild BUILD SUCCEEDED；dariyd 编译链接 OK；node_modules .sh 执行位已 chmod 修复）。真机 OCR 端到端（上传文档→识别）待 cloud 登录交互测试。
 
 ## 待用户决策

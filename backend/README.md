@@ -25,8 +25,18 @@ backend/supabase/migrations/
   0017_delete_task_timeline.sql # 删除误建的 task / timeline 事件（带归属校验+审计）
   0018_update_my_name.sql      # 成员自助修改显示名
   0019_soft_delete_members.sql # 软删除成员（解决 tasks/audit 外键约束）
-  0019b_fix_update_my_name.sql # 修复 update_my_name RPC（不依赖 current_household_id）
-  0019_paywall_rpc_permissions.sql # 付费 RPC 仅允许 service_role 执行
+  0020_fix_remove_member_context.sql # remove_member/join_by_code 多家庭上下文修复
+  0021_care_events_created_at.sql     # care_events.created_at 统一
+  0022_harden_member_role_updates.sql # 成员角色更新加固（update_member_role/update_my_name）
+  0023_invalidate_join_codes_on_remove.sql # 移除成员后失效家庭加入码
+  0024_harden_households_update.sql  # 撤销客户端直写 households/members（防免费升级/身份接管）
+  0025_fix_invite_member_definer.sql # invite_member 改 security definer + 归属校验（0024 配套，须同批上线）
+  0026_auth_email_autoconfirm.sql    # 邮箱自动确认兜底（原 0014_auth_email_autoconfirm，重编号）
+  0027_paywall_rpc_permissions.sql   # 付费 RPC 仅允许 service_role 执行（原 0019_paywall_rpc_permissions，重编号）
+  0028_fix_register_revoked.sql     # register_apple_subscription 禁止重新激活 revoked/expired 订阅（B5）
+  0029_confirm_document_atomic.sql  # 文档确认→任务创建原子化 RPC（B7）
+  0030_revoke_audit_cleanup.sql     # cleanup_old_audit 仅 service_role（I4）
+  # 注：加入码维持 6 位数字（产品决策 2026-08-02，8 位加强方案已回退）
 ```
 
 ## 数据模型 → Postgres 映射
@@ -69,7 +79,7 @@ npx supabase login
 npx supabase link --project-ref <your-project-ref>
 npx supabase db push            # 执行 migrations
 
-# 方式二：Supabase Dashboard → SQL Editor → 按编号依次执行 0001 到 0019
+# 方式二：Supabase Dashboard → SQL Editor → 按编号依次执行 0001 到 0030
 ```
 
 > 新 Supabase 项目已完成 `0001` 到 `0006` 的迁移与角色 API 验收。上线前需补执行 `0007_invite_tokens.sql`（邀请 token 安全）。不要只执行旧版 `all_in_one.sql`，它没有包含 storage、RBAC、原子任务 RPC 或邀请 token。

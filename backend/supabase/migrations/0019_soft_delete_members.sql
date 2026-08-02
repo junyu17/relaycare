@@ -51,6 +51,7 @@ begin
 end;
 $$;
 revoke all on function public.remove_member(uuid) from public;
+revoke all on function public.remove_member(uuid) from anon;
 grant execute on function public.remove_member(uuid) to authenticated;
 
 -- 3. 重写 leave_household：同样软删除
@@ -87,4 +88,5 @@ begin
 end;
 $$;
 revoke all on function public.leave_household(uuid) from public;
+revoke all on function public.leave_household(uuid) from anon;
 grant execute on function public.leave_household(uuid) to authenticated;

@@ -23,4 +23,6 @@ begin
 end;
 $$;
 revoke all on function public.update_my_name(text) from public;
+revoke all on function public.update_my_name(text) from anon;
+revoke all on function public.update_my_name(text) from service_role;
 grant execute on function public.update_my_name(text) to authenticated;

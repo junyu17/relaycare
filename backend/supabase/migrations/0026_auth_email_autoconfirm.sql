@@ -1,4 +1,4 @@
--- 0014_auth_email_autoconfirm.sql
+-- 0026_auth_email_autoconfirm.sql（原 0014_auth_email_autoconfirm，2026-08-02 重编号修复 B3 冲突）
 -- Production unblock: Brevo/Supabase confirmation emails are not reliably
 -- delivered yet. Until sender/domain deliverability is fixed, do not block
 -- password sign-in on email confirmation.

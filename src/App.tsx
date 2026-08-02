@@ -241,7 +241,11 @@ function LocalApp(props: { cloud?: CloudProps } = {}) {
     }
     void getHouseholdCode()
       .then(setJoinCode)
-      .catch(() => {});
+      .catch((e) => {
+        // P0-1: 读码失败不再静默（FINAL_LAUNCH_AUDIT 2026-08-02）；保留空码状态并记录。
+        console.warn("get_household_code failed", e);
+        setJoinCode(null);
+      });
   }, [cloud, actor.role, state.members.length]);
 
   const roleEditorMember = useMemo(
@@ -1319,7 +1323,9 @@ function LocalApp(props: { cloud?: CloudProps } = {}) {
               ) : (
                 handoffCandidates.map((candidate) => {
                   const candidateAvailability = memberAvailability(candidate, t);
-                  const candidateMeta = [roleLabel(candidate.role, t), candidateAvailability].filter(Boolean).join(" · ");
+                  const candidateMeta = [roleLabel(candidate.role, t), candidateAvailability]
+                    .filter(Boolean)
+                    .join(" · ");
 
                   return (
                     <TouchableOpacity

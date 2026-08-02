@@ -20,11 +20,12 @@ jobs:
       - run: npm run typecheck
       - run: npm run lint
       - run: npm run test
+      - run: npm run format:check
 
   # Security: production dependency audit blocks on high+ (2026-08-02, B4 整改——
   # known transitive vulns resolved via brace-expansion override, audit shows 0 high).
-  # SAST (semgrep) stays informational: upstream auto config may flag false positives;
-  # re-evaluate to blocking after first clean run.
+  # SAST (semgrep) blocks (2026-08-02, FINAL_LAUNCH_AUDIT P2)：不再静默忽略；
+  # 若上游 auto config 产生误报，显式排除具体规则，禁止 continue-on-error。
   security:
     name: Dependency audit · SAST
     runs-on: ubuntu-latest
@@ -41,4 +42,3 @@ jobs:
         uses: returntocorp/semgrep-action@v1
         with:
           config: auto
-        continue-on-error: true

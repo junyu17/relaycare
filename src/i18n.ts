@@ -516,7 +516,7 @@ const translations: Record<Language, Record<string, string>> = {
     "auth.joinHint3": "Enter the 6-digit code your coordinator shared.",
     "auth.signOut": "Sign out",
 
-    "auth.joinHint": "Joining creates a device-linked identity; no email needed.",
+    "auth.joinHint": "Joining creates a device-linked identity; no email needed."
   },
   zh: {
     "app.subtitle": "不处理 PHI 的家庭照护协同",
@@ -999,7 +999,7 @@ const translations: Record<Language, Record<string, string>> = {
     "auth.joinHint3": "输入协调人分享的 6 位码。",
     "auth.signOut": "退出登录",
 
-    "auth.joinHint": "加入会创建一个与设备绑定的身份，无需邮箱。",
+    "auth.joinHint": "加入会创建一个与设备绑定的身份，无需邮箱。"
   },
   es: {
     "app.subtitle": "Coordinación familiar sin PHI",
@@ -1501,7 +1501,7 @@ const translations: Record<Language, Record<string, string>> = {
     "auth.joinHint3": "Introduce el código de 6 dígitos que compartió el coordinador.",
     "auth.signOut": "Cerrar sesión",
 
-    "auth.joinHint": "Unirse crea una identidad vinculada al dispositivo; no se necesita correo.",
+    "auth.joinHint": "Unirse crea una identidad vinculada al dispositivo; no se necesita correo."
   }
 };
 

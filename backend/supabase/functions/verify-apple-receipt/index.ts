@@ -11,7 +11,13 @@
 // signedDate 超过 24h 的旧交易拒绝（防退款/状态变更后重放）。
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { acceptedEnvironmentsFromEnv, assertAppleBundleAndEnvironment, describeAppleJws, shorten, verifyAppleJws } from "../_shared/apple-jws.ts";
+import {
+  acceptedEnvironmentsFromEnv,
+  assertAppleBundleAndEnvironment,
+  describeAppleJws,
+  shorten,
+  verifyAppleJws
+} from "../_shared/apple-jws.ts";
 
 const BUNDLE_ID = Deno.env.get("APPLE_BUNDLE_ID") ?? "cd.cc.relaycare";
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
@@ -161,9 +167,14 @@ Deno.serve(async (req) => {
     }
     // B5: 交易必须绑定当前用户（appAccountToken = auth.uid()），防订阅劫持。
     if (!tx.appAccountToken || String(tx.appAccountToken) !== userData.user.id) {
-      return fail("ACCOUNT_TOKEN_MISMATCH", "This purchase is not bound to your account. Please restore purchases.", 403, {
-        jwsHasAccountToken: Boolean(tx.appAccountToken)
-      });
+      return fail(
+        "ACCOUNT_TOKEN_MISMATCH",
+        "This purchase is not bound to your account. Please restore purchases.",
+        403,
+        {
+          jwsHasAccountToken: Boolean(tx.appAccountToken)
+        }
+      );
     }
     // B5: signedDate 新鲜度，防退款/状态变更前的旧 JWS 重放。恢复购买按订阅周期放宽阈值。
     const signedMs = Number(tx.signedDate);

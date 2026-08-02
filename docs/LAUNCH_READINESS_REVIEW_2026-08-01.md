@@ -11,65 +11,65 @@
 
 ⚠️ **当前不能直接上线** —— 存在 7 项阻断（其中 2 项安全阻断已设计修复并经双重复审通过，待落地）；修复后**有条件上线**。
 
-| 结论维度 | 结果 |
-|---|---|
-| 代码质量门（tsc/eslint/vitest/expo-doctor） | ✅ 全绿 |
-| 依赖安全（npm audit） | ✅ 无 high，10 moderate 均为 Expo SDK 构建期传递依赖（已书面接受） |
-| 后端安全（RLS/RPC/JWS/IAP） | ⚠️ 2 项安全阻断已修复（0024 迁移，复审 pass）；另有支付面阻断待处理 |
-| 迁移可部署性 | ⚠️ 版本号冲突阻断 `supabase db push`，必须修复 |
-| 发布流程 | ⚠️ 未提交工作未入库、生产部署状态未确认、两个 QA 残余门禁未关 |
-| 模拟器原生构建 | ⛔ 被本机系统故障阻塞（非代码问题，见 §五） |
+| 结论维度                                    | 结果                                                                |
+| ------------------------------------------- | ------------------------------------------------------------------- |
+| 代码质量门（tsc/eslint/vitest/expo-doctor） | ✅ 全绿                                                             |
+| 依赖安全（npm audit）                       | ✅ 无 high，10 moderate 均为 Expo SDK 构建期传递依赖（已书面接受）  |
+| 后端安全（RLS/RPC/JWS/IAP）                 | ⚠️ 2 项安全阻断已修复（0024 迁移，复审 pass）；另有支付面阻断待处理 |
+| 迁移可部署性                                | ⚠️ 版本号冲突阻断 `supabase db push`，必须修复                      |
+| 发布流程                                    | ⚠️ 未提交工作未入库、生产部署状态未确认、两个 QA 残余门禁未关       |
+| 模拟器原生构建                              | ⛔ 被本机系统故障阻塞（非代码问题，见 §五）                         |
 
 ---
 
 ## 一、验证矩阵
 
-| 检查 | 结果 |
-|---|---|
-| `npm run typecheck`（tsc --noEmit） | ✅ 0 错误 |
-| `npm run lint`（eslint） | ✅ 0 error / 0 warning |
-| `npm run test`（vitest） | ✅ 30/30（domain 17 + entitlement 10 + ocr 3） |
-| `npx expo-doctor` | ✅ 20/20 checks passed |
+| 检查                                                       | 结果                                                                                                                 |
+| ---------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| `npm run typecheck`（tsc --noEmit）                        | ✅ 0 错误                                                                                                            |
+| `npm run lint`（eslint）                                   | ✅ 0 error / 0 warning                                                                                               |
+| `npm run test`（vitest）                                   | ✅ 30/30（domain 17 + entitlement 10 + ocr 3）                                                                       |
+| `npx expo-doctor`                                          | ✅ 20/20 checks passed                                                                                               |
 | `npm audit --omit=dev --audit-level=high`（官方 registry） | ✅ 无 high；10 moderate（Expo SDK 构建期传递依赖；brace-expansion 已通过 package.json overrides 修复 CVE-2024-4068） |
-| iOS 模拟器 Release 构建 | ⛔ 被本机 macOS 26 系统故障阻塞（§五） |
+| iOS 模拟器 Release 构建                                    | ⛔ 被本机 macOS 26 系统故障阻塞（§五）                                                                               |
 
 ---
 
 ## 二、阻断项（上线前必须处理）
 
-| # | 类别 | 位置 | 问题 | 状态 |
-|---|---|---|---|---|
-| B1 | 🔴 安全 | `0005_role_rbac.sql:66-68` + `0008_paywall.sql:9-11`、`0002_rls_and_rpc.sql:32` | RLS `households` 的 insert/update policy 无列限制 → coordinator 可经 REST 直接 PATCH/INSERT `plus_plan/plus_until/plus_owner_id` 免费升级 Family Plus（绕过 `set_household_plus` 的 service_role 边界），并可绕过 `create_household` 的家庭数配额 | ✅ **已修复并落地**（0024 迁移，2026-08-01 已由用户 sudo 落地原项目，与验证版逐字节一致；两轮 security_review 复审 pass） |
-| B2 | 🔴 安全 | `0005_role_rbac.sql:70`、`0022_harden_member_role_updates.sql:12` | `members` insert/update policy 无列限制 → coordinator 可经 REST 绑定任意 `user_id`（身份接管）、直改 `role/invite_status`（绕过 `update_member_role` 审计）、`user_id` 置 null 静默踢人 | ✅ **已修复并落地**（0024 迁移已落地；配套 0025 迁移修复 invite_member 兼容性，待落地，见附录 A2） |
-| B3 | 🔴 迁移 | `backend/supabase/migrations/` | 版本号冲突：两个 `0014`（auth_email_autoconfirm / join_codes）、两个 `0019`（paywall_rpc_permissions / soft_delete_members），`0019b` 非标准编号 → Supabase CLI `db push` 因 `schema_migrations` 主键冲突**直接报错中断**；`0019b`（字母后缀）从未被应用 | ⚠️ 待处理（删除或重命名重号文件；重命名后需在干净 shadow 库完整 `supabase db reset` 验证） |
-| B4 | 🔴 部署 | git status | 13 个未提交改动 + 6 个未跟踪迁移（0019_paywall/0020/0021/0022/0023/0024，含安全加固与客户端已调用的 RPC：`join_by_code`/`remove_member`/`update_member_role`/`update_my_name`；另 0025 待落地）未提交、未确认部署到生产 Supabase；Edge Function（verify-apple-receipt / apple-server-notifications / delete-account）最新性未确认 | ⚠️ 待处理 |
-| B5 | 🔴 支付 | `verify-apple-receipt/index.ts:133`、`backend/supabase/functions/_shared/apple-jws.ts:63` | ① 生产端点接受 `environment="Sandbox"` 的 JWS → 免费沙盒订阅可换真实 Plus；② 交易未绑定调用者（未设 `appAccountToken`）→ 他人 JWS 可在自己家庭首次注册兑换（订阅劫持）；③ 无 signedDate 新鲜度校验 → 退款/取消后的旧 JWS 可重放重新授权 | ⚠️ 待处理 |
-| B6 | 🔴 门禁 | `PROGRESS.md:91` vs `docs/legal/COMPLIANCE_CHECKLIST.md:89`、`0014_auth_email_autoconfirm.sql`、`0014_join_codes.sql` | 邮箱确认策略矛盾：文档勾选"已启用"，实际为 autoconfirm 触发器绕过（`enable_confirmations=false`）；6 位加入码 + 匿名登录 + 按 user_id 限速 → 可批量枚举进任意家庭 | ⚠️ 待决策（真正开启确认邮件 或 书面接受 autoconfirm 并同步文档） |
-| B7 | 🔴 门禁 | `QA_Log.md:777`、`src/lib/actions.ts:264-317` | "文档确认→任务创建原子化"残余验收门未实现（documents.update → tasks.insert → 2×audit → notification 四步非事务；写失败无补偿清理） | ⚠️ 待处理（收敛为单一 RPC 或书面降级） |
+| #   | 类别    | 位置                                                                                                                  | 问题                                                                                                                                                                                                                                                                                                                              | 状态                                                                                                                      |
+| --- | ------- | --------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| B1  | 🔴 安全 | `0005_role_rbac.sql:66-68` + `0008_paywall.sql:9-11`、`0002_rls_and_rpc.sql:32`                                       | RLS `households` 的 insert/update policy 无列限制 → coordinator 可经 REST 直接 PATCH/INSERT `plus_plan/plus_until/plus_owner_id` 免费升级 Family Plus（绕过 `set_household_plus` 的 service_role 边界），并可绕过 `create_household` 的家庭数配额                                                                                 | ✅ **已修复并落地**（0024 迁移，2026-08-01 已由用户 sudo 落地原项目，与验证版逐字节一致；两轮 security_review 复审 pass） |
+| B2  | 🔴 安全 | `0005_role_rbac.sql:70`、`0022_harden_member_role_updates.sql:12`                                                     | `members` insert/update policy 无列限制 → coordinator 可经 REST 绑定任意 `user_id`（身份接管）、直改 `role/invite_status`（绕过 `update_member_role` 审计）、`user_id` 置 null 静默踢人                                                                                                                                           | ✅ **已修复并落地**（0024 迁移已落地；配套 0025 迁移修复 invite_member 兼容性，待落地，见附录 A2）                        |
+| B3  | 🔴 迁移 | `backend/supabase/migrations/`                                                                                        | 版本号冲突：两个 `0014`（auth_email_autoconfirm / join_codes）、两个 `0019`（paywall_rpc_permissions / soft_delete_members），`0019b` 非标准编号 → Supabase CLI `db push` 因 `schema_migrations` 主键冲突**直接报错中断**；`0019b`（字母后缀）从未被应用                                                                          | ⚠️ 待处理（删除或重命名重号文件；重命名后需在干净 shadow 库完整 `supabase db reset` 验证）                                |
+| B4  | 🔴 部署 | git status                                                                                                            | 13 个未提交改动 + 6 个未跟踪迁移（0019_paywall/0020/0021/0022/0023/0024，含安全加固与客户端已调用的 RPC：`join_by_code`/`remove_member`/`update_member_role`/`update_my_name`；另 0025 待落地）未提交、未确认部署到生产 Supabase；Edge Function（verify-apple-receipt / apple-server-notifications / delete-account）最新性未确认 | ⚠️ 待处理                                                                                                                 |
+| B5  | 🔴 支付 | `verify-apple-receipt/index.ts:133`、`backend/supabase/functions/_shared/apple-jws.ts:63`                             | ① 生产端点接受 `environment="Sandbox"` 的 JWS → 免费沙盒订阅可换真实 Plus；② 交易未绑定调用者（未设 `appAccountToken`）→ 他人 JWS 可在自己家庭首次注册兑换（订阅劫持）；③ 无 signedDate 新鲜度校验 → 退款/取消后的旧 JWS 可重放重新授权                                                                                           | ⚠️ 待处理                                                                                                                 |
+| B6  | 🔴 门禁 | `PROGRESS.md:91` vs `docs/legal/COMPLIANCE_CHECKLIST.md:89`、`0014_auth_email_autoconfirm.sql`、`0014_join_codes.sql` | 邮箱确认策略矛盾：文档勾选"已启用"，实际为 autoconfirm 触发器绕过（`enable_confirmations=false`）；6 位加入码 + 匿名登录 + 按 user_id 限速 → 可批量枚举进任意家庭                                                                                                                                                                 | ⚠️ 待决策（真正开启确认邮件 或 书面接受 autoconfirm 并同步文档）                                                          |
+| B7  | 🔴 门禁 | `QA_Log.md:777`、`src/lib/actions.ts:264-317`                                                                         | "文档确认→任务创建原子化"残余验收门未实现（documents.update → tasks.insert → 2×audit → notification 四步非事务；写失败无补偿清理）                                                                                                                                                                                                | ⚠️ 待处理（收敛为单一 RPC 或书面降级）                                                                                    |
 
 ---
 
 ## 三、重要级（建议上线前处理）
 
-| # | 位置 | 问题 |
-|---|---|---|
-| I1 | `src/paywall/Paywall.tsx:101-102`、`src/paywall/iap.ts:49-64,168-185` | IAP 交易可靠性：`finishIosPurchase` 在 verify 之后，verify 抛错（弱网/Edge 故障）时交易永不 finish → "已扣款/无法确认"死循环；冷启动 StoreKit 推送的待完成交易被静默丢弃；restore 失败也跳过 finish |
-| I2 | `0022_harden_member_role_updates.sql:91` | `update_my_name` 重新依赖 `current_household_id()`（0019b 修过又回退）：多家庭用户 context 指向 A 时改名作用于 A，context 缺失时报 "Active member not found"；建议加家庭参数或改按 user_id+active 定位 |
-| I3 | `0014_join_codes.sql:94-174` | join code 枚举：码空间 10⁶、限速按 user_id（匿名注册可批量绕过）→ 可枚举进入任意家庭读数据 |
-| I4 | `0008_paywall.sql:280` | `cleanup_old_audit` 仍 grant authenticated + security definer → 任意登录用户可删全平台 30 天前审计（应仅 service_role/pg_cron） |
-| I5 | `src/App.tsx:1456` | 成员身份 fallback：members 中找不到当前 user 时以 `members[0]`（通常是 coordinator）身份渲染 → viewer 误显 coordinator 能力 |
-| I6 | `src/App.tsx:1360-1393`、`src/lib/db.ts:321-336` | 首次加载离线卡死在错误页无重试、err 泄露内部细节；完整 AppState（含 OCR `raw_text`、审计 detail、成员姓名）明文缓存 AsyncStorage 且登出不清 |
-| I7 | `src/App.tsx:198,1387` | cloud 模式本地 setState 死代码（乐观更新不生效）；Realtime refetch `.catch(()=>{})` 静默吞错 → 写成功但 UI 不刷新 |
-| I8 | `src/auth/AuthContext.tsx:53-70` | 邀请深链（invite token）解析后无任何组件消费 → 死功能 |
-| I9 | `src/auth/AuthScreen.tsx` | 登录/注册/引导页硬编码英文，与 ConsentGate 三语矛盾 |
-| I10 | `app.json:25` | with-dev-team 插件硬编码 `nodePath=/Users/jun/.hermes/node/bin/node` + `teamId=255R6QQR97` → EAS Build/CI/他人机器构建必挂；建议参数化/环境变量 |
-| I11 | `.github/workflows/ci.yml:39,44` | security job 仍 `continue-on-error: true`，未按注释承诺上线前 drop（audit 现无 high，可正式关闭） |
-| I12 | `ios/TaskKinCare/Info.plist:50-51` | 冗余 `NSMicrophoneUsageDescription`（app 仅相机扫码，不用麦克风）→ App Review 审核风险；建议 app.json 配 `microphonePermission: false` |
-| I13 | `verify-apple-receipt/index.ts:164,178`、`delete-account/index.ts` | Edge Function 把 DB 错误/JWS 摘要原文回显客户端；日志记录完整 `originalTransactionId`（应截断） |
-| I14 | `android/app/src/main/AndroidManifest.xml:14` | `allowBackup=true` + AsyncStorage 明文 session → adb backup 可导出 refresh token；`SYSTEM_ALERT_WINDOW` 多余权限 |
-| I15 | `0020_fix_remove_member_context.sql:119` | join_by_code 成员数检查与插入非原子（并发可超上限 1 个），建议 advisory lock |
-| I16 | `app.json:5`、`QA_Log.md:76` | 版本号 0.1.0 无 buildNumber/versionCode；Android package 文档（care.taskkincare.app）与 app.json（cd.cc.taskkincare）不一致 |
-| I17 | `0024_harden_households_update.sql:64` | `guard_member_key_columns` 仅挂 UPDATE 未挂 INSERT（纵深防御不对称），建议补 BEFORE INSERT |
+| #   | 位置                                                                  | 问题                                                                                                                                                                                                   |
+| --- | --------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| I1  | `src/paywall/Paywall.tsx:101-102`、`src/paywall/iap.ts:49-64,168-185` | IAP 交易可靠性：`finishIosPurchase` 在 verify 之后，verify 抛错（弱网/Edge 故障）时交易永不 finish → "已扣款/无法确认"死循环；冷启动 StoreKit 推送的待完成交易被静默丢弃；restore 失败也跳过 finish    |
+| I2  | `0022_harden_member_role_updates.sql:91`                              | `update_my_name` 重新依赖 `current_household_id()`（0019b 修过又回退）：多家庭用户 context 指向 A 时改名作用于 A，context 缺失时报 "Active member not found"；建议加家庭参数或改按 user_id+active 定位 |
+| I3  | `0014_join_codes.sql:94-174`                                          | join code 枚举：码空间 10⁶、限速按 user_id（匿名注册可批量绕过）→ 可枚举进入任意家庭读数据                                                                                                             |
+| I4  | `0008_paywall.sql:280`                                                | `cleanup_old_audit` 仍 grant authenticated + security definer → 任意登录用户可删全平台 30 天前审计（应仅 service_role/pg_cron）                                                                        |
+| I5  | `src/App.tsx:1456`                                                    | 成员身份 fallback：members 中找不到当前 user 时以 `members[0]`（通常是 coordinator）身份渲染 → viewer 误显 coordinator 能力                                                                            |
+| I6  | `src/App.tsx:1360-1393`、`src/lib/db.ts:321-336`                      | 首次加载离线卡死在错误页无重试、err 泄露内部细节；完整 AppState（含 OCR `raw_text`、审计 detail、成员姓名）明文缓存 AsyncStorage 且登出不清                                                            |
+| I7  | `src/App.tsx:198,1387`                                                | cloud 模式本地 setState 死代码（乐观更新不生效）；Realtime refetch `.catch(()=>{})` 静默吞错 → 写成功但 UI 不刷新                                                                                      |
+| I8  | `src/auth/AuthContext.tsx:53-70`                                      | 邀请深链（invite token）解析后无任何组件消费 → 死功能                                                                                                                                                  |
+| I9  | `src/auth/AuthScreen.tsx`                                             | 登录/注册/引导页硬编码英文，与 ConsentGate 三语矛盾                                                                                                                                                    |
+| I10 | `app.json:25`                                                         | with-dev-team 插件硬编码 `nodePath=/Users/jun/.hermes/node/bin/node` + `teamId=255R6QQR97` → EAS Build/CI/他人机器构建必挂；建议参数化/环境变量                                                        |
+| I11 | `.github/workflows/ci.yml:39,44`                                      | security job 仍 `continue-on-error: true`，未按注释承诺上线前 drop（audit 现无 high，可正式关闭）                                                                                                      |
+| I12 | `ios/TaskKinCare/Info.plist:50-51`                                    | 冗余 `NSMicrophoneUsageDescription`（app 仅相机扫码，不用麦克风）→ App Review 审核风险；建议 app.json 配 `microphonePermission: false`                                                                 |
+| I13 | `verify-apple-receipt/index.ts:164,178`、`delete-account/index.ts`    | Edge Function 把 DB 错误/JWS 摘要原文回显客户端；日志记录完整 `originalTransactionId`（应截断）                                                                                                        |
+| I14 | `android/app/src/main/AndroidManifest.xml:14`                         | `allowBackup=true` + AsyncStorage 明文 session → adb backup 可导出 refresh token；`SYSTEM_ALERT_WINDOW` 多余权限                                                                                       |
+| I15 | `0020_fix_remove_member_context.sql:119`                              | join_by_code 成员数检查与插入非原子（并发可超上限 1 个），建议 advisory lock                                                                                                                           |
+| I16 | `app.json:5`、`QA_Log.md:76`                                          | 版本号 0.1.0 无 buildNumber/versionCode；Android package 文档（care.taskkincare.app）与 app.json（cd.cc.taskkincare）不一致                                                                            |
+| I17 | `0024_harden_households_update.sql:64`                                | `guard_member_key_columns` 仅挂 UPDATE 未挂 INSERT（纵深防御不对称），建议补 BEFORE INSERT                                                                                                             |
 
 ---
 
@@ -284,6 +284,7 @@ grant execute on function public.invite_member(uuid, text) to authenticated;
 ```
 
 > 落地命令（与原项目一致时跳过）：
+>
 > ```bash
 > sudo cp /tmp/taskkin-mvp/backend/supabase/migrations/0025_fix_invite_member_definer.sql \
 >   /Users/jun/Documents/Project/relaycare-mvp/backend/supabase/migrations/
@@ -293,21 +294,20 @@ grant execute on function public.invite_member(uuid, text) to authenticated;
 
 ## 附录 B：模拟器构建诊断记录（2026-08-01）
 
-| 尝试 | 结果 | 失败点 |
-|---|---|---|
-| 原目录 Debug 构建 | ❌ | hermes-engine 脚本 `unlink 'hermes-engine/LICENSE'` EPERM（com.apple.provenance 保护） |
-| 原目录 Release 构建 | ❌ | openiap Swift 编译 `sandbox-exec: sandbox_apply: Operation not permitted`（provenance + 沙箱） |
-| /tmp 副本（清 xattr）+ pod install | ✅ 副本就绪 | — |
-| /tmp 副本 Release（openiap @TaskLocal 宏 patch 后） | ❌ | 嵌套 xcodebuild SPM 解析 `sandbox-exec: sandbox_apply: Operation not permitted`（系统级） |
-| 最小复现：`xcrun swiftc` 编译含 `@TaskLocal` 的代码 | ❌ | `swift-plugin-server produced malformed response` + `sandbox-exec` EPERM |
-| 直接执行 `sandbox-exec -p '(version 1)(allow default)' true` | ❌ | `sandbox_apply: Operation not permitted`，exit 71 |
+| 尝试                                                         | 结果        | 失败点                                                                                         |
+| ------------------------------------------------------------ | ----------- | ---------------------------------------------------------------------------------------------- |
+| 原目录 Debug 构建                                            | ❌          | hermes-engine 脚本 `unlink 'hermes-engine/LICENSE'` EPERM（com.apple.provenance 保护）         |
+| 原目录 Release 构建                                          | ❌          | openiap Swift 编译 `sandbox-exec: sandbox_apply: Operation not permitted`（provenance + 沙箱） |
+| /tmp 副本（清 xattr）+ pod install                           | ✅ 副本就绪 | —                                                                                              |
+| /tmp 副本 Release（openiap @TaskLocal 宏 patch 后）          | ❌          | 嵌套 xcodebuild SPM 解析 `sandbox-exec: sandbox_apply: Operation not permitted`（系统级）      |
+| 最小复现：`xcrun swiftc` 编译含 `@TaskLocal` 的代码          | ❌          | `swift-plugin-server produced malformed response` + `sandbox-exec` EPERM                       |
+| 直接执行 `sandbox-exec -p '(version 1)(allow default)' true` | ❌          | `sandbox_apply: Operation not permitted`，exit 71                                              |
 
 **结论**：macOS 26 安全策略拒绝 `sandbox-exec`（App Management / provenance 机制），导致 Xcode 26.6 的 Swift 宏插件与 SPM 依赖解析全部失效。与本项目代码无关；QA_Log 记录 7/28-7/30 本机 Release 构建成功，环境在 7/31 后变化。
 
 ---
 
-*本报告由 Reasonix 多成员评审生成：4 位并行评审成员（前端/后端/安全/发布）+ security_review ×2 + skill:review ×1 + 静态验证（tsc/lint/vitest/expo-doctor/audit）。*
-
+_本报告由 Reasonix 多成员评审生成：4 位并行评审成员（前端/后端/安全/发布）+ security_review ×2 + skill:review ×1 + 静态验证（tsc/lint/vitest/expo-doctor/audit）。_
 
 ---
 
@@ -317,18 +317,18 @@ grant execute on function public.invite_member(uuid, text) to authenticated;
 
 ## 第一批（上线阻断）
 
-| 项 | 修复 | 迁移/文件 |
-|---|---|---|
-| B3 | 迁移重编号（0014→0026、0019_paywall→0027、删 0019b），0001-0031 连续 | 0026/0027 |
-| B5 | IAP 环境隔离（APPLE_ACCEPTED_ENVIRONMENTS 默认仅 Production）、appAccountToken=auth.uid() 绑定、signedDate 新鲜度（purchase 24h/restore 按周期）、统一状态检查（revoked/expired 拒绝）、错误脱敏 | verify-apple-receipt + 0028 |
-| B7 | 文档确认→任务创建原子 RPC（for update 防并发） | 0029 + actions.ts |
-| B6 | 产品决策：6 位码 + autoconfirm 接受（客户端全链路 6 位、COMPLIANCE/PROGRESS 一致声明） | 客户端 + 文档 |
-| B1/B2 | 0024/0025（revoke 直写 + guard triggers + invite_member definer）+ adversarial 测试脚本 | 0024/0025 + backend/qa/ |
-| B4 | 部署手册 | backend/qa/DEPLOY.md |
+| 项    | 修复                                                                                                                                                                                             | 迁移/文件                   |
+| ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------- |
+| B3    | 迁移重编号（0014→0026、0019_paywall→0027、删 0019b），0001-0031 连续                                                                                                                             | 0026/0027                   |
+| B5    | IAP 环境隔离（APPLE_ACCEPTED_ENVIRONMENTS 默认仅 Production）、appAccountToken=auth.uid() 绑定、signedDate 新鲜度（purchase 24h/restore 按周期）、统一状态检查（revoked/expired 拒绝）、错误脱敏 | verify-apple-receipt + 0028 |
+| B7    | 文档确认→任务创建原子 RPC（for update 防并发）                                                                                                                                                   | 0029 + actions.ts           |
+| B6    | 产品决策：6 位码 + autoconfirm 接受（客户端全链路 6 位、COMPLIANCE/PROGRESS 一致声明）                                                                                                           | 客户端 + 文档               |
+| B1/B2 | 0024/0025（revoke 直写 + guard triggers + invite_member definer）+ adversarial 测试脚本                                                                                                          | 0024/0025 + backend/qa/     |
+| B4    | 部署手册                                                                                                                                                                                         | backend/qa/DEPLOY.md        |
 
 ## 第二批（重要级）
 
-I1（finish 前置/restore 分类）、I2（update_my_name 显式 householdId，0031）、I4（0030 audit revoke）、I5（actor 错误态）、I6（缓存剔除 rawText + 登出清理）、I7（realtime 非静默）、I8（invite 标注）、I14（allowBackup）、I15（join advisory lock）、发布配置（版本 1.0.0、麦克风权限移除、nodePath/teamId env 参数化、CI audit 阻塞门）、**I9（AuthScreen/OnboardingScreen 三语本地化，37 个 auth.* keys）**
+I1（finish 前置/restore 分类）、I2（update_my_name 显式 householdId，0031）、I4（0030 audit revoke）、I5（actor 错误态）、I6（缓存剔除 rawText + 登出清理）、I7（realtime 非静默）、I8（invite 标注）、I14（allowBackup）、I15（join advisory lock）、发布配置（版本 1.0.0、麦克风权限移除、nodePath/teamId env 参数化、CI audit 阻塞门）、_*I9（AuthScreen/OnboardingScreen 三语本地化，37 个 auth.* keys）_*
 
 ## 第三批（验收）
 

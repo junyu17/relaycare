@@ -23,10 +23,22 @@ REST="$SUPABASE_URL/rest/v1"
 AUTH="$SUPABASE_URL/auth/v1"
 FUN="$SUPABASE_URL/functions/v1"
 API_H="apikey: $ANON_KEY"
+CURL_TIMEOUT=(--max-time 20 -s -o /dev/null -w "%{http_code}")
 JSON_H="Content-Type: application/json"
 TS="$(date +%s)"
 PASS=0
 FAIL=0
+
+cleanup_tmp_users() {
+  if [ -n "${SERVICE_ROLE:-}" ] && [ -n "${C_EMAIL:-}" ]; then
+    SR_H="apikey: $SERVICE_ROLE"
+    for E in "${C_EMAIL:-}" "${G_EMAIL:-}" "${V_EMAIL:-}"; do
+      UID_=$(curl -s --max-time 20 "$AUTH/admin/users" -H "$SR_H" -H "Authorization: Bearer $SERVICE_ROLE" 2>/dev/null | python3 -c "import sys,json;d=json.load(sys.stdin);print(next((u['id'] for u in d.get('users',[]) if u.get('email')=='$E'),''))" 2>/dev/null)
+      [ -n "$UID_" ] && curl -s --max-time 20 -o /dev/null -X DELETE "$AUTH/admin/users/$UID_" -H "$SR_H" -H "Authorization: Bearer $SERVICE_ROLE" 2>/dev/null || true
+    done
+  fi
+}
+trap cleanup_tmp_users EXIT
 
 say()  { printf '\n== %s ==\n' "$*"; }
 ok()   { PASS=$((PASS+1)); printf '  ✔ %s\n' "$*"; }
@@ -34,7 +46,7 @@ bad()  { FAIL=$((FAIL+1)); printf '  ✘ %s\n' "$*"; }
 
 http() { # http <method> <url> <bearer|null> <json|''> -> HTTP 状态码
   local m="$1" u="$2" b="$3" d="${4:-}"
-  local args=(-s -o /dev/null -w '%{http_code}' -X "$m" -H "$API_H")
+  local args=("${CURL_TIMEOUT[@]}" -X "$m" -H "$API_H")
   [ -n "$b" ] && args+=(-H "Authorization: Bearer $b")
   [ -n "$d" ] && args+=(-H "$JSON_H" -d "$d")
   curl "${args[@]}" "$u"
@@ -128,6 +140,12 @@ expect_fail "8 位字母数字码被拒（仅 6 位数字）" "$(rpc join_by_cod
 expect_fail "7 位码被拒" "$(rpc join_by_code "$V_TOK" '{"p_code":"1234567"}')"
 expect_fail "6 位数字格式通过、码无效返回 400" "$(rpc join_by_code "$V_TOK" '{"p_code":"000000"}')"
 
+# P0-1 回归：协调人读取已有家庭码必须 200 且返回同一码（FINAL_LAUNCH_AUDIT 2026-08-02）
+READ_CODE=$(curl -s --max-time 20 -X POST "$REST/rpc/get_household_code" -H "$API_H" -H "Authorization: Bearer $C_TOK" -H "$JSON_H" -d '{}')
+READ_BODY=$(printf '%s' "$READ_CODE" | python3 -c 'import sys,json;d=json.load(sys.stdin);print(d[0]["code"] if d else "")' 2>/dev/null)
+if [ -n "$READ_BODY" ] && [ "$READ_BODY" = "$CODE" ]; then ok "get_household_code 读取同一码 $READ_BODY"
+else bad "get_household_code 读码失败/不一致：$READ_CODE（P0-1 回归）"; fi
+
 # ---------- 9. 支付面（Edge Function 端点；可选，需 SANDBOX_JWS） ----------
 if [ -n "${SANDBOX_JWS:-}" ]; then
   say "支付面: Sandbox JWS 在 production mode 必须被拒（Edge Function）"
@@ -177,7 +195,7 @@ else
   echo "  （未提供 SERVICE_ROLE，跳过清理；测试账号为 qa-*-$TS@example.test，请手动清理）"
 fi
 
-# ---------- 结果 ----------
+# ---------- 结果（任何失败后仍输出总结） ----------
 say "结果"
 echo "PASS=$PASS FAIL=$FAIL"
 [ "$FAIL" -eq 0 ] && echo "✅ 全部通过（上线门禁 OK）" || { echo "❌ $FAIL 项失败（上线门禁不通过）"; exit 1; }

@@ -57,17 +57,17 @@ bash backend/qa/adversarial_tests.sh
 
 覆盖（与整改报告 §4.3 对应）：
 
-| 用例 | 断言 |
-|---|---|
-| B1 | coordinator 直 PATCH `households.plus_plan` 必须 4xx；直 INSERT households 必须 4xx |
-| B2 | coordinator 直 PATCH/INSERT `members`（role/user_id/invite_status）必须 4xx |
-| 合法路径 | caregiver 凭 6 位码 `join_by_code` 成功；入家后表级直写仍必须 4xx |
-| viewer | 未入家 viewer 直 INSERT tasks/documents 必须 4xx |
-| I4 | authenticated 调 `cleanup_old_audit` 必须 4xx（0030 落地后） |
-| B6 | 8 位/7 位码必须被拒；6 位数字码格式通过（无效码 400） |
-| 越权 | caregiver 调 `update_member_role`/`dissolve_household`/`invite_member` 必须 4xx（需 SERVICE_ROLE） |
-| removed | 被移除成员读旧 household 必须失败（需 SERVICE_ROLE） |
-| 支付 | （可选，需 `SANDBOX_JWS`）Sandbox JWS 走 Edge Function 在 production mode 必须被拒 |
+| 用例     | 断言                                                                                               |
+| -------- | -------------------------------------------------------------------------------------------------- |
+| B1       | coordinator 直 PATCH `households.plus_plan` 必须 4xx；直 INSERT households 必须 4xx                |
+| B2       | coordinator 直 PATCH/INSERT `members`（role/user_id/invite_status）必须 4xx                        |
+| 合法路径 | caregiver 凭 6 位码 `join_by_code` 成功；入家后表级直写仍必须 4xx                                  |
+| viewer   | 未入家 viewer 直 INSERT tasks/documents 必须 4xx                                                   |
+| I4       | authenticated 调 `cleanup_old_audit` 必须 4xx（0030 落地后）                                       |
+| B6       | 8 位/7 位码必须被拒；6 位数字码格式通过（无效码 400）                                              |
+| 越权     | caregiver 调 `update_member_role`/`dissolve_household`/`invite_member` 必须 4xx（需 SERVICE_ROLE） |
+| removed  | 被移除成员读旧 household 必须失败（需 SERVICE_ROLE）                                               |
+| 支付     | （可选，需 `SANDBOX_JWS`）Sandbox JWS 走 Edge Function 在 production mode 必须被拒                 |
 
 全部 PASS 才视为上线门禁通过；`invite_member` 合法路径（coordinator 邀请 → 被邀请人 `accept_invite`）需在真机/手动脚本验证一次成功。
 

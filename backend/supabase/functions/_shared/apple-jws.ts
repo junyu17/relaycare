@@ -80,7 +80,12 @@ export function acceptedEnvironmentsFromEnv(
   allowSandbox: string | undefined
 ): Set<string> {
   if (explicit && explicit.trim()) {
-    return new Set(explicit.split(",").map((s) => s.trim()).filter(Boolean));
+    return new Set(
+      explicit
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean)
+    );
   }
   const set = new Set(["Production"]);
   if (allowSandbox === "true") set.add("Sandbox");

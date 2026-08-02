@@ -158,12 +158,7 @@ export function AuthScreen() {
             <TouchableOpacity style={s.scanBtn} onPress={() => setScannerVisible(true)}>
               <Text style={s.scanBtnText}>{t("join.scanQR")}</Text>
             </TouchableOpacity>
-            <TextInput
-              style={s.input}
-              placeholder={t("auth.name")}
-              value={displayName}
-              onChangeText={setDisplayName}
-            />
+            <TextInput style={s.input} placeholder={t("auth.name")} value={displayName} onChangeText={setDisplayName} />
           </>
         ) : (
           <>
@@ -331,7 +326,12 @@ export function OnboardingScreen() {
               value={householdName}
               onChangeText={setHouseholdName}
             />
-            <TextInput style={s.input} placeholder={t("auth.yourName")} value={memberName} onChangeText={setMemberName} />
+            <TextInput
+              style={s.input}
+              placeholder={t("auth.yourName")}
+              value={memberName}
+              onChangeText={setMemberName}
+            />
             <Text style={s.hint}>{t("auth.coordinatorHint")}</Text>
             <TouchableOpacity style={s.button} onPress={onCreate} disabled={busy}>
               <Text style={s.buttonText}>{busy ? "..." : t("households.create")}</Text>
@@ -348,12 +348,7 @@ export function OnboardingScreen() {
               keyboardType="number-pad"
               autoCapitalize="none"
             />
-            <TextInput
-              style={s.input}
-              placeholder={t("auth.name")}
-              value={memberName}
-              onChangeText={setMemberName}
-            />
+            <TextInput style={s.input} placeholder={t("auth.name")} value={memberName} onChangeText={setMemberName} />
             <TouchableOpacity style={s.button} onPress={onJoin} disabled={busy}>
               <Text style={s.buttonText}>{busy ? "..." : t("auth.titleJoin")}</Text>
             </TouchableOpacity>
@@ -427,9 +422,9 @@ const s = StyleSheet.create({
     marginBottom: 4
   },
   scanBtnText: { color: "#0f766e", fontWeight: "700", fontSize: 16 },
-languageRow: { flexDirection: "row", justifyContent: "center", gap: 8, marginBottom: 12 },
+  languageRow: { flexDirection: "row", justifyContent: "center", gap: 8, marginBottom: 12 },
   langBtn: { paddingHorizontal: 14, paddingVertical: 6, borderRadius: 8, backgroundColor: "#e2e8f0" },
   langBtnActive: { backgroundColor: "#0f766e" },
   langText: { color: "#334155", fontWeight: "600" },
-  langTextActive: { color: "#ffffff", fontWeight: "700" },
+  langTextActive: { color: "#ffffff", fontWeight: "700" }
 });

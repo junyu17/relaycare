@@ -825,3 +825,11 @@ Actual artifact verification:
 - delete-account：DB 错误/异常回传脱敏（通用消息，细节仅服务端日志）
 - apple-server-notifications：环境过滤统一（生产默认仅 Production 通知与交易，ALLOW_SANDBOX_PURCHASES 追加 Sandbox）
 - 验证（2026-08-02 部署后）：migration list 0032 本地=远端；3 个 Edge Functions 重新部署成功；adversarial 回归 PASS=18 FAIL=0；本地门禁 typecheck 0 错 / eslint 0/0 / vitest 30/30；commit 8404233 + fba77e9（push 待网络恢复重试）
+
+## FINAL_LAUNCH_AUDIT 整改 2026-08-02（P0/P1/P2）
+
+- P0-1 get_household_code 列歧义：0033_fix_get_household_code.sql（加表别名 hc.code/hc.expires_at）已 db push 应用；真实远端验证：生成码 055505 → get_household_code 返回 200 + 同一码（不再 42702）；前端 App.tsx catch 不再静默（console.warn + 置空）；supabase db lint --linked 通过
+- P0-2 原生配置同步：expo prebuild --clean -p ios + pod install 完成；Info.plist 验证 CFBundleShortVersionString=1.0.0、CFBundleVersion=1、无 NSMicrophoneUsageDescription（NSCameraUsageDescription 保留）；with-dev-team 插件改动（dSYM phase/AppDelegate fallback）保留；完整 Archive 需用户侧重新执行（本环境 macOS sandbox-exec 故障限制 openiap 宏编译，Codex 侧可构建）
+- P1-1 对抗脚本加固：全部 curl 加 --max-time 20、trap EXIT 清理临时用户、补 get_household_code 用例；完整重跑 PASS=19 FAIL=0（含读码回归）
+- P2 format:check：9 个文件 prettier 修复，format:check 全绿；ci.yml quality job 加 npm run format:check；SAST semgrep 改阻断（移除 continue-on-error）
+- 提交：d197b59（已推送，76ededa..d197b59）

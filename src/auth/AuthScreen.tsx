@@ -12,7 +12,8 @@ import {
 } from "react-native";
 import { useAuth } from "./AuthContext";
 import { QRScanner } from "../components/QRScanner";
-import { makeTranslator } from "../i18n";
+import { initStoredLanguage, setStoredLanguage } from "../lib/language";
+import { languageOptions, makeTranslator, type Language } from "../i18n";
 
 // 未登录：登录 / 注册 / 重置 / 用 6 位码加入（匿名）
 export function AuthScreen() {
@@ -24,7 +25,12 @@ export function AuthScreen() {
   const [displayName, setDisplayName] = useState("");
   const [busy, setBusy] = useState(false);
   const [scannerVisible, setScannerVisible] = useState(false);
-  const t = makeTranslator("en");
+  const [language, setLanguage] = useState<Language>("en");
+  const t = makeTranslator(language);
+
+  useEffect(() => {
+    void initStoredLanguage().then((lng) => setLanguage(lng));
+  }, []);
 
   useEffect(() => {
     if (!pendingJoinCode) return;
@@ -41,10 +47,10 @@ export function AuthScreen() {
       setBusy(true);
       try {
         await resetPassword(email);
-        Alert.alert("Check your email", "If an account exists, a password reset link has been sent.");
+        Alert.alert(t("auth.checkEmail"), t("auth.resetSentMsg"));
         setMode("signin");
       } catch (e) {
-        Alert.alert("Error", e instanceof Error ? e.message : String(e));
+        Alert.alert(t("auth.error"), e instanceof Error ? e.message : String(e));
       } finally {
         setBusy(false);
       }
@@ -52,11 +58,11 @@ export function AuthScreen() {
     }
     if (mode === "join") {
       if (!/^\d{6}$/.test(joinCode)) {
-        Alert.alert("Invalid code", "Enter the 6-digit family code.");
+        Alert.alert(t("auth.invalidCode"), t("auth.invalidCodeMsg"));
         return;
       }
       if (!displayName.trim()) {
-        Alert.alert("Name required", "Please enter your name.");
+        Alert.alert(t("auth.nameRequired"), t("auth.nameRequiredMsg"));
         return;
       }
       setBusy(true);
@@ -64,7 +70,7 @@ export function AuthScreen() {
         await joinByCode(joinCode, displayName.trim() || undefined);
         clearPendingJoinCode();
       } catch (e) {
-        Alert.alert("Error", e instanceof Error ? e.message : String(e));
+        Alert.alert(t("auth.error"), e instanceof Error ? e.message : String(e));
       } finally {
         setBusy(false);
       }
@@ -78,12 +84,12 @@ export function AuthScreen() {
       } else {
         const { signedIn } = await signUp(email, password);
         if (!signedIn) {
-          Alert.alert("Check your email", "Please check your email for confirmation, then sign in.");
+          Alert.alert(t("auth.checkEmail"), t("auth.confirmEmailMsg"));
           setMode("signin");
         }
       }
     } catch (e) {
-      Alert.alert("Error", e instanceof Error ? e.message : String(e));
+      Alert.alert(t("auth.error"), e instanceof Error ? e.message : String(e));
     } finally {
       setBusy(false);
     }
@@ -92,12 +98,12 @@ export function AuthScreen() {
   const submitLabel = busy
     ? "..."
     : mode === "signin"
-      ? "Sign in"
+      ? t("auth.tabSignIn")
       : mode === "signup"
-        ? "Create account"
+        ? t("auth.titleSignUp")
         : mode === "reset"
-          ? "Send reset link"
-          : "Join household";
+          ? t("auth.titleReset")
+          : t("auth.titleJoin");
 
   return (
     <KeyboardAvoidingView
@@ -112,24 +118,38 @@ export function AuthScreen() {
         contentContainerStyle={s.container}
       >
         <Text style={s.title}>TaskKin Care</Text>
-        <Text style={s.subtitle}>Family care coordination</Text>
+        <Text style={s.subtitle}>{t("auth.subtitle")}</Text>
+        <View style={s.languageRow}>
+          {languageOptions.map((opt) => (
+            <TouchableOpacity
+              key={opt.code}
+              style={[s.langBtn, language === opt.code && s.langBtnActive]}
+              onPress={() => {
+                setLanguage(opt.code);
+                void setStoredLanguage(opt.code);
+              }}
+            >
+              <Text style={language === opt.code ? s.langTextActive : s.langText}>{opt.shortLabel}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
         {mode !== "reset" && mode !== "join" && (
           <View style={s.tabs}>
             <TouchableOpacity style={[s.tab, mode === "signin" && s.tabActive]} onPress={() => setMode("signin")}>
-              <Text style={mode === "signin" ? s.tabTextActive : s.tabText}>Sign in</Text>
+              <Text style={mode === "signin" ? s.tabTextActive : s.tabText}>{t("auth.tabSignIn")}</Text>
             </TouchableOpacity>
             <TouchableOpacity style={[s.tab, mode === "signup" && s.tabActive]} onPress={() => setMode("signup")}>
-              <Text style={mode === "signup" ? s.tabTextActive : s.tabText}>Sign up</Text>
+              <Text style={mode === "signup" ? s.tabTextActive : s.tabText}>{t("auth.tabSignUp")}</Text>
             </TouchableOpacity>
           </View>
         )}
 
         {mode === "join" ? (
           <>
-            <Text style={s.hint}>Enter the 6-digit code your family coordinator shared, or scan their QR code.</Text>
+            <Text style={s.hint}>{t("auth.joinHint2")}</Text>
             <TextInput
               style={s.input}
-              placeholder="6-digit family code"
+              placeholder={t("auth.codePlaceholder")}
               value={joinCode}
               onChangeText={(v) => setJoinCode(v.replace(/\D/g, "").slice(0, 6))}
               keyboardType="number-pad"
@@ -140,7 +160,7 @@ export function AuthScreen() {
             </TouchableOpacity>
             <TextInput
               style={s.input}
-              placeholder="Your name (required)"
+              placeholder={t("auth.name")}
               value={displayName}
               onChangeText={setDisplayName}
             />
@@ -149,7 +169,7 @@ export function AuthScreen() {
           <>
             <TextInput
               style={s.input}
-              placeholder="Email"
+              placeholder={t("auth.email")}
               value={email}
               onChangeText={setEmail}
               autoCapitalize="none"
@@ -158,13 +178,13 @@ export function AuthScreen() {
             {mode !== "reset" && (
               <TextInput
                 style={s.input}
-                placeholder="Password"
+                placeholder={t("auth.password")}
                 value={password}
                 onChangeText={setPassword}
                 secureTextEntry
               />
             )}
-            {mode === "signup" && <Text style={s.hint}>Password must be at least 6 characters.</Text>}
+            {mode === "signup" && <Text style={s.hint}>{t("auth.passwordHint")}</Text>}
           </>
         )}
 
@@ -175,30 +195,30 @@ export function AuthScreen() {
         {mode === "signin" && (
           <>
             <TouchableOpacity onPress={() => setMode("reset")}>
-              <Text style={s.link}>Forgot password?</Text>
+              <Text style={s.link}>{t("auth.forgotPassword")}</Text>
             </TouchableOpacity>
             <TouchableOpacity onPress={() => setMode("join")}>
-              <Text style={s.link}>Have a family code? Join</Text>
+              <Text style={s.link}>{t("auth.joinFamily")}</Text>
             </TouchableOpacity>
           </>
         )}
         {mode === "reset" && (
           <TouchableOpacity onPress={() => setMode("signin")}>
-            <Text style={s.link}>Back to sign in</Text>
+            <Text style={s.link}>{t("auth.backToSignIn")}</Text>
           </TouchableOpacity>
         )}
         {mode === "join" && (
           <TouchableOpacity onPress={() => setMode("signin")}>
-            <Text style={s.link}>Coordinator? Sign in / sign up</Text>
+            <Text style={s.link}>{t("auth.coordinatorLink")}</Text>
           </TouchableOpacity>
         )}
         <Text style={s.hint}>
           {mode === "signup"
-            ? "After signup, confirm via email if required, then sign in."
+            ? t("auth.afterSignup")
             : mode === "reset"
-              ? "Enter your account email and we'll send a reset link."
+              ? t("auth.resetHint")
               : mode === "join"
-                ? "Joining creates a device-linked identity; no email needed."
+                ? t("auth.joinHint")
                 : ""}
         </Text>
         <QRScanner
@@ -218,7 +238,13 @@ export function AuthScreen() {
 // 已登录但还没家庭：创建家庭（协调人）/ 用 6 位码加入
 export function OnboardingScreen() {
   const { createHousehold, joinByCode, signOut } = useAuth();
+  const [language, setLanguage] = useState<Language>("en");
+  const t = makeTranslator(language);
   const [tab, setTab] = useState<"create" | "join">("create");
+
+  useEffect(() => {
+    void initStoredLanguage().then((lng) => setLanguage(lng));
+  }, []);
   const [householdName, setHouseholdName] = useState("");
   const [memberName, setMemberName] = useState("");
   const [joinCode, setJoinCode] = useState("");
@@ -231,13 +257,13 @@ export function OnboardingScreen() {
       await createHousehold({
         householdName,
         timezone: "America/Los_Angeles",
-        careRecipientLabel: "Care recipient",
+        careRecipientLabel: t("auth.careRecipient"),
         memberName,
         memberRelation: "",
         memberTimezone: "America/Los_Angeles"
       });
     } catch (e) {
-      Alert.alert("Error", e instanceof Error ? e.message : String(e));
+      Alert.alert(t("auth.error"), e instanceof Error ? e.message : String(e));
     } finally {
       setBusy(false);
     }
@@ -245,18 +271,18 @@ export function OnboardingScreen() {
 
   const onJoin = async () => {
     if (!/^\d{6}$/.test(joinCode)) {
-      Alert.alert("Invalid code", "Enter the 6-digit family code.");
+      Alert.alert(t("auth.invalidCode"), t("auth.invalidCodeMsg"));
       return;
     }
     if (!memberName.trim()) {
-      Alert.alert("Name required", "Please enter your name.");
+      Alert.alert(t("auth.nameRequired"), t("auth.nameRequiredMsg"));
       return;
     }
     setBusy(true);
     try {
       await joinByCode(joinCode, memberName.trim() || undefined);
     } catch (e) {
-      Alert.alert("Error", e instanceof Error ? e.message : String(e));
+      Alert.alert(t("auth.error"), e instanceof Error ? e.message : String(e));
     } finally {
       setBusy(false);
     }
@@ -274,52 +300,67 @@ export function OnboardingScreen() {
         keyboardShouldPersistTaps="handled"
         contentContainerStyle={s.container}
       >
-        <Text style={s.title}>Set up your care circle</Text>
+        <Text style={s.title}>{t("auth.onboardingTitle")}</Text>
         <View style={s.tabs}>
           <TouchableOpacity style={[s.tab, tab === "create" && s.tabActive]} onPress={() => setTab("create")}>
-            <Text style={tab === "create" ? s.tabTextActive : s.tabText}>Create</Text>
+            <Text style={tab === "create" ? s.tabTextActive : s.tabText}>{t("auth.tabCreate")}</Text>
           </TouchableOpacity>
           <TouchableOpacity style={[s.tab, tab === "join" && s.tabActive]} onPress={() => setTab("join")}>
-            <Text style={tab === "join" ? s.tabTextActive : s.tabText}>Join</Text>
+            <Text style={tab === "join" ? s.tabTextActive : s.tabText}>{t("auth.tabJoin")}</Text>
           </TouchableOpacity>
+        </View>
+        <View style={s.languageRow}>
+          {languageOptions.map((opt) => (
+            <TouchableOpacity
+              key={opt.code}
+              style={[s.langBtn, language === opt.code && s.langBtnActive]}
+              onPress={() => {
+                setLanguage(opt.code);
+                void setStoredLanguage(opt.code);
+              }}
+            >
+              <Text style={language === opt.code ? s.langTextActive : s.langText}>{opt.shortLabel}</Text>
+            </TouchableOpacity>
+          ))}
         </View>
         {tab === "create" ? (
           <>
             <TextInput
               style={s.input}
-              placeholder="Household name (e.g. Chen Family)"
+              placeholder={t("households.namePlaceholder")}
               value={householdName}
               onChangeText={setHouseholdName}
             />
-            <TextInput style={s.input} placeholder="Your name" value={memberName} onChangeText={setMemberName} />
-            <Text style={s.hint}>The first member is the Coordinator (admin). Others join by code.</Text>
+            <TextInput style={s.input} placeholder={t("auth.yourName")} value={memberName} onChangeText={setMemberName} />
+            <Text style={s.hint}>{t("auth.coordinatorHint")}</Text>
             <TouchableOpacity style={s.button} onPress={onCreate} disabled={busy}>
-              <Text style={s.buttonText}>{busy ? "..." : "Create household"}</Text>
+              <Text style={s.buttonText}>{busy ? "..." : t("households.create")}</Text>
             </TouchableOpacity>
           </>
         ) : (
           <>
-            <Text style={s.hint}>Enter the 6-digit code your coordinator shared.</Text>
+            <Text style={s.hint}>{t("auth.joinHint3")}</Text>
             <TextInput
               style={s.input}
-              placeholder="6-digit family code"
+              placeholder={t("auth.codePlaceholder")}
               value={joinCode}
               onChangeText={(v) => setJoinCode(v.replace(/\D/g, "").slice(0, 6))}
               keyboardType="number-pad"
+              autoCapitalize="none"
             />
             <TextInput
               style={s.input}
-              placeholder="Your name (required)"
+              placeholder={t("auth.name")}
               value={memberName}
               onChangeText={setMemberName}
             />
             <TouchableOpacity style={s.button} onPress={onJoin} disabled={busy}>
-              <Text style={s.buttonText}>{busy ? "..." : "Join household"}</Text>
+              <Text style={s.buttonText}>{busy ? "..." : t("auth.titleJoin")}</Text>
             </TouchableOpacity>
           </>
         )}
         <TouchableOpacity onPress={signOut}>
-          <Text style={s.link}>Sign out</Text>
+          <Text style={s.link}>{t("auth.signOut")}</Text>
         </TouchableOpacity>
       </ScrollView>
     </KeyboardAvoidingView>
@@ -385,5 +426,10 @@ const s = StyleSheet.create({
     alignItems: "center",
     marginBottom: 4
   },
-  scanBtnText: { color: "#0f766e", fontWeight: "700", fontSize: 16 }
+  scanBtnText: { color: "#0f766e", fontWeight: "700", fontSize: 16 },
+languageRow: { flexDirection: "row", justifyContent: "center", gap: 8, marginBottom: 12 },
+  langBtn: { paddingHorizontal: 14, paddingVertical: 6, borderRadius: 8, backgroundColor: "#e2e8f0" },
+  langBtnActive: { backgroundColor: "#0f766e" },
+  langText: { color: "#334155", fontWeight: "600" },
+  langTextActive: { color: "#ffffff", fontWeight: "700" },
 });

@@ -39,6 +39,7 @@ interface DBMember {
   availability: string;
   invite_status: "active" | "pending";
   invite_expires_at: string | null;
+  created_at: string;
 }
 interface DBRoleDefinition {
   role: Role;
@@ -80,6 +81,7 @@ interface DBTask {
   proof: string | null;
   rejection_reason: string | null;
   handoff_to_id: string | null;
+  created_at: string;
 }
 interface DBCareEvent {
   id: string;
@@ -90,6 +92,7 @@ interface DBCareEvent {
   owner_id: string | null;
   task_id: string | null;
   document_id: string | null;
+  created_at: string | null;
 }
 interface DBDocument {
   id: string;
@@ -153,6 +156,7 @@ const mapMember = (r: DBMember): Member => ({
   role: r.role,
   timezone: r.timezone,
   availability: r.availability,
+  createdAt: r.created_at,
   inviteStatus: r.invite_status,
   inviteExpiresAt: r.invite_expires_at ?? undefined,
   userId: r.user_id
@@ -196,7 +200,8 @@ const mapTask = (r: DBTask): Task => ({
   subtasks: r.subtasks ?? [],
   proof: r.proof ?? undefined,
   rejectionReason: r.rejection_reason ?? undefined,
-  handoffToId: r.handoff_to_id ?? undefined
+  handoffToId: r.handoff_to_id ?? undefined,
+  createdAt: r.created_at
 });
 const mapCareEvent = (r: DBCareEvent): CareEvent => ({
   id: r.id,
@@ -206,7 +211,8 @@ const mapCareEvent = (r: DBCareEvent): CareEvent => ({
   location: r.location,
   ownerId: r.owner_id ?? undefined,
   taskId: r.task_id ?? undefined,
-  documentId: r.document_id ?? undefined
+  documentId: r.document_id ?? undefined,
+  createdAt: r.created_at ?? undefined
 });
 const mapDocument = (r: DBDocument): DocumentRecord => ({
   id: r.id,
@@ -248,13 +254,22 @@ export async function fetchHouseholdState(householdId: string): Promise<AppState
   const [householdRes, membersRes, rolesRes, prefsRes, notesRes, tasksRes, eventsRes, docsRes, auditRes] =
     await Promise.all([
       supabase.from("households").select("*").eq("id", householdId).single(),
-      supabase.from("members").select("*").eq("household_id", householdId).neq("invite_status", "removed"),
+      supabase
+        .from("members")
+        .select("*")
+        .eq("household_id", householdId)
+        .neq("invite_status", "removed")
+        .order("created_at", { ascending: true }),
       supabase.from("role_definitions").select("*"),
       supabase.from("notification_preferences").select("*").eq("household_id", householdId),
       supabase.from("role_notifications").select("*").eq("household_id", householdId),
-      supabase.from("tasks").select("*").eq("household_id", householdId),
-      supabase.from("care_events").select("*").eq("household_id", householdId),
-      supabase.from("documents").select("*").eq("household_id", householdId),
+      supabase.from("tasks").select("*").eq("household_id", householdId).order("created_at", { ascending: false }),
+      supabase
+        .from("care_events")
+        .select("*")
+        .eq("household_id", householdId)
+        .order("starts_at", { ascending: true, nullsFirst: false }),
+      supabase.from("documents").select("*").eq("household_id", householdId).order("uploaded_at", { ascending: false }),
       supabase
         .from("audit_events")
         .select("*")
@@ -305,9 +320,25 @@ export async function setActiveHousehold(householdId: string): Promise<void> {
 
 export async function cacheHouseholdState(householdId: string, state: AppState): Promise<void> {
   try {
-    await AsyncStorage.setItem(`taskkin-care:household:${householdId}`, JSON.stringify(state));
+    // I6: 缓存剔除 OCR 原文（rawText 可能含敏感内容），离线仅恢复非敏感数据；
+    // 成员名/审计 detail 等保持（家庭内部成员本可见，且缓存本机）。
+    const sanitized: AppState = {
+      ...state,
+      documents: state.documents.map((d) => ({ ...d, rawText: undefined }))
+    };
+    await AsyncStorage.setItem(`taskkin-care:household:${householdId}`, JSON.stringify(sanitized));
   } catch {
     // best-effort cache
+  }
+}
+
+// I6: 登出时清除全部家庭缓存（含可能的敏感数据残留）。
+export async function clearHouseholdCaches(): Promise<void> {
+  try {
+    const keys = await AsyncStorage.getAllKeys();
+    await AsyncStorage.multiRemove(keys.filter((k) => k.startsWith("taskkin-care:household:")));
+  } catch {
+    // best-effort cleanup
   }
 }
 
@@ -519,9 +550,12 @@ export async function dissolveHousehold(): Promise<void> {
   if (error) throw error;
 }
 
-// 成员自助修改显示名。
-export async function updateMyName(displayName: string): Promise<void> {
-  const { error } = await supabase.rpc("update_my_name", { p_display_name: displayName });
+// 成员自助修改显示名（I2: 显式传 householdId，避免多家庭上下文误改）。
+export async function updateMyName(displayName: string, householdId?: string): Promise<void> {
+  const { error } = await supabase.rpc("update_my_name", {
+    p_display_name: displayName,
+    ...(householdId ? { p_household_id: householdId } : {})
+  });
   if (error) throw error;
 }
 

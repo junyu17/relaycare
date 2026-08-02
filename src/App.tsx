@@ -144,6 +144,43 @@ const palette = {
   gray: "#59636b"
 };
 
+const roleRank: Record<Role, number> = {
+  coordinator: 0,
+  caregiver: 1,
+  viewer: 2
+};
+
+function timeValue(value?: string): number {
+  if (!value) return 0;
+  const timestamp = new Date(value).getTime();
+  return Number.isFinite(timestamp) ? timestamp : 0;
+}
+
+function orderMembersForDisplay(members: Member[], currentMemberId?: string): Member[] {
+  return members
+    .map((member, index) => ({ member, index }))
+    .sort((left, right) => {
+      if (left.member.id === currentMemberId) return -1;
+      if (right.member.id === currentMemberId) return 1;
+      const roleDelta = roleRank[left.member.role] - roleRank[right.member.role];
+      if (roleDelta !== 0) return roleDelta;
+      const joinedDelta = timeValue(left.member.createdAt) - timeValue(right.member.createdAt);
+      if (joinedDelta !== 0) return joinedDelta;
+      return left.index - right.index;
+    })
+    .map(({ member }) => member);
+}
+
+function orderAppStateForDisplay(state: AppState, currentMemberId?: string): AppState {
+  return {
+    ...state,
+    members: orderMembersForDisplay(state.members, currentMemberId),
+    tasks: [...state.tasks].sort((left, right) => timeValue(right.createdAt) - timeValue(left.createdAt)),
+    events: [...state.events].sort((left, right) => timeValue(left.startsAt) - timeValue(right.startsAt)),
+    documents: [...state.documents].sort((left, right) => timeValue(right.uploadedAt) - timeValue(left.uploadedAt))
+  };
+}
+
 interface CloudProps {
   state: AppState;
   actor: Member;
@@ -157,7 +194,7 @@ interface CloudProps {
 function LocalApp(props: { cloud?: CloudProps } = {}) {
   const cloud = props.cloud;
   const [localState, setLocalState] = useState<AppState>(initialState);
-  const state = cloud ? cloud.state : localState;
+  const rawState = cloud ? cloud.state : localState;
   const setState = setLocalState;
   const [activeTab, setActiveTab] = useState<TabKey>("home");
   const [actorId, setActorId] = useState("m-maya");
@@ -179,8 +216,6 @@ function LocalApp(props: { cloud?: CloudProps } = {}) {
 
   const t = useMemo(() => makeTranslator(language), [language]);
 
-  const plan = effectivePlan(state.household);
-
   const report = reportText ? reportText[language] : "";
 
   useEffect(() => {
@@ -190,10 +225,12 @@ function LocalApp(props: { cloud?: CloudProps } = {}) {
   }, []);
 
   const localActor = useMemo(
-    () => state.members.find((member) => member.id === actorId) ?? state.members[0] ?? initialState.members[0],
-    [actorId, state.members]
+    () => rawState.members.find((member) => member.id === actorId) ?? rawState.members[0] ?? initialState.members[0],
+    [actorId, rawState.members]
   );
   const actor = cloud ? cloud.actor : localActor;
+  const state = useMemo(() => orderAppStateForDisplay(rawState, actor.id), [actor.id, rawState]);
+  const plan = effectivePlan(state.household);
 
   // cloud 模式：加载当前加入码（仅协调人有意义）。
   useEffect(() => {
@@ -738,22 +775,36 @@ function LocalApp(props: { cloud?: CloudProps } = {}) {
   // 移除成员（协调人，不能移除自己）。
   const onRemoveMember = (memberId: string) => {
     if (!cloud) return;
+    const target = state.members.find((member) => member.id === memberId);
+    const targetName = target ? memberDisplayName(target, t) : t("member.fallback");
     Alert.alert(t("settings.removeMember"), t("settings.removeConfirm"), [
       { style: "cancel", text: t("paywall.close") },
       {
         style: "destructive",
         text: t("settings.removeMember"),
-        onPress: () =>
-          Alert.alert(t("settings.removeMember"), t("confirm.sure"), [
-            { style: "cancel", text: t("paywall.close") },
-            {
-              style: "destructive",
-              text: t("settings.removeMember"),
-              onPress: () => {
-                removeMember(memberId).catch((e) => Alert.alert("Error", errorMessage(e)));
+        onPress: () => {
+          removeMember(memberId)
+            .then(async () => {
+              setState((current) => {
+                const next = {
+                  ...current,
+                  members: current.members.filter((member) => member.id !== memberId),
+                  notificationPreferences: current.notificationPreferences.filter((pref) => pref.memberId !== memberId)
+                };
+                void cacheHouseholdState(cloud.householdId, next);
+                return next;
+              });
+              showMessage(t("settings.memberRemovedTitle"), t("settings.memberRemovedBody", { name: targetName }));
+              try {
+                const refreshed = await fetchHouseholdState(cloud.householdId);
+                setState(refreshed);
+                await cacheHouseholdState(cloud.householdId, refreshed);
+              } catch {
+                // The optimistic state above already reflects the successful RPC.
               }
-            }
-          ])
+            })
+            .catch((e) => reportCloudActionFailure(e));
+        }
       }
     ]);
   };
@@ -821,7 +872,7 @@ function LocalApp(props: { cloud?: CloudProps } = {}) {
     }
     setNameEditorVisible(false);
     if (cloud) {
-      updateMyName(trimmed)
+      updateMyName(trimmed, cloud.householdId)
         .then(() => {
           Alert.alert(t("settings.save"), t("settings.updateNameHelper"));
         })
@@ -902,7 +953,7 @@ function LocalApp(props: { cloud?: CloudProps } = {}) {
         </TouchableOpacity>
         {cloud && (
           <TouchableOpacity
-            style={styles.languageButton}
+            style={[styles.languageButton, styles.headerIconButton]}
             accessibilityRole="button"
             accessibilityLabel="Sign out"
             onPress={cloud.onSignOut}
@@ -1143,7 +1194,10 @@ function LocalApp(props: { cloud?: CloudProps } = {}) {
                 placeholder={t("settings.updateNameHelper")}
                 autoFocus
               />
-              <TouchableOpacity style={styles.actionButton} onPress={onSaveName}>
+              <TouchableOpacity
+                style={[styles.actionButton, styles.actionPrimary, styles.nameSaveButton]}
+                onPress={onSaveName}
+              >
                 <Text style={styles.actionTextLight} allowFontScaling>
                   {t("settings.save")}
                 </Text>
@@ -1263,27 +1317,32 @@ function LocalApp(props: { cloud?: CloudProps } = {}) {
                   {t("handoff.empty")}
                 </Text>
               ) : (
-                handoffCandidates.map((candidate) => (
-                  <TouchableOpacity
-                    key={candidate.id}
-                    style={styles.roleChoiceButton}
-                    accessibilityRole="button"
-                    accessibilityLabel={t("handoff.choose", { name: memberDisplayName(candidate, t) })}
-                    onPress={() => onConfirmHandoff(candidate)}
-                  >
-                    <View style={styles.roleChoiceIcon}>
-                      <Ionicons name="person-circle-outline" size={22} color={palette.teal} />
-                    </View>
-                    <View style={styles.listText}>
-                      <Text style={styles.itemTitle} allowFontScaling>
-                        {memberDisplayName(candidate, t)}
-                      </Text>
-                      <Text style={styles.itemMeta} allowFontScaling>
-                        {roleLabel(candidate.role, t)} · {memberAvailability(candidate, t)}
-                      </Text>
-                    </View>
-                  </TouchableOpacity>
-                ))
+                handoffCandidates.map((candidate) => {
+                  const candidateAvailability = memberAvailability(candidate, t);
+                  const candidateMeta = [roleLabel(candidate.role, t), candidateAvailability].filter(Boolean).join(" · ");
+
+                  return (
+                    <TouchableOpacity
+                      key={candidate.id}
+                      style={styles.roleChoiceButton}
+                      accessibilityRole="button"
+                      accessibilityLabel={t("handoff.choose", { name: memberDisplayName(candidate, t) })}
+                      onPress={() => onConfirmHandoff(candidate)}
+                    >
+                      <View style={styles.roleChoiceIcon}>
+                        <Ionicons name="person-circle-outline" size={22} color={palette.teal} />
+                      </View>
+                      <View style={styles.listText}>
+                        <Text style={styles.itemTitle} allowFontScaling>
+                          {memberDisplayName(candidate, t)}
+                        </Text>
+                        <Text style={styles.itemMeta} allowFontScaling>
+                          {candidateMeta}
+                        </Text>
+                      </View>
+                    </TouchableOpacity>
+                  );
+                })
               )}
             </View>
           </View>
@@ -1325,7 +1384,10 @@ function CloudApp() {
             cacheHouseholdState(householdId, s);
           }
         })
-        .catch(() => {});
+        .catch((e) => {
+          // I7: Realtime 刷新失败不再静默——记录并保留 last-known-good（不整页报错）。
+          console.warn("household realtime refetch failed", e);
+        });
     });
     return () => {
       active = false;
@@ -1394,7 +1456,24 @@ function CloudApp() {
     );
   }
 
-  const actor = state.members.find((m) => m.userId === user.id) ?? state.members[0];
+  const actor = state.members.find((m) => m.userId === user.id);
+  if (!actor) {
+    // I5: 找不到当前用户的成员身份时，绝不 fallback 到他人身份渲染能力——
+    // 展示错误态并允许退出登录（真正权限仍由 RLS/RPC 兜底，但 UI 不给错误按钮）。
+    return (
+      <View style={cloudStyles.center}>
+        <Text style={{ textAlign: "center", marginBottom: 12 }}>
+          {"无法确定你的成员身份。\n你可能已被移出该家庭，请重新登录或联系家庭协调人。"}
+        </Text>
+        <TouchableOpacity
+          style={{ padding: 10, backgroundColor: "#333", borderRadius: 8 }}
+          onPress={() => void signOut()}
+        >
+          <Text style={{ color: "#fff" }}>退出登录</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
   return (
     <LocalApp
       cloud={{
@@ -1461,6 +1540,8 @@ function renderHome(
     onOpenTab,
     onGenerateReport
   );
+  const actorRelation = memberRelation(actor, t);
+  const actorAvailability = memberAvailability(actor, t);
 
   return (
     <View>
@@ -1516,15 +1597,19 @@ function renderHome(
             <Text style={styles.panelTitle} allowFontScaling>
               {actor.name}
             </Text>
-            <Text style={styles.panelSubtitle} allowFontScaling>
-              {memberRelation(actor, t)} - {actor.timezone}
-            </Text>
+            {actorRelation ? (
+              <Text style={styles.panelSubtitle} allowFontScaling>
+                {actorRelation}
+              </Text>
+            ) : null}
           </View>
           <Pill tone={actor.role === "viewer" ? "muted" : "info"} text={roleLabel(actor.role, t)} />
         </View>
-        <Text style={styles.bodyText} allowFontScaling>
-          {t("home.availability", { value: memberAvailability(actor, t) })}
-        </Text>
+        {actorAvailability ? (
+          <Text style={styles.bodyText} allowFontScaling>
+            {t("home.availability", { value: actorAvailability })}
+          </Text>
+        ) : null}
         <View style={styles.permissionWrap}>
           {roleCapabilityLabels(actor.role, t).map((capability) => (
             <View key={capability} style={styles.permissionChip}>
@@ -1984,7 +2069,10 @@ function renderSettings(
   const completed = state.tasks.filter((task) => task.status === "completed");
   const pending = state.tasks.filter((task) => task.status !== "completed");
   const recentAuditEvents = state.auditEvents.slice(0, 4);
-  const settingsMembers = canManageRoles ? state.members : state.members.filter((member) => member.id === actor.id);
+  const settingsMembers = orderMembersForDisplay(
+    canManageRoles ? state.members : state.members.filter((member) => member.id === actor.id),
+    actor.id
+  );
 
   return (
     <View>
@@ -2088,6 +2176,10 @@ function renderSettings(
       <SectionTitle icon="people-circle-outline" title={t("settings.roleManagement")} />
       {settingsMembers.map((member) => {
         const isSelf = member.id === actor.id;
+        const memberRelationLabel = memberRelation(member, t);
+        const memberMeta = [memberRelationLabel, t("settings.currentRole", { role: roleLabel(member.role, t) })]
+          .filter(Boolean)
+          .join(" - ");
         return (
           <View key={member.id} style={styles.panel}>
             <View style={styles.panelHeader}>
@@ -2096,7 +2188,7 @@ function renderSettings(
                   {memberDisplayName(member, t)}
                 </Text>
                 <Text style={styles.itemMeta} allowFontScaling>
-                  {memberRelation(member, t)} - {t("settings.currentRole", { role: roleLabel(member.role, t) })}
+                  {memberMeta}
                 </Text>
               </View>
               <Pill tone={member.role === "viewer" ? "muted" : "info"} text={roleLabel(member.role, t)} />
@@ -2685,7 +2777,9 @@ function TaskCard({
 }
 
 function memberRelation(member: Member, t: Translate): string {
-  if (member.relation === "Pending invite") {
+  const relation = member.relation?.trim() ?? "";
+
+  if (relation === "Pending invite") {
     return t("member.pendingInvite");
   }
 
@@ -2696,7 +2790,7 @@ function memberRelation(member: Member, t: Translate): string {
     "m-lee": "member.readOnlyRelative"
   };
 
-  return keys[member.id] ? t(keys[member.id]) : member.relation;
+  return keys[member.id] ? t(keys[member.id]) : relation;
 }
 
 function memberDisplayName(member: Member, t: Translate): string {
@@ -2708,7 +2802,9 @@ function memberDisplayName(member: Member, t: Translate): string {
 }
 
 function memberAvailability(member: Member, t: Translate): string {
-  if (member.availability === "Pending setup") {
+  const availability = member.availability?.trim() ?? "";
+
+  if (availability === "Pending setup") {
     return t("availability.pendingSetup");
   }
 
@@ -2719,7 +2815,7 @@ function memberAvailability(member: Member, t: Translate): string {
     "m-lee": "availability.lee"
   };
 
-  return keys[member.id] ? t(keys[member.id]) : member.availability;
+  return keys[member.id] ? t(keys[member.id]) : availability;
 }
 
 function taskTitle(task: Task, t: Translate): string {
@@ -3146,14 +3242,14 @@ const styles = StyleSheet.create({
   },
   topBar: {
     paddingTop: Platform.OS === "ios" ? 58 : 34,
-    paddingHorizontal: 18,
+    paddingHorizontal: 14,
     paddingBottom: 14,
     backgroundColor: palette.surface,
     borderBottomWidth: 1,
     borderBottomColor: palette.line,
     flexDirection: "row",
     alignItems: "center",
-    gap: 12
+    gap: 8
   },
   brandMark: {
     width: 42,
@@ -3164,8 +3260,9 @@ const styles = StyleSheet.create({
     justifyContent: "center"
   },
   brandText: {
-    width: 175,
-    flexShrink: 1
+    flex: 1,
+    flexShrink: 1,
+    minWidth: 0
   },
   productName: {
     fontSize: 19,
@@ -3178,7 +3275,7 @@ const styles = StyleSheet.create({
     marginTop: 2
   },
   languageButton: {
-    minWidth: 58,
+    minWidth: 54,
     minHeight: 36,
     borderRadius: 8,
     borderWidth: 1,
@@ -3188,6 +3285,10 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     gap: 5,
+    paddingHorizontal: 8
+  },
+  headerIconButton: {
+    minWidth: 44,
     paddingHorizontal: 8
   },
   languageButtonText: {
@@ -3496,6 +3597,9 @@ const styles = StyleSheet.create({
   },
   actionPrimary: {
     backgroundColor: palette.teal
+  },
+  nameSaveButton: {
+    justifyContent: "center"
   },
   actionSuccess: {
     backgroundColor: palette.green,

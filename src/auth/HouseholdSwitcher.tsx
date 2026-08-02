@@ -2,7 +2,9 @@ import { useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  KeyboardAvoidingView,
   Modal,
+  Platform,
   ScrollView,
   StyleSheet,
   Text,
@@ -58,97 +60,108 @@ export function HouseholdSwitcher({
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <View style={s.scrim}>
-        <View style={s.sheet}>
-          <View style={s.header}>
-            <View>
-              <Text style={s.title}>{t("households.title")}</Text>
-              <Text style={s.subtitle}>{t("households.current", { name: currentName })}</Text>
-            </View>
-            <TouchableOpacity accessibilityRole="button" accessibilityLabel={t("paywall.close")} onPress={onClose}>
-              <Ionicons name="close-outline" size={24} color="#0f766e" />
-            </TouchableOpacity>
-          </View>
-
-          <ScrollView contentContainerStyle={s.content}>
-            {households.map((household) => (
-              <TouchableOpacity
-                key={household.id}
-                disabled={busy || household.isActive}
-                style={[s.row, household.isActive && s.rowActive]}
-                accessibilityRole="button"
-                accessibilityState={{ selected: household.isActive, disabled: busy || household.isActive }}
-                accessibilityLabel={t("households.switchTo", { name: household.name })}
-                onPress={() => perform(async () => onSwitch(household.id))}
-              >
-                <Ionicons name={household.isActive ? "home" : "home-outline"} size={20} color="#0f766e" />
-                <View style={s.rowText}>
-                  <Text style={s.rowTitle}>{household.name}</Text>
-                  <Text style={s.rowMeta}>{household.careRecipientLabel}</Text>
-                </View>
-                {household.isActive && <Ionicons name="checkmark-circle" size={20} color="#0f766e" />}
-              </TouchableOpacity>
-            ))}
-
-            {creating ? (
-              <View style={s.form}>
-                <TextInput
-                  style={s.input}
-                  placeholder={t("households.namePlaceholder")}
-                  value={householdName}
-                  onChangeText={setHouseholdName}
-                  editable={!busy}
-                />
-                <TextInput
-                  style={s.input}
-                  placeholder={t("households.recipientPlaceholder")}
-                  value={careRecipientLabel}
-                  onChangeText={setCareRecipientLabel}
-                  editable={!busy}
-                />
-                <TouchableOpacity
-                  style={[s.createButton, (!householdName || busy) && s.disabled]}
-                  disabled={!householdName || busy}
-                  onPress={() =>
-                    perform(() =>
-                      onCreate({
-                        householdName,
-                        timezone: "America/Los_Angeles",
-                        careRecipientLabel: careRecipientLabel || t("households.defaultRecipient"),
-                        memberName,
-                        memberRelation,
-                        memberTimezone: "America/Los_Angeles"
-                      })
-                    )
-                  }
-                >
-                  {busy ? (
-                    <ActivityIndicator color="#fff" />
-                  ) : (
-                    <Text style={s.createText}>{t("households.create")}</Text>
-                  )}
-                </TouchableOpacity>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        keyboardVerticalOffset={Platform.OS === "ios" ? 12 : 0}
+        style={s.keyboardView}
+      >
+        <View style={s.scrim}>
+          <View style={s.sheet}>
+            <View style={s.header}>
+              <View>
+                <Text style={s.title}>{t("households.title")}</Text>
+                <Text style={s.subtitle}>{t("households.current", { name: currentName })}</Text>
               </View>
-            ) : (
-              <TouchableOpacity style={s.addRow} disabled={busy} onPress={() => setCreating(true)}>
-                <Ionicons name="add-circle-outline" size={20} color="#0f766e" />
-                <Text style={s.addText}>{t("households.add")}</Text>
+              <TouchableOpacity accessibilityRole="button" accessibilityLabel={t("paywall.close")} onPress={onClose}>
+                <Ionicons name="close-outline" size={24} color="#0f766e" />
               </TouchableOpacity>
-            )}
-          </ScrollView>
+            </View>
+
+            <ScrollView
+              keyboardDismissMode="interactive"
+              keyboardShouldPersistTaps="handled"
+              contentContainerStyle={s.content}
+            >
+              {households.map((household) => (
+                <TouchableOpacity
+                  key={household.id}
+                  disabled={busy || household.isActive}
+                  style={[s.row, household.isActive && s.rowActive]}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: household.isActive, disabled: busy || household.isActive }}
+                  accessibilityLabel={t("households.switchTo", { name: household.name })}
+                  onPress={() => perform(async () => onSwitch(household.id))}
+                >
+                  <Ionicons name={household.isActive ? "home" : "home-outline"} size={20} color="#0f766e" />
+                  <View style={s.rowText}>
+                    <Text style={s.rowTitle}>{household.name}</Text>
+                    <Text style={s.rowMeta}>{household.careRecipientLabel}</Text>
+                  </View>
+                  {household.isActive && <Ionicons name="checkmark-circle" size={20} color="#0f766e" />}
+                </TouchableOpacity>
+              ))}
+
+              {creating ? (
+                <View style={s.form}>
+                  <TextInput
+                    style={s.input}
+                    placeholder={t("households.namePlaceholder")}
+                    value={householdName}
+                    onChangeText={setHouseholdName}
+                    editable={!busy}
+                  />
+                  <TextInput
+                    style={s.input}
+                    placeholder={t("households.recipientPlaceholder")}
+                    value={careRecipientLabel}
+                    onChangeText={setCareRecipientLabel}
+                    editable={!busy}
+                  />
+                  <TouchableOpacity
+                    style={[s.createButton, (!householdName || busy) && s.disabled]}
+                    disabled={!householdName || busy}
+                    onPress={() =>
+                      perform(() =>
+                        onCreate({
+                          householdName,
+                          timezone: "America/Los_Angeles",
+                          careRecipientLabel: careRecipientLabel || t("households.defaultRecipient"),
+                          memberName,
+                          memberRelation,
+                          memberTimezone: "America/Los_Angeles"
+                        })
+                      )
+                    }
+                  >
+                    {busy ? (
+                      <ActivityIndicator color="#fff" />
+                    ) : (
+                      <Text style={s.createText}>{t("households.create")}</Text>
+                    )}
+                  </TouchableOpacity>
+                </View>
+              ) : (
+                <TouchableOpacity style={s.addRow} disabled={busy} onPress={() => setCreating(true)}>
+                  <Ionicons name="add-circle-outline" size={20} color="#0f766e" />
+                  <Text style={s.addText}>{t("households.add")}</Text>
+                </TouchableOpacity>
+              )}
+            </ScrollView>
+          </View>
         </View>
-      </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
 
 const s = StyleSheet.create({
+  keyboardView: { flex: 1 },
   scrim: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" },
-  sheet: { backgroundColor: "#fff", borderTopLeftRadius: 18, borderTopRightRadius: 18, padding: 20, maxHeight: "82%" },
+  sheet: { backgroundColor: "#fff", borderTopLeftRadius: 18, borderTopRightRadius: 18, padding: 20, maxHeight: "86%" },
   header: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 14 },
   title: { fontSize: 21, fontWeight: "800", color: "#0f766e" },
   subtitle: { fontSize: 13, color: "#64748b", marginTop: 3 },
-  content: { gap: 8 },
+  content: { gap: 8, paddingBottom: 8 },
   row: {
     flexDirection: "row",
     alignItems: "center",

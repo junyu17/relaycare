@@ -200,26 +200,11 @@ export async function updateMemberRole(args: {
   memberName: string;
   role: Role;
 }) {
-  const { error } = await supabase.from("members").update({ role: args.role }).eq("id", args.memberId);
+  const { error } = await supabase.rpc("update_member_role", {
+    p_member_id: args.memberId,
+    p_role: args.role
+  });
   if (error) throw error;
-  await insertAudit({
-    householdId: args.householdId,
-    actorId: args.actor.id,
-    action: "member.role_updated",
-    entityType: "member",
-    entityId: args.memberId,
-    detail: `${args.actor.name} changed ${args.memberName}'s role to ${args.role}.`
-  });
-  await insertNotification({
-    householdId: args.householdId,
-    audience: args.role,
-    severity: "info",
-    titleKey: "notification.title.roleUpdated",
-    bodyKey: "notification.body.roleUpdated",
-    values: { name: args.memberName, role: args.role },
-    entityType: "member",
-    entityId: args.memberId
-  });
 }
 
 export async function inviteMember(args: { householdId: string; actor: Member; role: Role; householdName: string }) {
@@ -285,50 +270,17 @@ export async function confirmDocumentAndCreateTask(args: {
   dueAt: string;
   subtasks: string[];
 }) {
-  const { error: docErr } = await supabase.from("documents").update({ status: "confirmed" }).eq("id", args.documentId);
-  if (docErr) throw docErr;
-  const { data: task, error: taskErr } = await supabase
-    .from("tasks")
-    .insert({
-      household_id: args.householdId,
-      title: args.taskTitle,
-      expected_minutes: 15,
-      due_at: args.dueAt,
-      priority: "normal",
-      status: "open",
-      requested_by_id: args.actor.id,
-      document_id: args.documentId,
-      subtasks: args.subtasks
-    })
-    .select("id")
-    .single();
-  if (taskErr) throw taskErr;
-  await insertAudit({
-    householdId: args.householdId,
-    actorId: args.actor.id,
-    action: "document.confirmed",
-    entityType: "document",
-    entityId: args.documentId,
-    detail: `${args.actor.name} confirmed document "${args.documentName}".`
+  // B7: 原子化——服务端 security definer RPC（迁移 0029_confirm_document_atomic.sql）
+  // 单事务完成 document 确认 + task 创建 + 审计 + 通知。家庭/actor 由服务端从
+  // auth.uid() 与 document 所属家庭推导，不再信任客户端传入的 householdId/actor。
+  const { data, error } = await supabase.rpc("confirm_document_and_create_task", {
+    p_document_id: args.documentId,
+    p_task_title: args.taskTitle,
+    p_due_at: args.dueAt,
+    p_subtasks: args.subtasks
   });
-  await insertAudit({
-    householdId: args.householdId,
-    actorId: args.actor.id,
-    action: "document.task_created",
-    entityType: "task",
-    entityId: task.id,
-    detail: `${args.actor.name} created task "${args.taskTitle}" from document "${args.documentName}".`
-  });
-  await insertNotification({
-    householdId: args.householdId,
-    audience: "caregiver",
-    severity: "info",
-    titleKey: "notification.title.newTask",
-    bodyKey: "notification.body.claimableTask",
-    values: { task: args.taskTitle, priority: "normal" },
-    entityType: "task",
-    entityId: task.id
-  });
+  if (error) throw error;
+  return data as string;
 }
 
 export async function recordReportGenerated(args: { householdId: string; actor: Member; openCount: number }) {

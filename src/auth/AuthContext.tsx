@@ -10,6 +10,7 @@ import {
   type HouseholdSummary
 } from "../lib/db";
 import * as Linking from "expo-linking";
+import { clearHouseholdCaches } from "../lib/db";
 
 export interface CreateHouseholdArgs {
   householdName: string;
@@ -51,6 +52,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [pendingJoinCode, setPendingJoinCode] = useState<string | null>(null);
 
   // Deep link: taskkin-care://invite?token=<token> 或 taskkin-care://join?code=<6位码>
+  // I8: invite token 解析后暂未被消费（加入流程走 join code/QR）；保留解析供后续接入。
   useEffect(() => {
     const handleUrl = (url: string | null) => {
       if (!url) return;
@@ -122,6 +124,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
   const signOut = async () => {
     await supabase.auth.signOut();
+    // I6: 登出清理全部家庭缓存（OCR 原文/审计细节等明文数据不留设备）。
+    void clearHouseholdCaches();
     setUser(null);
     setHouseholdId(null);
     setHouseholds([]);

@@ -22,7 +22,7 @@
 
 1. 左侧 **Monetize → Products → Subscriptions → Create subscription**
 2. 创建两个订阅，**Product ID 必须与代码一致**：
-   - **注意**：代码 SKU 是 `TaskKin.care.pro.mon`（月）与 `TaskKin.care.pro.yearly`（年），Play 的 Product ID 必须照抄这两串
+   - **Product ID（Play 小写规则，创建后不可改）**：`taskkin.care.pro.monthly`（月）与 `taskkin.care.pro.yearly`（年）——与代码 `ANDROID_SUB_SKUS`/`verify-google-purchase` 一致；iOS SKU（`TaskKin.care.pro.mon`/`TaskKin.care.pro.yearly`）仅供 App Store 使用，勿混用
    - 定价：月 $9.99、年 $99.99（与 iOS 一致）；订阅基期：月/年；自动续订开
 3. 激活并提交（需完成商店信息）
 
@@ -77,5 +77,5 @@ cd android && JAVA_HOME=/opt/homebrew/opt/openjdk@17 ./gradlew assembleRelease
 - [ ] `GOOGLE_SERVICE_ACCOUNT_JSON` 已设 + Play API 授权
 - [ ] 服务账号测试：`curl` Play API 返回 200（用服务账号拿 token 调 subscriptions 查询）
 - [ ] Internal testing 真机：购买 → entitlement 生效（subscriptions 表 environment='Google'）→ 恢复购买
-- [ ] 退款/取消：RTDN（Play 实时开发者通知）尚未接入（后续：webhook → revoke）；当前靠 expiry 自然过期
+- [x] RTDN 已接入（play-rtdn Edge Function + 0035 sync_subscription_state）：需在 Play Console 配置 Pub/Sub topic + push 订阅（Authorization: Bearer RTDN_VERIFICATION_TOKEN secret）；续费/取消/过期自动同步权益
 - [ ] 版本：versionCode 每次上传递增

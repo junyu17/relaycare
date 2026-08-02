@@ -16,9 +16,10 @@ const SUPA_URL = Deno.env.get("SUPABASE_URL");
 const PACKAGE = Deno.env.get("GOOGLE_PLAY_PACKAGE") ?? "cd.cc.taskkincare";
 const GOOGLE_SA_JSON = Deno.env.get("GOOGLE_SERVICE_ACCOUNT_JSON");
 
+// Google Play Product ID（小写，与客户端 ANDROID_SUB_SKUS 一致；iOS SKU 另由 verify-apple-receipt 处理）
 const SKU_TO_PLAN: Record<string, "monthly" | "yearly"> = {
-  "TaskKin.care.pro.yearly": "yearly",
-  "TaskKin.care.pro.mon": "monthly"
+  "taskkin.care.pro.yearly": "yearly",
+  "taskkin.care.pro.monthly": "monthly"
 };
 
 function json(body: unknown, status = 200): Response {
@@ -85,12 +86,11 @@ async function verifyPlaySubscription(
   productId: string,
   purchaseToken: string
 ): Promise<{
-  subscriptionState: number;
-  expiryTimeMillis?: string;
-  startTimeMillis?: string;
-  obfuscatedExternalAccountId?: string;
+  subscriptionState?: string;
+  lineItems?: { productId?: string; expiryTime?: string }[];
+  accountIdentifiers?: { externalAccountId?: string; obfuscatedExternalAccountId?: string };
 }> {
-  const url = `https://androidpublisher.googleapis.com/androidpublisher/v3/applications/${PACKAGE}/purchases/subscriptions/${productId}/tokens/${encodeURIComponent(purchaseToken)}`;
+  const url = `https://androidpublisher.googleapis.com/androidpublisher/v3/applications/${PACKAGE}/purchases/subscriptionsv2/tokens/${encodeURIComponent(purchaseToken)}`;
   const res = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}` } });
   if (!res.ok) {
     const body = await res.text();
@@ -134,19 +134,27 @@ Deno.serve(async (req) => {
     const accessToken = await getGoogleAccessToken();
     const sub = await verifyPlaySubscription(accessToken, productId, purchaseToken);
 
-    // 订阅必须 active（1）且未过期
-    if (sub.subscriptionState !== 1) {
-      return fail("SUBSCRIPTION_NOT_ACTIVE", "This subscription is not active", 400, { state: sub.subscriptionState });
+    // V2：状态为字符串（SUBSCRIPTION_STATE_ACTIVE）；lineItems[0].expiryTime 为 ISO8601 到期时间。
+    if (sub.subscriptionState !== "SUBSCRIPTION_STATE_ACTIVE") {
+      return fail("SUBSCRIPTION_NOT_ACTIVE", "This subscription is not active", 400, {
+        state: sub.subscriptionState ?? null
+      });
     }
-    const expiresMs = Number(sub.expiryTimeMillis);
+    const expiryItem = sub.lineItems?.[0];
+    if (!expiryItem?.expiryTime) {
+      return fail("SUBSCRIPTION_NO_EXPIRY", "This subscription has no expiry time", 400);
+    }
+    const expiresMs = Date.parse(expiryItem.expiryTime);
     if (!Number.isFinite(expiresMs) || expiresMs <= Date.now()) {
       return fail("SUBSCRIPTION_EXPIRED", "This subscription has expired", 400);
     }
-    // 交易必须绑定当前用户：客户端购买时传 obfuscatedAccountId = 'u_' + auth.uid()
-    // （Play Billing 要求 [a-zA-Z0-9_] 且不以数字开头，故加 'u_' 前缀）。
-    // 客户端传 u_ + uid(去连字符)；Play 正则要求 [a-zA-Z0-9_]*（含连字符 UUID 会被拒）。
+    // 交易必须绑定当前用户：客户端购买时传 obfuscatedAccountId = 'u_' + auth.uid()（去连字符）。
+    // 客户端经 setObfuscatedAccountId 传入 → V2 响应 accountIdentifiers.obfuscatedExternalAccountId
+    // （externalAccountId 为普通账户标识，IAP 不填充）；两字段兼容读取。
     const expectedObfuscatedId = `u_${userData.user.id.replace(/-/g, "")}`;
-    if (!sub.obfuscatedExternalAccountId || sub.obfuscatedExternalAccountId !== expectedObfuscatedId) {
+    const actualAccountId =
+      sub.accountIdentifiers?.obfuscatedExternalAccountId ?? sub.accountIdentifiers?.externalAccountId;
+    if (!actualAccountId || actualAccountId !== expectedObfuscatedId) {
       return fail(
         "ACCOUNT_TOKEN_MISMATCH",
         "This purchase is not bound to your account. Please restore purchases.",

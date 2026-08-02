@@ -12,6 +12,7 @@ import {
   type ProductSubscription
 } from "expo-iap";
 import { supabase } from "../lib/supabase";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import type { Plan } from "../types";
 
 export type { ProductSubscription };
@@ -23,13 +24,27 @@ export const IOS_SUB_SKUS = {
   monthly: "TaskKin.care.pro.mon"
 } as const;
 
+// Android（Google Play）SKU：独立小写 ID（Play 禁止大写；Product ID 创建后不可改）。
+export const ANDROID_SUB_SKUS = {
+  yearly: "taskkin.care.pro.yearly",
+  monthly: "taskkin.care.pro.monthly"
+} as const;
+
 const SKU_TO_PLAN: Record<string, "monthly" | "yearly"> = {
   [IOS_SUB_SKUS.yearly]: "yearly",
-  [IOS_SUB_SKUS.monthly]: "monthly"
+  [IOS_SUB_SKUS.monthly]: "monthly",
+  [ANDROID_SUB_SKUS.yearly]: "yearly",
+  [ANDROID_SUB_SKUS.monthly]: "monthly"
 };
 
 export function skuForPlan(plan: "monthly" | "yearly"): string {
-  return plan === "yearly" ? IOS_SUB_SKUS.yearly : IOS_SUB_SKUS.monthly;
+  return Platform.OS === "android"
+    ? plan === "yearly"
+      ? ANDROID_SUB_SKUS.yearly
+      : ANDROID_SUB_SKUS.monthly
+    : plan === "yearly"
+      ? IOS_SUB_SKUS.yearly
+      : IOS_SUB_SKUS.monthly;
 }
 
 export function isIapAvailable(): boolean {
@@ -48,6 +63,45 @@ let listenerInstalled = false;
 let pendingResolver: ((p: Purchase) => void) | null = null;
 let pendingRejecter: ((e: Error) => void) | null = null;
 
+const PENDING_PURCHASES_KEY = "taskkin-care:pending-purchases";
+
+// Android：持久化待验证交易（purchaseToken + productId），verify 成功后由 finish 移除。
+async function persistPendingPurchase(purchase: Purchase): Promise<void> {
+  try {
+    const raw = await AsyncStorage.getItem(PENDING_PURCHASES_KEY);
+    const list: { purchaseToken: string; productId: string; transactionId: string }[] = raw ? JSON.parse(raw) : [];
+    const token = purchase.purchaseToken;
+    if (!token) return;
+    const txnId = purchase.transactionId ?? "";
+    if (!list.some((p) => p.purchaseToken === token)) {
+      list.push({ purchaseToken: token, productId: purchase.productId, transactionId: txnId });
+      await AsyncStorage.setItem(PENDING_PURCHASES_KEY, JSON.stringify(list));
+    }
+  } catch {
+    // best-effort
+  }
+}
+
+export async function getPendingPurchases(): Promise<
+  { purchaseToken: string; productId: string; transactionId: string }[]
+> {
+  try {
+    const raw = await AsyncStorage.getItem(PENDING_PURCHASES_KEY);
+    return raw ? (JSON.parse(raw) as { purchaseToken: string; productId: string; transactionId: string }[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+export async function clearPendingPurchase(token: string): Promise<void> {
+  try {
+    const list = await getPendingPurchases();
+    await AsyncStorage.setItem(PENDING_PURCHASES_KEY, JSON.stringify(list.filter((p) => p.purchaseToken !== token)));
+  } catch {
+    // best-effort
+  }
+}
+
 export async function initIap(): Promise<void> {
   if (!isIapAvailable()) return;
   if (!listenerInstalled) {
@@ -58,9 +112,12 @@ export async function initIap(): Promise<void> {
         pendingResolver = null;
         pendingRejecter = null;
         resolve(purchase);
+      } else if (Platform.OS === "android") {
+        // Android：无等待者（冷启动/中断）——持久化待验证交易（不 acknowledge），
+        // 保留 Google 3 天未 ack 自动退款保护；由 restoreIos/下次购买前统一验证后 finish。
+        void persistPendingPurchase(purchase).catch(() => {});
       } else {
-        // I1: 无等待者（如冷启动时 StoreKit 推送待完成交易）——best-effort finish，
-        // 避免交易永久 pending 反复推送；entitlement 由"恢复购买"重新校验。
+        // I1（iOS）：无等待者时 best-effort finish，避免 pending 死循环；entitlement 由恢复购买校验。
         finishTransaction({ purchase }).catch(() => {});
       }
     });
@@ -195,6 +252,27 @@ export async function finishIosPurchase(purchase: Purchase): Promise<void> {
 export async function restoreIos(householdId: string): Promise<Plan | null> {
   await initIap();
   if (!isIosIapAvailable()) return null;
+  // Android：先验证持久化的待确认交易（verify 成功 → finish + 清除），再走恢复购买。
+  if (Platform.OS === "android") {
+    const pending = await getPendingPurchases();
+    for (const p of pending) {
+      try {
+        const purchase = {
+          productId: p.productId,
+          transactionId: p.transactionId,
+          purchaseToken: p.purchaseToken
+        } as Purchase;
+        const result = await verifyApplePurchase({ purchase, householdId, mode: "restore" });
+        if (result.ok) {
+          await finishIosPurchase(purchase);
+          await clearPendingPurchase(p.purchaseToken);
+        }
+      } catch (e) {
+        // 基础设施错误：记录并继续下一笔（verify 失败时该笔保留在 pending，下次重试）
+        console.warn("restoreIos: pending verify failed", e);
+      }
+    }
+  }
   const purchases = await getAvailablePurchases();
   let infraError: unknown = null;
   for (const purchase of purchases) {

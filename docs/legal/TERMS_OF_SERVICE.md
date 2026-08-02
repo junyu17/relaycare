@@ -43,7 +43,10 @@ Uploaded documents are metadata and candidate-field coordination aids, not verif
 
 ## 8. Fees
 
-Family Plus is an optional auto-renewing subscription: **$9.99/month** or **$99.99/year**. Payment is charged to your Apple ID. The subscription renews automatically unless canceled at least 24 hours before the end of the current period. You can manage or cancel anytime in your Apple ID subscription settings. The Free tier remains available at no charge.
+Family Plus is an optional auto-renewing subscription: **$9.99/month** or **$99.99/year**.
+
+- **iOS**: Payment is charged to your Apple ID. The subscription renews automatically unless canceled at least 24 hours before the end of the current period. You can manage or cancel anytime in your Apple ID subscription settings (apps.apple.com/account/subscriptions).
+- **Android**: Payment is charged to your Google Play account. You can manage or cancel the subscription in Google Play subscription settings (play.google.com/store/account/subscriptions). The Free tier remains available at no charge.
 
 ## 9. Intellectual Property
 

@@ -287,7 +287,14 @@ export function Paywall({
               style={s.devBtn}
               accessibilityRole="button"
               accessibilityLabel={t("paywall.manage")}
-              onPress={() => Linking.openURL("https://apps.apple.com/account/subscriptions").catch(() => {})}
+              // Android 跳 Google Play 订阅管理页；iOS 跳 Apple 订阅管理页。
+              onPress={() => {
+                const url =
+                  Platform.OS === "android"
+                    ? "https://play.google.com/store/account/subscriptions"
+                    : "https://apps.apple.com/account/subscriptions";
+                void Linking.openURL(url).catch(() => {});
+              }}
             >
               <Text style={s.devBtnText} allowFontScaling>
                 {t("paywall.manage")}

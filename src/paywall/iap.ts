@@ -103,7 +103,7 @@ export async function purchaseIosSubscription(plan: "monthly" | "yearly"): Promi
     const result = await requestPurchase({
       request: {
         apple: { sku: skuForPlan(plan), appAccountToken: userId },
-        google: { skus: [skuForPlan(plan)], obfuscatedAccountId: userId ? `u_${userId}` : null }
+        google: { skus: [skuForPlan(plan)], obfuscatedAccountId: userId ? `u_${userId.replace(/-/g, "")}` : null }
       },
       type: "subs"
     });

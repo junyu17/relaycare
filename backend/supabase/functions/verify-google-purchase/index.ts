@@ -144,7 +144,8 @@ Deno.serve(async (req) => {
     }
     // 交易必须绑定当前用户：客户端购买时传 obfuscatedAccountId = 'u_' + auth.uid()
     // （Play Billing 要求 [a-zA-Z0-9_] 且不以数字开头，故加 'u_' 前缀）。
-    const expectedObfuscatedId = `u_${userData.user.id}`;
+    // 客户端传 u_ + uid(去连字符)；Play 正则要求 [a-zA-Z0-9_]*（含连字符 UUID 会被拒）。
+    const expectedObfuscatedId = `u_${userData.user.id.replace(/-/g, "")}`;
     if (!sub.obfuscatedExternalAccountId || sub.obfuscatedExternalAccountId !== expectedObfuscatedId) {
       return fail(
         "ACCOUNT_TOKEN_MISMATCH",
@@ -190,7 +191,7 @@ Deno.serve(async (req) => {
         {
           dbError: upErr.message,
           plan,
-          originalTransactionId: `g:${purchaseToken.slice(0, 12)}...`
+          originalTransactionId: `g:<redacted>`
         }
       );
     }

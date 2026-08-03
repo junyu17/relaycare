@@ -1521,7 +1521,11 @@ function CloudApp() {
 }
 
 export default function App() {
+  // R11（IOS_SUBMISSION_DEV_SPEC）：生产构建必须配置 Supabase，否则视为配置错误直接抛错（不静默进本地演示）。
   if (!isSupabaseConfigured) {
+    if (!__DEV__) {
+      throw new Error("Supabase is not configured in a production build");
+    }
     return (
       <ConsentGate>
         <LocalApp />

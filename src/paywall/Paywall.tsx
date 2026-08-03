@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { openLegal } from "../legal/consent";
+
 import type { Language, Translate } from "../i18n";
 import {
   Modal,
@@ -27,30 +28,7 @@ import {
   type ProductSubscription
 } from "./iap";
 
-interface Row {
-  labelKey: string;
-  free: string;
-  plus: string;
-}
-
-const ROWS: Row[] = [
-  { labelKey: "paywall.row.households", free: "1", plus: "3" },
-  { labelKey: "paywall.row.members", free: "3", plus: "12" },
-  { labelKey: "paywall.row.tasks", free: "10", plus: "∞" },
-  { labelKey: "paywall.row.storage", free: "25 MB", plus: "25 MB" },
-  { labelKey: "paywall.row.report", free: "reportManual", plus: "reportAuto" },
-  { labelKey: "paywall.row.ocr", free: "1", plus: "50" },
-  { labelKey: "paywall.row.audit", free: "30 days", plus: "3 years" },
-  { labelKey: "paywall.row.export", free: "none", plus: "PDF/CSV" },
-  { labelKey: "paywall.row.notifications", free: "none", plus: "✓" }
-];
-
-function rowValue(value: string, t: Translate): string {
-  if (value === "reportManual") return t("paywall.value.reportManual");
-  if (value === "reportAuto") return t("paywall.value.reportAuto");
-  if (value === "none") return t("paywall.value.none");
-  return value;
-}
+import { ROWS, rowValue } from "./paywallRows";
 
 function findPrice(subs: ProductSubscription[], plan: "monthly" | "yearly"): string | null {
   // R12（IOS_SUBMISSION_DEV_SPEC）：用平台 SKU 匹配（Android 小写 ID / iOS App Store ID）
@@ -252,6 +230,9 @@ export function Paywall({
                     <Text style={s.subscribeText} allowFontScaling>
                       {yearlyPriceLabel}
                     </Text>
+                    <Text style={s.periodHint} allowFontScaling>
+                      {t("paywall.length.yearly")}
+                    </Text>
                     <View style={s.saveBadge}>
                       <Text style={s.saveBadgeText} allowFontScaling>
                         {t("paywall.save")}
@@ -269,6 +250,9 @@ export function Paywall({
               >
                 <Text style={s.subscribeText} allowFontScaling>
                   {monthlyPrice}
+                </Text>
+                <Text style={s.periodHint} allowFontScaling>
+                  {t("paywall.length.monthly")}
                 </Text>
               </TouchableOpacity>
               <TouchableOpacity
@@ -391,6 +375,7 @@ const s = StyleSheet.create({
   monthlyBtn: { backgroundColor: "#0e6b63" },
   disabledBtn: { opacity: 0.6 },
   subscribeText: { color: "#fff", fontWeight: "700", fontSize: 15 },
+  periodHint: { color: "#e2e8f0", fontSize: 11, marginTop: 2, textAlign: "center" },
   subscribeRow: { flexDirection: "row", alignItems: "center", gap: 8 },
   saveBadge: { backgroundColor: "#facc15", paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6 },
   saveBadgeText: { color: "#713f12", fontWeight: "800", fontSize: 12 },

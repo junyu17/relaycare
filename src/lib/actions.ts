@@ -325,3 +325,15 @@ export async function recordReportGenerated(args: { householdId: string; actor: 
     detail: `${args.actor.name} generated the weekly family report.`
   });
 }
+
+// R2（H4）：导出动作审计（report.exported，无通知副作用；由 types/i18n 已定义的 action）
+export async function recordReportExported(args: { householdId: string; actor: Member }) {
+  await insertAudit({
+    householdId: args.householdId,
+    actorId: args.actor.id,
+    action: "report.exported",
+    entityType: "report",
+    entityId: "export",
+    detail: `${args.actor.name} exported the weekly report.`
+  });
+}

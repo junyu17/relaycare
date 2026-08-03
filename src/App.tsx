@@ -678,14 +678,8 @@ function LocalApp(props: { cloud?: CloudProps } = {}) {
         es: buildLocalizedReportText(snapshot, "es", makeTranslator("es"))
       };
       if (cloud) {
-        runCloudAction(
-          cloudActions.recordReportGenerated({
-            householdId: cloud.householdId,
-            actor,
-            openCount: snapshot.tasks.filter((task) => task.status !== "completed").length
-          })
-        );
-        // R2（B6）：手动生成同步落库周报历史（record_weekly_report，definer + coordinator 校验）
+        // R2（B6）：手动生成落库周报历史（record_weekly_report 内部写一次 report.generated 审计，
+        // 不再重复调 recordReportGenerated 的通知+审计；H4 的导出动作单独记 report.exported）
         void recordWeeklyReport(cloud.householdId, {
           tasksCreated: snapshot.tasks.length,
           tasksCompleted: snapshot.tasks.filter((task) => task.status === "completed").length,
@@ -714,6 +708,12 @@ function LocalApp(props: { cloud?: CloudProps } = {}) {
   // R4（IOS_SUBMISSION_DEV_SPEC）：报表导出 CSV（Plus 专属；客户端 canUse 为 UX 门禁——
   // 导出仅序列化本家庭已授权 state 走系统分享面板，无跨用户泄露面，属付费墙商业约束）。
   // R2 修复（B3/B4）：CSV 落真实文件（UTF-8 BOM + 9 列 + 规范文件名）+ 导出审计（H4）。
+  const completionByTask = new Map<string, string>();
+  for (const entry of state.auditEvents ?? []) {
+    if (entry.action === "task.completed") {
+      completionByTask.set(entry.entityId, entry.createdAt ?? "");
+    }
+  }
   const exportRows: TaskCsvRow[] = state.tasks.map((task) => ({
     taskId: task.id,
     title: task.title,
@@ -723,7 +723,7 @@ function LocalApp(props: { cloud?: CloudProps } = {}) {
     ownerRole: roleLabel(state.members.find((m) => m.id === task.ownerId)?.role ?? "caregiver", t),
     createdAt: task.createdAt ?? "",
     dueAt: task.dueAt ?? "",
-    completedAt: ""
+    completedAt: completionByTask.get(task.id) ?? ""
   }));
   const onExportCsv = async () => {
     const csv = buildTaskCsvRows(exportRows);
@@ -762,7 +762,7 @@ function LocalApp(props: { cloud?: CloudProps } = {}) {
   const exportAudit = async () => {
     if (!cloud || !actor) return;
     try {
-      await cloudActions.recordReportGenerated({ householdId: cloud.householdId, actor, openCount: 0 });
+      await cloudActions.recordReportExported({ householdId: cloud.householdId, actor });
     } catch {
       // best-effort audit
     }

@@ -300,32 +300,6 @@ export async function confirmDocumentAndCreateTask(args: {
   return data as string;
 }
 
-export async function recordReportGenerated(args: { householdId: string; actor: Member; openCount: number }) {
-  const { data, error } = await supabase
-    .from("role_notifications")
-    .insert({
-      household_id: args.householdId,
-      audience: "coordinator",
-      severity: "info",
-      title_key: "notification.title.weeklyReady",
-      body_key: "notification.body.weeklyReady",
-      values: { count: args.openCount },
-      entity_type: "report",
-      entity_id: "weekly-summary"
-    })
-    .select("id")
-    .single();
-  if (error) throw error;
-  await insertAudit({
-    householdId: args.householdId,
-    actorId: args.actor.id,
-    action: "report.generated",
-    entityType: "report",
-    entityId: data.id,
-    detail: `${args.actor.name} generated the weekly family report.`
-  });
-}
-
 // R2（H4）：导出动作审计（report.exported，无通知副作用；由 types/i18n 已定义的 action）
 export async function recordReportExported(args: { householdId: string; actor: Member }) {
   await insertAudit({

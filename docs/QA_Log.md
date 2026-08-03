@@ -882,3 +882,11 @@ Actual artifact verification:
 - A3：paywall-consistency 改查表逐行断言（EXPECT 9 行 × free/plus，去条件分支自豁免）+ audit 30/1095 双验证
 - A4：zh report.weekOf → "周报周期："；en/es 值补尾空格 + App.tsx 模板去空格（三语拼接正确）
 - 门禁：typecheck / lint / prettier / vitest 54/54（51→54）全绿；自查 review pass
+
+### Bug1 删除不同步 + Bug2 重复提交 修复 2026-08-03（0045/0046/0047）
+
+- Bug1 根因：tasks/care_events 硬删 + 全库无 REPLICA IDENTITY FULL → DELETE 事件 WAL 仅主键，household_id=null → realtime filter 不匹配 → 事件丢弃，所有设备不 refetch（members 软删因此正常）。
+- 修复：0045 REPLICA IDENTITY FULL（tasks/care_events/documents/audit_events；0047 补 households）+ 客户端 refetchSeq 序号守卫（防乱序旧快照覆盖）+ onDeleteTask/onDeleteEvent 乐观移除（functional 缓存）。
+- Bug2 根因：创建入口无防抖/幂等，RPC 裸 insert + 客户端直插。
+- 修复：tasks/care_events 加 client_request_id 唯一索引（0046 改非部分适配 REST ON CONFLICT inference）+ create_task_with_activity 原子幂等（0047 on conflict do nothing 返回已有 id，不重复写审计/通知）+ actions.ts upsert ignoreDuplicates + maybeSingle 命中重查 + App.tsx createInFlight 防重入（4 路径）+ newClientRequestId()。
+- 部署：0045/0046/0047 已 db push（migration 至 0047）；门禁 typecheck/lint/prettier/vitest 54/54；review + security_review 双 pass（残留 LOW：Math.random fallback、乐观删除失败无回滚——记录）。

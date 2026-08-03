@@ -59,6 +59,7 @@ export async function createTask(args: {
   subtasks: string[];
   eventId?: string;
   documentId?: string;
+  clientRequestId?: string; // Bug2：幂等键，重试/连点不产生重复任务
 }) {
   const { error } = await supabase.rpc("create_task_with_activity", {
     p_household_id: args.householdId,
@@ -68,7 +69,8 @@ export async function createTask(args: {
     p_priority: args.priority,
     p_subtasks: args.subtasks,
     p_event_id: args.eventId ?? null,
-    p_document_id: args.documentId ?? null
+    p_document_id: args.documentId ?? null,
+    p_client_request_id: args.clientRequestId ?? null
   });
   if (error) throw error;
 }
@@ -143,20 +145,37 @@ export async function addTimelineEvent(args: {
   title: string;
   startsAt: string;
   location: string;
+  clientRequestId?: string; // Bug2：幂等键，连点不产生重复事件
 }) {
-  const { data, error } = await supabase
+  let { data, error } = await supabase
     .from("care_events")
-    .insert({
-      household_id: args.householdId,
-      type: args.type,
-      title: args.title,
-      starts_at: args.startsAt,
-      location: args.location,
-      owner_id: args.actor.id
-    })
+    .upsert(
+      {
+        household_id: args.householdId,
+        type: args.type,
+        title: args.title,
+        starts_at: args.startsAt,
+        location: args.location,
+        owner_id: args.actor.id,
+        client_request_id: args.clientRequestId ?? null
+      },
+      { onConflict: "owner_id,client_request_id", ignoreDuplicates: true }
+    )
     .select("id")
-    .single();
+    .maybeSingle();
   if (error) throw error;
+  if (!data && args.clientRequestId) {
+    // 幂等命中（重复提交被 DO NOTHING 忽略）：重查已有事件 id，不当作失败。
+    const { data: existing, error: err2 } = await supabase
+      .from("care_events")
+      .select("id")
+      .eq("owner_id", args.actor.id)
+      .eq("client_request_id", args.clientRequestId)
+      .maybeSingle();
+    if (err2) throw err2;
+    data = existing;
+  }
+  if (!data) throw new Error("timeline event not created");
   await insertAudit({
     householdId: args.householdId,
     actorId: args.actor.id,

@@ -57,6 +57,7 @@ import { Paywall } from "./paywall/Paywall";
 import { canUse, effectivePlan, checkTaskQuota, checkOcrQuota, checkFileSize } from "./lib/entitlement";
 import { DEFAULT_PREF, shouldDeliverNow, type NotificationPref } from "./lib/notify";
 import { enqueueDigestNotification, flushDigestQueue } from "./lib/digest-queue";
+import { newClientRequestId } from "./lib/uuid";
 import { errorMessage } from "./lib/error";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 import {
@@ -363,6 +364,8 @@ function LocalApp(props: { cloud?: CloudProps } = {}) {
   const runCloudAction = (action: Promise<unknown>) => {
     void action.catch((e) => reportCloudActionFailure(e));
   };
+  // Bug2：创建类操作防重入（连点/双指）。事件处理器内同步置位，RPC 幂等键兜底。
+  const [createInFlight, setCreateInFlight] = useState<string | null>(null);
 
   const onClaim = (task: Task) => {
     runIfAllowed("task:claim", () => {
@@ -448,6 +451,13 @@ function LocalApp(props: { cloud?: CloudProps } = {}) {
         text: t("tasks.delete"),
         onPress: () => {
           if (cloud) {
+            // Bug1：乐观移除本地行，随后靠 realtime（0045 REPLICA IDENTITY FULL）驱动各设备刷新；
+            // RPC 失败时提示（下次事件会收敛）。
+            setState((current) => {
+              const next = { ...current, tasks: current.tasks.filter((item) => item.id !== task.id) };
+              void cacheHouseholdState(cloud.householdId, next).catch(() => undefined);
+              return next;
+            });
             runCloudAction(cloudActions.deleteTask({ taskId: task.id }));
           } else {
             setState((current) => ({ ...current, tasks: current.tasks.filter((item) => item.id !== task.id) }));
@@ -465,6 +475,12 @@ function LocalApp(props: { cloud?: CloudProps } = {}) {
         text: t("timeline.delete"),
         onPress: () => {
           if (cloud) {
+            // Bug1：乐观移除本地行（同 onDeleteTask）。
+            setState((current) => {
+              const next = { ...current, events: current.events.filter((item) => item.id !== eventId) };
+              void cacheHouseholdState(cloud.householdId, next).catch(() => undefined);
+              return next;
+            });
             runCloudAction(cloudActions.deleteCareEvent({ eventId }));
           } else {
             setState((current) => ({ ...current, events: current.events.filter((item) => item.id !== eventId) }));
@@ -491,16 +507,21 @@ function LocalApp(props: { cloud?: CloudProps } = {}) {
         return;
       }
       if (cloud) {
+        if (createInFlight) return;
+        setCreateInFlight("custom-task");
         runCloudAction(
-          cloudActions.createTask({
-            householdId: cloud.householdId,
-            actor,
-            title: args.title,
-            expectedMinutes: args.expectedMinutes,
-            dueAt: args.dueAt,
-            priority: args.priority,
-            subtasks: []
-          })
+          cloudActions
+            .createTask({
+              householdId: cloud.householdId,
+              actor,
+              title: args.title,
+              expectedMinutes: args.expectedMinutes,
+              dueAt: args.dueAt,
+              priority: args.priority,
+              subtasks: [],
+              clientRequestId: newClientRequestId() // Bug2：幂等键
+            })
+            .finally(() => setCreateInFlight(null))
         );
       } else {
         setState((current) =>
@@ -535,7 +556,9 @@ function LocalApp(props: { cloud?: CloudProps } = {}) {
   }) => {
     runIfAllowed("timeline:add", () => {
       if (cloud) {
-        // 先建时间线事件，再建关联任务（如有）。
+        if (createInFlight) return;
+        setCreateInFlight("other-update");
+        // 先建时间线事件，再建关联任务（如有）；两者均带 Bug2 幂等键。
         cloudActions
           .addTimelineEvent({
             householdId: cloud.householdId,
@@ -543,7 +566,8 @@ function LocalApp(props: { cloud?: CloudProps } = {}) {
             type: args.type,
             title: args.title,
             startsAt: args.startsAt,
-            location: ""
+            location: "",
+            clientRequestId: newClientRequestId()
           })
           .then(() => {
             if (args.createTask && args.taskTitle && args.taskDueAt && args.taskMinutes && args.taskPriority) {
@@ -554,7 +578,8 @@ function LocalApp(props: { cloud?: CloudProps } = {}) {
                 expectedMinutes: args.taskMinutes,
                 dueAt: args.taskDueAt,
                 priority: args.taskPriority,
-                subtasks: []
+                subtasks: [],
+                clientRequestId: newClientRequestId()
               });
             }
             return undefined;
@@ -562,7 +587,8 @@ function LocalApp(props: { cloud?: CloudProps } = {}) {
           .catch((e) => {
             // 时间线已保存但任务创建失败 -> 明确提示。
             showMessage(t("alerts.actionFailedTitle"), errorMessage(e));
-          });
+          })
+          .finally(() => setCreateInFlight(null));
       } else {
         setState((current) => {
           const withEvent = addTimelineEvent(
@@ -825,16 +851,21 @@ function LocalApp(props: { cloud?: CloudProps } = {}) {
       }
       const input = taskTemplateInput(templateKey, t);
       if (cloud) {
+        if (createInFlight) return;
+        setCreateInFlight("template-task");
         runCloudAction(
-          cloudActions.createTask({
-            householdId: cloud.householdId,
-            actor,
-            title: input.title,
-            expectedMinutes: input.expectedMinutes,
-            dueAt: input.dueAt,
-            priority: input.priority,
-            subtasks: input.subtasks
-          })
+          cloudActions
+            .createTask({
+              householdId: cloud.householdId,
+              actor,
+              title: input.title,
+              expectedMinutes: input.expectedMinutes,
+              dueAt: input.dueAt,
+              priority: input.priority,
+              subtasks: input.subtasks,
+              clientRequestId: newClientRequestId() // Bug2：幂等键
+            })
+            .finally(() => setCreateInFlight(null))
         );
       } else {
         setState((current) => createTask(current, actor, input, t));
@@ -846,15 +877,20 @@ function LocalApp(props: { cloud?: CloudProps } = {}) {
     runIfAllowed("timeline:add", () => {
       const input = timelineTemplateInput(templateKey, t);
       if (cloud) {
+        if (createInFlight) return;
+        setCreateInFlight("template-event");
         runCloudAction(
-          cloudActions.addTimelineEvent({
-            householdId: cloud.householdId,
-            actor,
-            type: input.type,
-            title: input.title,
-            startsAt: input.startsAt,
-            location: input.location
-          })
+          cloudActions
+            .addTimelineEvent({
+              householdId: cloud.householdId,
+              actor,
+              type: input.type,
+              title: input.title,
+              startsAt: input.startsAt,
+              location: input.location,
+              clientRequestId: newClientRequestId() // Bug2：幂等键
+            })
+            .finally(() => setCreateInFlight(null))
         );
       } else {
         setState((current) => addTimelineEvent(current, actor, input, t));
@@ -1535,33 +1571,36 @@ function CloudApp() {
     if (!householdId) return;
     let active = true;
     let channel: RealtimeChannel | null = null;
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setErr(null);
-    fetchHouseholdState(householdId)
-      .then((s) => {
-        if (active) {
-          setState(s);
-          cacheHouseholdState(householdId, s);
-        }
-      })
-      .catch(async (e) => {
-        if (!active) return;
-        const cached = await getCachedHouseholdState(householdId);
-        if (cached) setState(cached);
-        else setErr(errorMessage(e));
-      });
-    channel = subscribeHouseholdState(householdId, () => {
-      fetchHouseholdState(householdId)
-        .then((s) => {
-          if (active) {
-            setState(s);
-            cacheHouseholdState(householdId, s);
-          }
+    let refetchSeq = 0; // Bug1：请求序号守卫——乱序完成的旧快照不得覆盖新快照
+    const guardedFetch = (): Promise<boolean> => {
+      const seq = ++refetchSeq;
+      return fetchHouseholdState(householdId)
+        .then((snap) => {
+          if (!active || seq !== refetchSeq) return false; // 有更新的请求已发出，丢弃旧结果
+          setState(snap);
+          cacheHouseholdState(householdId, snap);
+          return true;
         })
         .catch((e) => {
-          // I7: Realtime 刷新失败不再静默——记录并保留 last-known-good（不整页报错）。
+          if (!active) return false;
           console.warn("household realtime refetch failed", e);
+          return false;
         });
+    };
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setErr(null);
+    void (async () => {
+      const ok = await guardedFetch();
+      if (ok || !active) return;
+      // 首次加载失败（guardedFetch 已吞掉 rejection）：回退缓存，避免空白页。
+      const cached = await getCachedHouseholdState(householdId);
+      if (cached) setState(cached);
+      else setErr(errorMessage(new Error("load failed")));
+    })();
+    channel = subscribeHouseholdState(householdId, () => {
+      // Bug1：任何表变更（含 DELETE）触发一次串行化守卫的 refetch；
+      // 连续事件只保留最后一次，杜绝旧快照覆盖。
+      void guardedFetch();
     });
     return () => {
       active = false;

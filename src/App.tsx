@@ -55,6 +55,8 @@ import { ConsentGate } from "./legal/ConsentGate";
 import { openLegal } from "./legal/consent";
 import { Paywall } from "./paywall/Paywall";
 import { canUse, effectivePlan, checkTaskQuota, checkOcrQuota, checkFileSize } from "./lib/entitlement";
+import { DEFAULT_PREF, shouldDeliverNow, type NotificationPref } from "./lib/notify";
+import { enqueueDigestNotification, flushDigestQueue } from "./lib/digest-queue";
 import { errorMessage } from "./lib/error";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 import {
@@ -1556,21 +1558,68 @@ function CloudApp() {
       active = false;
       channel?.unsubscribe();
     };
-  }, [householdId]);
+  }, [householdId, actor?.id]);
 
   useEffect(() => {
     if (!householdId) return;
     void Notifications.requestPermissionsAsync({ ios: { allowAlert: true, allowSound: true } }).catch(() => {});
+    const ownPrefOf = (): NotificationPref => {
+      const ownPref = state?.notificationPreferences?.find((p) => p.memberId === actor?.id);
+      return ownPref
+        ? {
+            quietHoursStart: ownPref.quietHoursStart,
+            quietHoursEnd: ownPref.quietHoursEnd,
+            taskDigest: ownPref.taskDigest
+          }
+        : DEFAULT_PREF;
+    };
     const noteChannel = subscribeRoleNotifications(householdId, (n) => {
       const t = makeTranslator(getStoredLanguage());
-      Notifications.scheduleNotificationAsync({
-        content: { title: t(n.titleKey, n.values), body: t(n.bodyKey, n.values) },
-        trigger: null
-      }).catch(() => {});
+      const title = t(n.titleKey, n.values);
+      const body = t(n.bodyKey, n.values);
+      // R2（B4）：按当前成员偏好决策即时投递 / 抑制 / 累积（AC5-3/5-4）。
+      const ownPref = state?.notificationPreferences?.find((p) => p.memberId === actor?.id);
+      const pref: NotificationPref = ownPref
+        ? {
+            quietHoursStart: ownPref.quietHoursStart,
+            quietHoursEnd: ownPref.quietHoursEnd,
+            taskDigest: ownPref.taskDigest
+          }
+        : DEFAULT_PREF;
+      const severity = n.titleKey.startsWith("notification.title.critical") ? "critical" : "info";
+      if (shouldDeliverNow(severity, pref, new Date())) {
+        Notifications.scheduleNotificationAsync({
+          content: { title, body },
+          trigger: null
+        }).catch(() => {});
+      } else {
+        // 静默/摘要模式：累积到摘要队列，由 flushDigestQueue 在静默结束后投递汇总。
+        void enqueueDigestNotification({ title, body }).catch(() => {});
+      }
     });
+    // 定时检查：静默结束后冲刷摘要队列（每 5 分钟；摘要模式随时累积）
+    const digestTimer = setInterval(
+      () => {
+        void flushDigestQueue(ownPrefOf(), new Date()).then(async (r) => {
+          if (r?.delivered && r.count > 0) {
+            const tt = makeTranslator(getStoredLanguage());
+            await Notifications.scheduleNotificationAsync({
+              content: {
+                title: tt("home.digestSummaryTitle"),
+                body: tt("home.digestSummaryBody", { count: String(r.count) })
+              },
+              trigger: null
+            }).catch(() => {});
+          }
+        });
+      },
+      5 * 60 * 1000
+    );
     return () => {
+      clearInterval(digestTimer);
       noteChannel?.unsubscribe();
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- 偏好经订阅回调实时读取（state 变化走独立刷新）
   }, [householdId]);
 
   // 用户级通知（解散/被移除）：弹通知并自动登出回到登录/引导页。

@@ -858,3 +858,13 @@ Actual artifact verification:
 - secrets：GOOGLE_PLAY_PACKAGE=cd.cc.taskkincare 已设；GOOGLE_SERVICE_ACCOUNT_JSON、RTDN_VERIFICATION_TOKEN 待用户按 GOOGLE_PLAY_CONSOLE_GUIDE 提供
 - SKU：Android 小写独立 ID（taskkin.care.pro.monthly/yearly），与客户端 ANDROID_SUB_SKUS/两个 Edge 的 SKU_TO_PLAN 一致
 - commit：05fdbb7（Google 审计整改）、6cc697d（定价提权/RTDN 状态修复），均已推送
+
+### Android 第三轮审计整改 2026-08-02（commit 0ac3192→93023ff）
+
+- fetchIosSubscriptions 按平台 SKU（Android 用 ANDROID_SUB_SKUS，不再拉 iOS 产品）
+- V2 账户字段 externalAccountIdentifiers.obfuscatedExternalAccountId（三结构兼容）
+- RTDN 鉴权重写：OIDC JWT 验证（jose JWKS、iss 双形式、audience=RTDN_EXPECTED_AUDIENCE、email 可选）+ messageId 成功后才去重 + 临时失败 500 重试（queryV2/DB 查询/RPC 失败均抛异常，事件不因确认丢失）
+- REVOKED 判定：RTDN notificationType===12 或 V2 refunds 字段（subscriptionsv2 无 REVOKED 枚举）；active 无 expiry 抛 500 重试
+- i18n paywall 三语文案泛化（iOS+Android）；删除页/隐私政策对齐（Billy.yu@me.com、审计 24 个月保留）
+- SKU 抽纯模块 src/paywall/skus.ts + 5 个单测（35/35）
+- 全部重新部署：verify-google-purchase、play-rtdn（Deployed on bwvtypmnhwzchrubziqy）

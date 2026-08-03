@@ -1169,6 +1169,7 @@ function LocalApp(props: { cloud?: CloudProps } = {}) {
         visible={paywallVisible}
         onClose={() => setPaywallVisible(false)}
         t={t}
+        language={language}
         currentPlan={plan}
         isCoordinator={actor.role === "coordinator"}
         householdId={cloud?.householdId}

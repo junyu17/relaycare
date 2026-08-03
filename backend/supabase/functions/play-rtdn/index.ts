@@ -84,7 +84,7 @@ async function syncEntitlement(
   admin: ReturnType<typeof createClient>,
   purchaseToken: string,
   productId: string,
-  notificationType?: number,
+  notificationType?: number
 ): Promise<void> {
   const originalTxId = `g:${purchaseToken}`;
   const { data: subs, error: subErr } = await admin

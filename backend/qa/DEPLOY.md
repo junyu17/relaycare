@@ -60,6 +60,21 @@ npx expo-doctor
 npm audit --omit=dev --audit-level=high --registry=https://registry.npmjs.org
 ```
 
+## 2e. 提审前必须确认的 secrets（R1，IOS_SUBMISSION_DEV_SPEC 2026-08-03）
+
+App Review 与 TestFlight 均走 Sandbox 环境，审核员必须能完成购买：
+
+```bash
+cd backend/supabase
+HOME=/tmp/sbh supabase secrets set APPLE_ACCEPTED_ENVIRONMENTS=Production,Sandbox
+HOME=/tmp/sbh supabase functions deploy verify-apple-receipt --no-verify-jwt
+```
+
+- 原因：审核员使用沙盒 Apple ID 购买，生产端点仅接受 Production 会直接 400，导致无法完成购买流程。
+- 长期结论：保留双环境（Production,Sandbox）；`ALLOW_SANDBOX_PURCHASES` 无需再设（显式清单已覆盖）。
+- 验证：线上函数日志首行出现 `acceptedEnvironments ["Production","Sandbox"]`（AC1-1）。
+- 风险说明：Sandbox 环境可用免费沙盒订阅换权益（security_review 曾标记）；缓解——仅在有真实交易的沙盒账户可用，且 appAccountToken 绑定 + 统一状态检查仍生效；上线后如担心可随时改回 `Production` 单独环境。
+
 ## 3. git 提交（按主题分组）+ 推送
 
 ```bash

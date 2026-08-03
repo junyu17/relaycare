@@ -1,4 +1,6 @@
 import { useEffect, useState } from "react";
+import { openLegal } from "../legal/consent";
+import type { Language, Translate } from "../i18n";
 import {
   Modal,
   View,
@@ -12,7 +14,6 @@ import {
   Platform
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import type { Translate } from "../i18n";
 import type { Plan } from "../types";
 import { errorMessage } from "../lib/error";
 import {
@@ -65,6 +66,7 @@ export function Paywall({
   visible,
   onClose,
   t,
+  language,
   currentPlan,
   isCoordinator,
   householdId,
@@ -74,6 +76,7 @@ export function Paywall({
   visible: boolean;
   onClose: () => void;
   t: Translate;
+  language: Language;
   currentPlan: Plan;
   isCoordinator: boolean;
   householdId?: string;
@@ -282,6 +285,28 @@ export function Paywall({
             {t("paywall.disclosure")}
           </Text>
 
+          {/* R3（IOS_SUBMISSION_DEV_SPEC）：购买点提供可点击的 EULA / 隐私政策（Guideline 3.1.2），
+              随 App 语言切换 -zh / -es 版本；Free / Plus 状态都可见。 */}
+          <View style={s.legalRow}>
+            <TouchableOpacity
+              style={s.legalLink}
+              accessibilityRole="link"
+              accessibilityLabel={t("settings.openTerms")}
+              onPress={() => void openLegal("terms", language)}
+            >
+              <Text style={s.legalLinkText}>{t("settings.openTerms")}</Text>
+            </TouchableOpacity>
+            <Text style={s.legalSep}>·</Text>
+            <TouchableOpacity
+              style={s.legalLink}
+              accessibilityRole="link"
+              accessibilityLabel={t("settings.openPrivacy")}
+              onPress={() => void openLegal("privacy", language)}
+            >
+              <Text style={s.legalLinkText}>{t("settings.openPrivacy")}</Text>
+            </TouchableOpacity>
+          </View>
+
           {isPlus && (
             <TouchableOpacity
               style={s.devBtn}
@@ -368,5 +393,9 @@ const s = StyleSheet.create({
   disclosure: { fontSize: 11, color: "#64748b", marginTop: 10, lineHeight: 16 },
   devRow: { marginTop: 10, alignItems: "center" },
   devBtn: { borderWidth: 1, borderColor: "#cbd5e1", borderRadius: 8, paddingHorizontal: 14, paddingVertical: 8 },
-  devBtnText: { color: "#64748b", fontSize: 12 }
+  devBtnText: { color: "#64748b", fontSize: 12 },
+  legalRow: { flexDirection: "row", justifyContent: "center", gap: 10, marginTop: 10, marginBottom: 6 },
+  legalLink: { paddingVertical: 6 },
+  legalLinkText: { color: "#0f766e", textDecorationLine: "underline", fontSize: 14, fontWeight: "600" },
+  legalSep: { color: "#94a3b8", alignSelf: "center" }
 });

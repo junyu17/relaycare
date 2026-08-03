@@ -40,7 +40,11 @@ export type AuditAction =
   | "document.uploaded"
   | "document.confirmed"
   | "document.task_created"
-  | "report.generated";
+  | "report.generated"
+  | "task.deleted"
+  | "timeline.event_deleted"
+  | "member.name_updated"
+  | "report.exported";
 
 export type Plan = "free" | "monthly" | "yearly";
 

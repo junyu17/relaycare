@@ -28,6 +28,8 @@ const ACCEPTED_ENVIRONMENTS = acceptedEnvironmentsFromEnv(
   Deno.env.get("APPLE_ACCEPTED_ENVIRONMENTS"),
   Deno.env.get("ALLOW_SANDBOX_PURCHASES")
 );
+// R1（IOS_SUBMISSION_DEV_SPEC 2026-08-03）：启动打印生效环境，便于线上确认（不含密钥）。
+console.log("verify-apple-receipt acceptedEnvironments", JSON.stringify([...ACCEPTED_ENVIRONMENTS]));
 // B5: signedDate 新鲜度阈值。StoreKit 2 的 signedDate 是交易创建/续订时间（非 JWS 签发时间），
 // 首次购买严格 24h；恢复购买（restore）按订阅周期放宽（月付 31 天 / 年付 370 天），避免误伤合法恢复。
 const STALE_SIGNED_DATE_MS = 24 * 60 * 60 * 1000;

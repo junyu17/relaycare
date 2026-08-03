@@ -458,7 +458,15 @@ function LocalApp(props: { cloud?: CloudProps } = {}) {
               void cacheHouseholdState(cloud.householdId, next).catch(() => undefined);
               return next;
             });
-            runCloudAction(cloudActions.deleteTask({ taskId: task.id }));
+            cloudActions.deleteTask({ taskId: task.id }).catch((e) => {
+              // 删除失败：恢复本地行（服务端未删，回滚避免 UI 长期不一致），并提示。
+              setState((current) =>
+                current.tasks.some((item) => item.id === task.id)
+                  ? current
+                  : { ...current, tasks: [...current.tasks, task] }
+              );
+              reportCloudActionFailure(e);
+            });
           } else {
             setState((current) => ({ ...current, tasks: current.tasks.filter((item) => item.id !== task.id) }));
           }
@@ -481,7 +489,18 @@ function LocalApp(props: { cloud?: CloudProps } = {}) {
               void cacheHouseholdState(cloud.householdId, next).catch(() => undefined);
               return next;
             });
-            runCloudAction(cloudActions.deleteCareEvent({ eventId }));
+            const removedEvent = state.events.find((item) => item.id === eventId);
+            cloudActions.deleteCareEvent({ eventId }).catch((e) => {
+              // 删除失败：恢复本地行（同 onDeleteTask）。
+              if (removedEvent) {
+                setState((current) =>
+                  current.events.some((item) => item.id === eventId)
+                    ? current
+                    : { ...current, events: [...current.events, removedEvent] }
+                );
+              }
+              reportCloudActionFailure(e);
+            });
           } else {
             setState((current) => ({ ...current, events: current.events.filter((item) => item.id !== eventId) }));
           }

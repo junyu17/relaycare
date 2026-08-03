@@ -160,7 +160,8 @@ async function verifyRtdnAuth(req: Request): Promise<boolean> {
   }
   try {
     const { payload } = await jwtVerify(token, googleJWKS, {
-      issuer: "https://accounts.google.com",
+      // Google OIDC issuer：标准为 https://accounts.google.com；兼容无前缀形式。
+      issuer: ["https://accounts.google.com", "accounts.google.com"],
       audience: RTDN_EXPECTED_AUDIENCE
     });
     if (RTDN_EXPECTED_EMAIL && payload.email !== RTDN_EXPECTED_EMAIL) {
@@ -191,9 +192,9 @@ Deno.serve(async (req) => {
     if (messageId) {
       const seenAt = processedMessages.get(messageId);
       if (seenAt && Date.now() - seenAt < RTDN_DEDUP_WINDOW_MS) {
-        return new Response("ok", { status: 200 }); // 去重：已处理过
+        return new Response("ok", { status: 200 }); // 去重：已成功处理过
       }
-      processedMessages.set(messageId, Date.now());
+      // 注意：仅在成功确认（下方 return 200）后标记，避免 500 重试被去重吞掉。
     }
     const data = msg?.data ? JSON.parse(atob(msg.data)) : null;
     if (!data?.subscriptionNotification) {
@@ -210,6 +211,7 @@ Deno.serve(async (req) => {
     );
     const admin = createClient(SUPA_URL, SERVICE_ROLE);
     await syncEntitlement(admin, purchaseToken, subscriptionId);
+    if (messageId) processedMessages.set(messageId, Date.now()); // 成功后才标记去重
     return new Response("ok", { status: 200 });
   } catch (e) {
     // 临时失败（OAuth/网络/配额）：500 让 Pub/Sub 重试；业务失败（无记录）在 syncEntitlement 内返回。

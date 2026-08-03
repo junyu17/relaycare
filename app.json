@@ -41,7 +41,8 @@
           "teamId": "255R6QQR97",
           "nodePath": "/Users/jun/.hermes/node/bin/node"
         }
-      ]
+      ],
+      "./plugins/with-no-push-entitlement"
     ]
   }
 }

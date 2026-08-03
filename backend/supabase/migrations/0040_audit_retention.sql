@@ -29,17 +29,13 @@ revoke all on function public.cleanup_audit_by_retention() from anon;
 revoke all on function public.cleanup_audit_by_retention() from authenticated;
 grant execute on function public.cleanup_audit_by_retention() to service_role;
 
--- pg_cron 每天 03:00 UTC 调度（幂等：先 unschedule 再 schedule，重跑不失败；作业名对齐 AC7-1）
+-- pg_cron 每天 03:00 UTC 调度
 do $$
 begin
   if exists (select 1 from pg_extension where extname = 'pg_cron') then
-    perform cron.unschedule('taskkin-audit-cleanup') where exists (select 1 from cron.job where jobname = 'taskkin-audit-cleanup');
-    perform cron.schedule('taskkin-audit-cleanup', '0 3 * * *', 'select public.cleanup_audit_by_retention()');
+    perform cron.schedule('cleanup-audit-by-retention', '0 3 * * *', 'select public.cleanup_audit_by_retention()');
   end if;
 exception when undefined_table or undefined_function then
   null; -- pg_cron 未启用时跳过
 end;
 $$;
-
--- 旧 cleanup_old_audit（0008）为新函数逐行重复的死代码（0030 已收回 authenticated），删除
-drop function if exists public.cleanup_old_audit();

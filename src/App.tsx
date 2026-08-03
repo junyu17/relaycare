@@ -1,7 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import * as DocumentPicker from "expo-document-picker";
 import { StatusBar } from "expo-status-bar";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Alert,
   KeyboardAvoidingView,
@@ -693,9 +693,13 @@ function LocalApp(props: { cloud?: CloudProps } = {}) {
         weekStart.setHours(0, 0, 0, 0);
         weekStart.setDate(weekStart.getDate() - ((weekStart.getDay() + 6) % 7)); // 本周一
         const inWeek = (iso?: string) => (iso ? new Date(iso).getTime() >= weekStart.getTime() : false);
+        // H8（R3）：手动 completed 口径与自动一致（审计 task.completed 本周事件），复用 completionByTask
+        const weeklyAuditCompletions = snapshot.auditEvents.filter(
+          (entry) => entry.action === "task.completed" && inWeek(entry.createdAt ?? "")
+        ).length;
         void recordWeeklyReport(cloud.householdId, {
           tasksCreated: snapshot.tasks.filter((task) => inWeek(task.createdAt)).length,
-          tasksCompleted: snapshot.tasks.filter((task) => task.status === "completed" && inWeek(task.createdAt)).length,
+          tasksCompleted: weeklyAuditCompletions,
           events: (snapshot.events ?? []).filter((e) => inWeek(e.startsAt)).length
         }).catch((e) => console.warn("record_weekly_report failed", e));
       } else {
@@ -742,8 +746,7 @@ function LocalApp(props: { cloud?: CloudProps } = {}) {
     const csv = buildTaskCsvRows(exportRows);
     const fileName = `taskkin-tasks-${new Date().toISOString().slice(0, 10)}.csv`;
     try {
-      const dir = Paths.cache;
-      const file = new File(`${dir}/${fileName}`);
+      const file = new File(Paths.cache, fileName);
       await file.write(csv);
       const uri = file.uri;
       await Sharing.shareAsync(uri, { mimeType: "text/csv", dialogTitle: fileName });
@@ -754,11 +757,16 @@ function LocalApp(props: { cloud?: CloudProps } = {}) {
   };
   // R2（B2）：PDF 导出——HTML 模板 → expo-print 生成文件 → 分享。
   const onExportPdf = async () => {
-    const weekLabel = `Week of ${new Date().toISOString().slice(0, 10)}`;
+    // H7（R3）：PDF 内容与弹窗周报一致（buildLocalizedReportText 聚合）+ i18n 标题 + 截断说明
+    const pdfSnapshot = generateLocalizedWeeklyReport(state, actor, language, t);
+    const weekLabel = `${t("report.weekOf")} ${new Date().toISOString().slice(0, 10)}`;
+    const pdfBody = buildLocalizedReportText(pdfSnapshot.state, language, makeTranslator(language));
+    const lines = pdfBody.split("\n").filter((l) => l.trim().length > 0);
+    const truncated = lines.length > 80;
     const sections: PdfReportSection[] = [
       {
-        title: t("report.historyTitle"),
-        lines: state.tasks.slice(0, 20).map((task) => `${task.title} — ${task.status}`)
+        title: t("report.modalTitle"),
+        lines: truncated ? [...lines.slice(0, 80), t("report.truncatedNote")] : lines
       }
     ];
     const html = buildReportHtml(state.household?.name ?? "Household", weekLabel, sections);
@@ -1561,36 +1569,18 @@ function CloudApp() {
     };
   }, [householdId]);
 
+  const prefRef = useRef<NotificationPref>(DEFAULT_PREF);
   useEffect(() => {
     if (!householdId) return;
     void Notifications.requestPermissionsAsync({ ios: { allowAlert: true, allowSound: true } }).catch(() => {});
-    const ownPrefOf = (): NotificationPref => {
-      const myMemberId = state?.members?.find((m) => m.userId === user?.id)?.id;
-      const ownPref = state?.notificationPreferences?.find((p) => p.memberId === myMemberId);
-      return ownPref
-        ? {
-            quietHoursStart: ownPref.quietHoursStart,
-            quietHoursEnd: ownPref.quietHoursEnd,
-            taskDigest: ownPref.taskDigest
-          }
-        : DEFAULT_PREF;
-    };
+    // B8（R3）：订阅回调读 ref.current，避免捕获 state 异步加载前的 stale null
     const noteChannel = subscribeRoleNotifications(householdId, (n) => {
       const t = makeTranslator(getStoredLanguage());
       const title = t(n.titleKey, n.values);
       const body = t(n.bodyKey, n.values);
-      // R2（B4）：按当前成员偏好决策即时投递 / 抑制 / 累积（AC5-3/5-4）。
-      const myMemberId = state?.members?.find((m) => m.userId === user?.id)?.id;
-      const ownPref = state?.notificationPreferences?.find((p) => p.memberId === myMemberId);
-      const pref: NotificationPref = ownPref
-        ? {
-            quietHoursStart: ownPref.quietHoursStart,
-            quietHoursEnd: ownPref.quietHoursEnd,
-            taskDigest: ownPref.taskDigest
-          }
-        : DEFAULT_PREF;
-      const severity = n.titleKey.startsWith("notification.title.critical") ? "critical" : "info";
-      if (shouldDeliverNow(severity, pref, new Date())) {
+      // R3（B8）：偏好从 ref 读取（state 异步同步），避免 stale null closure
+      const severity: "critical" | "info" = n.severity === "critical" ? "critical" : "info";
+      if (shouldDeliverNow(severity, prefRef.current, new Date())) {
         Notifications.scheduleNotificationAsync({
           content: { title, body },
           trigger: null
@@ -1603,7 +1593,7 @@ function CloudApp() {
     // 定时检查：静默结束后冲刷摘要队列（每 5 分钟；摘要模式随时累积）
     const digestTimer = setInterval(
       () => {
-        void flushDigestQueue(ownPrefOf(), new Date()).then(async (r) => {
+        void flushDigestQueue(prefRef.current, new Date()).then(async (r) => {
           if (r?.delivered && r.count > 0) {
             const tt = makeTranslator(getStoredLanguage());
             await Notifications.scheduleNotificationAsync({
@@ -1622,8 +1612,16 @@ function CloudApp() {
       clearInterval(digestTimer);
       noteChannel?.unsubscribe();
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- 偏好经订阅回调实时读取（state 变化走独立刷新）
   }, [householdId]);
+
+  // B8：state 变化时同步偏好到 ref
+  useEffect(() => {
+    const myMemberId = state?.members?.find((m) => m.userId === user?.id)?.id;
+    const own = state?.notificationPreferences?.find((p) => p.memberId === myMemberId);
+    prefRef.current = own
+      ? { quietHoursStart: own.quietHoursStart, quietHoursEnd: own.quietHoursEnd, taskDigest: own.taskDigest }
+      : DEFAULT_PREF;
+  }, [state, user?.id]);
 
   // 用户级通知（解散/被移除）：弹通知并自动登出回到登录/引导页。
   useEffect(() => {

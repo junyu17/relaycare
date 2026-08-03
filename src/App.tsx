@@ -700,8 +700,8 @@ function LocalApp(props: { cloud?: CloudProps } = {}) {
     }
   };
 
-  // R4（IOS_SUBMISSION_DEV_SPEC）：报表导出 CSV（Plus 专属；客户端 canUse 门禁 + 服务端
-  // RLS/RPC 仍为权威——导出仅序列化已授权 state，不上传第三方，符合 C4）。
+  // R4（IOS_SUBMISSION_DEV_SPEC）：报表导出 CSV（Plus 专属；客户端 canUse 为 UX 门禁——
+  // 导出仅序列化本家庭已授权 state 走系统分享面板，无跨用户泄露面，属付费墙商业约束）。
   const onExportCsv = async () => {
     const rows = state.tasks.map((task) => ({
       date: task.dueAt?.slice(0, 10) ?? task.createdAt?.slice(0, 10) ?? "",

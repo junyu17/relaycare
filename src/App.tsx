@@ -692,9 +692,7 @@ function LocalApp(props: { cloud?: CloudProps } = {}) {
         const inWeek = (iso?: string) => (iso ? new Date(iso).getTime() >= weekStart.getTime() : false);
         void recordWeeklyReport(cloud.householdId, {
           tasksCreated: snapshot.tasks.filter((task) => inWeek(task.createdAt)).length,
-          tasksCompleted: snapshot.tasks.filter(
-            (task) => task.status === "completed" && inWeek(task.updatedAt ?? task.createdAt)
-          ).length,
+          tasksCompleted: snapshot.tasks.filter((task) => task.status === "completed" && inWeek(task.createdAt)).length,
           events: (snapshot.events ?? []).filter((e) => inWeek(e.startsAt)).length
         }).catch((e) => console.warn("record_weekly_report failed", e));
       } else {

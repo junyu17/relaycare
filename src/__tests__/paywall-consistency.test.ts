@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { canUse, PLAN_FEATURES } from "../lib/entitlement";
+import { canUse, PLAN_FEATURES, PLAN_LIMITS } from "../lib/entitlement";
 import { ROWS } from "../paywall/paywallRows";
 
 describe("paywall-consistency (R8, IOS_SUBMISSION_DEV_SPEC)", () => {

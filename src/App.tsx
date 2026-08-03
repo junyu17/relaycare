@@ -670,6 +670,11 @@ function LocalApp(props: { cloud?: CloudProps } = {}) {
 
   const onGenerateReport = () => {
     runIfAllowed("report:export", () => {
+      // R2：手动生成落库 record_weekly_report 仅 coordinator 可写（0038:27-33）；
+      // caregiver 生成周报不落历史（云模式），提示而非静默失败。
+      if (cloud && actor.role !== "coordinator") {
+        showMessage(t("alerts.permissionTitle"), t("report.coordinatorOnly"));
+      }
       const result = generateLocalizedWeeklyReport(state, actor, language, t);
       const snapshot = result.state;
       const localized: Record<Language, string> = {

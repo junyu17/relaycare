@@ -16,7 +16,7 @@ describe("paywall-consistency (R8, IOS_SUBMISSION_DEV_SPEC)", () => {
     const row = (key: string) => byLabel[key]!;
     expect(Number(row("paywall.row.members").plus)).toBe(PLAN_LIMITS.monthly.members);
     expect(Number(row("paywall.row.ocr").plus)).toBe(PLAN_LIMITS.monthly.ocrPerMonth);
-    expect(Number(row("paywall.row.tasks").plus)).toBe(PLAN_LIMITS.monthly.inProgressTasks); // Infinity → NaN 需特殊断言
+    // Plus 任务无限：UI 用 "∞" 表示，非数值
     if (row("paywall.row.tasks").plus !== "∞") {
       expect(Number(row("paywall.row.tasks").plus)).toBe(PLAN_LIMITS.monthly.inProgressTasks);
     }

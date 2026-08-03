@@ -51,7 +51,7 @@ import { isSupabaseConfigured } from "./lib/supabase";
 import { ConsentGate } from "./legal/ConsentGate";
 import { openLegal } from "./legal/consent";
 import { Paywall } from "./paywall/Paywall";
-import { effectivePlan, checkTaskQuota, checkOcrQuota, checkFileSize } from "./lib/entitlement";
+import { canUse, effectivePlan, checkTaskQuota, checkOcrQuota, checkFileSize } from "./lib/entitlement";
 import { errorMessage } from "./lib/error";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 import {
@@ -72,6 +72,7 @@ import {
   withAudit,
   withRoleNotification
 } from "./domain";
+import { tasksToCsv } from "./lib/export/csv";
 import {
   Language,
   Translate,
@@ -689,6 +690,24 @@ function LocalApp(props: { cloud?: CloudProps } = {}) {
     }
   };
 
+  // R4（IOS_SUBMISSION_DEV_SPEC）：报表导出 CSV（Plus 专属；客户端 canUse 门禁 + 服务端
+  // RLS/RPC 仍为权威——导出仅序列化已授权 state，不上传第三方，符合 C4）。
+  const onExportCsv = async () => {
+    const rows = state.tasks.map((task) => ({
+      date: task.dueAt?.slice(0, 10) ?? task.createdAt?.slice(0, 10) ?? "",
+      title: task.title,
+      status: task.status,
+      assignee: memberName(state, task.ownerId ?? "", t),
+      priority: task.priority
+    }));
+    const csv = tasksToCsv(rows);
+    try {
+      await Share.share({ title: t("report.exportCsv"), message: csv });
+    } catch {
+      // 用户取消分享等，静默
+    }
+  };
+
   const onUpdateMemberRole = (memberId: string, role: Role) => {
     runIfAllowed("member:role_update", () => {
       if (memberId === actor.id) {
@@ -1154,6 +1173,9 @@ function LocalApp(props: { cloud?: CloudProps } = {}) {
                 {t("report.modalTitle")}
               </Text>
               <IconButton icon="share-outline" label={t("report.share")} onPress={onShareReport} />
+              {canUse("export", plan) && (
+                <IconButton icon="download-outline" label={t("report.exportCsv")} onPress={onExportCsv} />
+              )}
               <IconButton icon="close-outline" label={t("report.close")} onPress={() => setReportVisible(false)} />
             </View>
             <ScrollView style={styles.modalReportScroll}>

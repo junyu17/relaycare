@@ -83,7 +83,8 @@ async function queryV2(
 async function syncEntitlement(
   admin: ReturnType<typeof createClient>,
   purchaseToken: string,
-  productId: string
+  productId: string,
+  notificationType?: number,
 ): Promise<void> {
   const originalTxId = `g:${purchaseToken}`;
   const { data: subs, error: subErr } = await admin
@@ -107,14 +108,20 @@ async function syncEntitlement(
   const expiryStr = v2.lineItems?.[0]?.expiryTime;
   const expiresMs = expiryStr ? Date.parse(expiryStr) : NaN;
   // REVOKED（退款）强制回退 free——即使 Google 未同步修改 expiryTime，也立即回收权益。
-  const isRevoked = v2.subscriptionState === "SUBSCRIPTION_STATE_REVOKED";
+  // 退款判定：subscriptionsv2 的 subscriptionState 无 REVOKED 枚举；
+  // 以 RTDN notificationType===12（SUBSCRIPTION_REVOKED）或 V2 响应 refunds 字段为准。
+  const v2Any = v2 as { refunds?: unknown[] };
+  const isRevoked = notificationType === 12 || (Array.isArray(v2Any.refunds) && v2Any.refunds.length > 0);
   const isActive =
     !isRevoked &&
     (v2.subscriptionState === "SUBSCRIPTION_STATE_ACTIVE" || (Number.isFinite(expiresMs) && expiresMs > Date.now()));
 
   for (const sub of subs) {
     if (isActive) {
-      if (!Number.isFinite(expiresMs)) continue;
+      if (!Number.isFinite(expiresMs)) {
+        // active 但无到期时间：异常数据，抛 500 让 Pub/Sub 重试，不静默确认。
+        throw new Error("play-rtdn: active subscription missing expiry time");
+      }
       await admin
         .rpc("sync_subscription_state", {
           p_original_transaction_id: originalTxId,
@@ -211,7 +218,7 @@ Deno.serve(async (req) => {
       })
     );
     const admin = createClient(SUPA_URL, SERVICE_ROLE);
-    await syncEntitlement(admin, purchaseToken, subscriptionId);
+    await syncEntitlement(admin, purchaseToken, subscriptionId, data.subscriptionNotification.notificationType);
     if (messageId) processedMessages.set(messageId, Date.now()); // 成功后才标记去重
     return new Response("ok", { status: 200 });
   } catch (e) {

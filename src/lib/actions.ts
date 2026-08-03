@@ -197,7 +197,9 @@ export async function toggleDigest(args: { householdId: string; actor: Member; m
   });
 }
 
-export async function getNotificationPreference(memberId: string): Promise<{ quietHoursStart: string; quietHoursEnd: string } | null> {
+export async function getNotificationPreference(
+  memberId: string
+): Promise<{ quietHoursStart: string; quietHoursEnd: string } | null> {
   const { data, error } = await supabase
     .from("notification_preferences")
     .select("quiet_hours_start, quiet_hours_end")

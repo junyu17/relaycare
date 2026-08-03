@@ -594,3 +594,19 @@ export function subscribeUserNotifications(userId: string, onNew: (n: UserNotifi
     )
     .subscribe();
 }
+
+export interface WeeklyReport {
+  weekStart: string;
+  metrics: { tasksCreated?: number; tasksCompleted?: number; events?: number; weekStart?: string };
+  createdAt: string;
+}
+
+// R6（IOS_SUBMISSION_DEV_SPEC）：周报历史（服务端按套餐限条数——Free 1 条 / Plus ≤52）
+export async function listWeeklyReports(householdId: string, limit = 12): Promise<WeeklyReport[]> {
+  const { data, error } = await supabase.rpc("list_weekly_reports", {
+    p_household_id: householdId,
+    p_limit: limit
+  });
+  if (error) throw error;
+  return (data ?? []) as WeeklyReport[];
+}

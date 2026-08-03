@@ -39,7 +39,9 @@ import {
   updateMyName,
   subscribeUserNotifications,
   type HouseholdCode,
-  type HouseholdSummary
+  type HouseholdSummary,
+  listWeeklyReports,
+  type WeeklyReport
 } from "./lib/db";
 import { QRCode } from "./components/QRCode";
 import { CustomTaskModal, OtherTimelineModal } from "./components/CustomEntryModals";
@@ -227,6 +229,14 @@ function LocalApp(props: { cloud?: CloudProps } = {}) {
   const [memberFilter, setMemberFilter] = useState("all");
   const [reportText, setReportText] = useState<Record<Language, string> | null>(null);
   const [reportVisible, setReportVisible] = useState(false);
+  const [weeklyReports, setWeeklyReports] = useState<WeeklyReport[]>([]);
+  useEffect(() => {
+    if (reportVisible && cloud?.householdId) {
+      listWeeklyReports(cloud.householdId, 12)
+        .then(setWeeklyReports)
+        .catch((e) => console.warn("list_weekly_reports failed", e));
+    }
+  }, [reportVisible, cloud?.householdId]);
   const [language, setLanguage] = useState<Language>("en");
   const [roleEditorMemberId, setRoleEditorMemberId] = useState<string | null>(null);
   const [handoffTaskId, setHandoffTaskId] = useState<string | null>(null);
@@ -1062,6 +1072,13 @@ function LocalApp(props: { cloud?: CloudProps } = {}) {
                 return;
               }
 
+              // R5（IOS_SUBMISSION_DEV_SPEC）：摘要/静默为 Plus 专属——Free 点击打开付费墙
+              //（服务端 update_notification_preference 仍强制套餐门禁，AC5-1）。
+              if (!canUse("advancedNotifications", plan)) {
+                setPaywallVisible(true);
+                return;
+              }
+
               if (cloud) {
                 const pref = state.notificationPreferences.find((p) => p.memberId === memberId);
                 runCloudAction(
@@ -1175,6 +1192,26 @@ function LocalApp(props: { cloud?: CloudProps } = {}) {
               <IconButton icon="share-outline" label={t("report.share")} onPress={onShareReport} />
               {canUse("export", plan) && (
                 <IconButton icon="download-outline" label={t("report.exportCsv")} onPress={onExportCsv} />
+              )}
+              {weeklyReports.length > 0 && (
+                <View style={styles.weeklyHistory}>
+                  <Text style={styles.weeklyHistoryTitle} allowFontScaling>
+                    {t("report.historyTitle")}
+                  </Text>
+                  {weeklyReports.map((w) => (
+                    <View key={w.weekStart} style={styles.weeklyHistoryRow}>
+                      <Text style={styles.weeklyHistoryDate} allowFontScaling>
+                        {w.weekStart}
+                      </Text>
+                      <Text style={styles.weeklyHistoryMetrics} allowFontScaling>
+                        {t("report.historySummary", {
+                          created: String(w.metrics?.tasksCreated ?? 0),
+                          completed: String(w.metrics?.tasksCompleted ?? 0)
+                        })}
+                      </Text>
+                    </View>
+                  ))}
+                </View>
               )}
               <IconButton icon="close-outline" label={t("report.close")} onPress={() => setReportVisible(false)} />
             </View>
@@ -4035,5 +4072,10 @@ const styles = StyleSheet.create({
     backgroundColor: palette.surface,
     alignItems: "center",
     justifyContent: "center"
-  }
+  },
+  weeklyHistory: { marginTop: 12, borderTopWidth: 1, borderTopColor: "#e2e8f0", paddingTop: 8 },
+  weeklyHistoryTitle: { fontWeight: "700", fontSize: 13, color: "#334155", marginBottom: 4 },
+  weeklyHistoryRow: { flexDirection: "row", justifyContent: "space-between", paddingVertical: 3 },
+  weeklyHistoryDate: { fontSize: 12, color: "#64748b" },
+  weeklyHistoryMetrics: { fontSize: 12, color: "#334155" }
 });

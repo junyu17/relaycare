@@ -41,5 +41,5 @@ describe("R4 report export CSV (IOS_SUBMISSION_DEV_SPEC)", () => {
 
 it("prefixes tab/carriage-return formula cells too", () => {
   expect(escapeCsvCell("\t=SUM(A1)")).toBe("'\t=SUM(A1)");
-  expect(escapeCsvCell("\r=1+1")).toBe("'\r=1+1");
+  expect(escapeCsvCell("\r=1+1")).toBe('"\'\r=1+1"');
 });

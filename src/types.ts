@@ -47,29 +47,7 @@ export const AUDIT_ACTIONS = [
   "report.exported"
 ] as const;
 
-export type AuditAction =
-  | "household.created"
-  | "household.dissolved"
-  | "member.invited"
-  | "member.joined"
-  | "member.removed"
-  | "member.left"
-  | "member.role_updated"
-  | "task.created"
-  | "task.claimed"
-  | "task.rejected"
-  | "task.handoff_requested"
-  | "task.completed"
-  | "timeline.event_added"
-  | "notification.preference_updated"
-  | "document.uploaded"
-  | "document.confirmed"
-  | "document.task_created"
-  | "report.generated"
-  | "task.deleted"
-  | "timeline.event_deleted"
-  | "member.name_updated"
-  | "report.exported";
+export type AuditAction = (typeof AUDIT_ACTIONS)[number];
 
 export type Plan = "free" | "monthly" | "yearly";
 

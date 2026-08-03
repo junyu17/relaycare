@@ -759,7 +759,7 @@ function LocalApp(props: { cloud?: CloudProps } = {}) {
   const onExportPdf = async () => {
     // H7（R3）：PDF 内容与弹窗周报一致（buildLocalizedReportText 聚合）+ i18n 标题 + 截断说明
     const pdfSnapshot = generateLocalizedWeeklyReport(state, actor, language, t);
-    const weekLabel = `${t("report.weekOf")} ${new Date().toISOString().slice(0, 10)}`;
+    const weekLabel = `${t("report.weekOf")}${new Date().toISOString().slice(0, 10)}`;
     const pdfBody = buildLocalizedReportText(pdfSnapshot.state, language, makeTranslator(language));
     const lines = pdfBody.split("\n").filter((l) => l.trim().length > 0);
     const truncated = lines.length > 80;

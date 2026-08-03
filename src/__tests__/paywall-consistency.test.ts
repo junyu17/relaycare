@@ -11,19 +11,31 @@ describe("paywall-consistency (R8, IOS_SUBMISSION_DEV_SPEC)", () => {
     }
   });
 
-  it("H5: ROWS numeric cells match PLAN_LIMITS (no overstated numbers)", () => {
+  it("A3 (R4): every ROWS cell matches PLAN_LIMITS exactly (table-driven, no self-exempt branches)", () => {
     const byLabel = Object.fromEntries(ROWS.map((r) => [r.labelKey, r]));
     const row = (key: string) => byLabel[key]!;
-    expect(Number(row("paywall.row.members").plus)).toBe(PLAN_LIMITS.monthly.members);
-    expect(Number(row("paywall.row.ocr").plus)).toBe(PLAN_LIMITS.monthly.ocrPerMonth);
-    // Plus 任务无限：UI 用 "∞" 表示，非数值
-    if (row("paywall.row.tasks").plus !== "∞") {
-      expect(Number(row("paywall.row.tasks").plus)).toBe(PLAN_LIMITS.monthly.inProgressTasks);
+    // 展示值 → 期望值 查表：改行文案/改常量都会使断言失败（不再是条件分支自我豁免）
+    const EXPECT: Record<string, { free: string; plus: string }> = {
+      "paywall.row.households": {
+        free: String(PLAN_LIMITS.free.households),
+        plus: String(PLAN_LIMITS.monthly.households)
+      },
+      "paywall.row.members": { free: String(PLAN_LIMITS.free.members), plus: String(PLAN_LIMITS.monthly.members) },
+      "paywall.row.tasks": { free: String(PLAN_LIMITS.free.inProgressTasks), plus: "∞" },
+      "paywall.row.storage": { free: "25 MB", plus: "25 MB" },
+      "paywall.row.report": { free: "reportManual", plus: "reportAuto" },
+      "paywall.row.ocr": { free: String(PLAN_LIMITS.free.ocrPerMonth), plus: String(PLAN_LIMITS.monthly.ocrPerMonth) },
+      "paywall.row.audit": { free: "30 days", plus: "3 years" },
+      "paywall.row.export": { free: "none", plus: "PDF/CSV" },
+      "paywall.row.notifications": { free: "none", plus: "✓" }
+    };
+    for (const [key, exp] of Object.entries(EXPECT)) {
+      expect(row(key).free, `${key}.free`).toBe(exp.free);
+      expect(row(key).plus, `${key}.plus`).toBe(exp.plus);
     }
-    // 保留期：3 years ↔ 1095 天
-    if (row("paywall.row.audit").plus.includes("3")) {
-      expect(PLAN_LIMITS.monthly.auditRetentionDays).toBe(1095);
-    }
+    // 文案 ↔ 常量 双验证（audit "3 years" ↔ 1095 天；free "30 days" ↔ 30 天）
+    expect(PLAN_LIMITS.free.auditRetentionDays).toBe(30);
+    expect(PLAN_LIMITS.monthly.auditRetentionDays).toBe(1095);
   });
 
   it("ROWS covers every PLAN_FEATURES feature (no unshown gated feature)", () => {

@@ -874,3 +874,11 @@ Actual artifact verification:
 - 0043_weekly_report_notification 已 db push 应用（migration list 至 0043；实际执行输出 Finished supabase db push）
 - R3 提交推送：b45c19d（主修复）/ d94596d / c407aa3（H5 测试）已推送；本地 1cb20cb（H5 infinity guard）待网络补推
 - 测试：vitest 51/51（entitlement 恢复 6 函数 7 it + H5 数值断言）
+
+### R4 整改（A1-A4）2026-08-03
+
+- A1：0044_fix_weekly_notification_count（count 改 RPC 内实算 status<>'completed'，不再用客户端 tasksCreated）——已 db push 应用（migration 至 0044）
+- A2：entitlement.test 补 checkMemberQuota 4 断言（makeState 加 members 参数）+ PLAN_LIMITS 规格值断言（free 7 + monthly 6 + yearly≡monthly）
+- A3：paywall-consistency 改查表逐行断言（EXPECT 9 行 × free/plus，去条件分支自豁免）+ audit 30/1095 双验证
+- A4：zh report.weekOf → "周报周期："；en/es 值补尾空格 + App.tsx 模板去空格（三语拼接正确）
+- 门禁：typecheck / lint / prettier / vitest 54/54（51→54）全绿；自查 review pass

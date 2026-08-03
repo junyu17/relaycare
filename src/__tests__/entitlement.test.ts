@@ -4,6 +4,7 @@ import {
   isPlusPlan,
   PLAN_LIMITS,
   checkTaskQuota,
+  checkMemberQuota,
   checkOcrQuota,
   checkFileSize
 } from "../lib/entitlement";
@@ -49,8 +50,25 @@ describe("isPlusPlan", () => {
   });
 });
 
-describe("PLAN_LIMITS", () => {
-  it("free vs plus limits are distinct (no accidental upgrade)", () => {
+describe("PLAN_LIMITS (A2: spec values, R4)", () => {
+  it("free plan spec values match paywall claims", () => {
+    expect(PLAN_LIMITS.free.households).toBe(1);
+    expect(PLAN_LIMITS.free.members).toBe(3);
+    expect(PLAN_LIMITS.free.inProgressTasks).toBe(10);
+    expect(PLAN_LIMITS.free.ocrPerMonth).toBe(1);
+    expect(PLAN_LIMITS.free.auditRetentionDays).toBe(30);
+    expect(PLAN_LIMITS.free.weeklyReportAuto).toBe(false);
+    expect(PLAN_LIMITS.free.exportEnabled).toBe(false);
+  });
+  it("plus plan spec values (monthly & yearly share limits)", () => {
+    expect(PLAN_LIMITS.monthly.members).toBe(12);
+    expect(PLAN_LIMITS.monthly.ocrPerMonth).toBe(50);
+    expect(PLAN_LIMITS.monthly.auditRetentionDays).toBe(1095);
+    expect(PLAN_LIMITS.monthly.inProgressTasks).toBe(Number.POSITIVE_INFINITY);
+    expect(PLAN_LIMITS.monthly.exportEnabled).toBe(true);
+    expect(PLAN_LIMITS.yearly).toEqual(PLAN_LIMITS.monthly);
+  });
+  it("free vs plus limits are distinct", () => {
     expect(PLAN_LIMITS.free.members).toBeLessThan(PLAN_LIMITS.monthly.members);
     expect(PLAN_LIMITS.free.inProgressTasks).toBeLessThan(
       Number.isFinite(PLAN_LIMITS.monthly.inProgressTasks) ? PLAN_LIMITS.monthly.inProgressTasks : 1e9
@@ -61,7 +79,7 @@ describe("PLAN_LIMITS", () => {
   });
 });
 
-function makeState(plus: boolean, tasks = 0, ocrUsed = 0): AppState {
+function makeState(plus: boolean, tasks = 0, ocrUsed = 0, members = 0): AppState {
   const nowIso = new Date().toISOString();
   const household = {
     id: "h",
@@ -89,7 +107,15 @@ function makeState(plus: boolean, tasks = 0, ocrUsed = 0): AppState {
   }));
   return {
     household,
-    members: [],
+    members: Array.from({ length: members }, (_, i) => ({
+      id: `m${i}`,
+      household_id: "h",
+      name: `M${i}`,
+      role: "caregiver",
+      invite_status: "active",
+      userId: `u${i}`,
+      timezone: "UTC"
+    })) as never,
     roleDefinitions: [],
     notificationPreferences: [],
     roleNotifications: [],
@@ -112,6 +138,15 @@ function makeState(plus: boolean, tasks = 0, ocrUsed = 0): AppState {
     monthKey: month
   } as AppState;
 }
+
+describe("checkMemberQuota (A2: R4)", () => {
+  it("free caps members at 3; plus allows more", () => {
+    expect(checkMemberQuota(makeState(false, 0, 0, 2)).ok).toBe(true); // free 2/3：还能加
+    expect(checkMemberQuota(makeState(false, 0, 0, 3)).ok).toBe(false); // free 3/3：满员被拦
+    expect(checkMemberQuota(makeState(true, 0, 0, 11)).ok).toBe(true); // plus 11/12：还能加
+    expect(checkMemberQuota(makeState(true, 0, 0, 12)).ok).toBe(false); // plus 12/12：满员
+  });
+});
 
 describe("checkTaskQuota", () => {
   it("free caps in-progress tasks", () => {

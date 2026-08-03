@@ -677,6 +677,7 @@ function LocalApp(props: { cloud?: CloudProps } = {}) {
       if (cloud && actor.role !== "coordinator") {
         showMessage(t("alerts.permissionTitle"), t("report.coordinatorOnly"));
         return; // 非协调人云模式不落历史（服务端 0038 同样拒绝）
+      }
       const result = generateLocalizedWeeklyReport(state, actor, language, t);
       const snapshot = result.state;
       const localized: Record<Language, string> = {

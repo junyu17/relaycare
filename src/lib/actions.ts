@@ -178,10 +178,14 @@ export async function addTimelineEvent(args: {
 }
 
 export async function toggleDigest(args: { householdId: string; actor: Member; memberId: string; enabled: boolean }) {
-  const { error } = await supabase
-    .from("notification_preferences")
-    .update({ task_digest: args.enabled })
-    .eq("member_id", args.memberId);
+  // R5（IOS_SUBMISSION_DEV_SPEC）：摘要与静默时段为 Plus 专属——经服务端 RPC 更新
+  // （update_notification_preference 校验 effective_plan，Free 返回 'Family Plus required'，AC5-1）。
+  const current = await getNotificationPreference(args.memberId);
+  const { error } = await supabase.rpc("update_notification_preference", {
+    p_quiet_hours_start: current?.quietHoursStart ?? "22:00",
+    p_quiet_hours_end: current?.quietHoursEnd ?? "07:00",
+    p_task_digest: args.enabled
+  });
   if (error) throw error;
   await insertAudit({
     householdId: args.householdId,
@@ -191,6 +195,16 @@ export async function toggleDigest(args: { householdId: string; actor: Member; m
     entityId: args.memberId,
     detail: `${args.actor.name} ${args.enabled ? "enabled" : "disabled"} task digest for member ${args.memberId}.`
   });
+}
+
+export async function getNotificationPreference(memberId: string): Promise<{ quietHoursStart: string; quietHoursEnd: string } | null> {
+  const { data, error } = await supabase
+    .from("notification_preferences")
+    .select("quiet_hours_start, quiet_hours_end")
+    .eq("member_id", memberId)
+    .maybeSingle();
+  if (error) throw error;
+  return data ? { quietHoursStart: data.quiet_hours_start, quietHoursEnd: data.quiet_hours_end } : null;
 }
 
 export async function updateMemberRole(args: {

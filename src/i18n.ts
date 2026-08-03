@@ -424,7 +424,7 @@ const translations: Record<Language, Record<string, string>> = {
     "paywall.perYear": "/year",
     "paywall.save": "Save 17%",
     "paywall.productUnavailable":
-      "Subscription not available yet. Ensure the product is approved in App Store Connect and your Apple ID is a sandbox tester.",
+      "Subscription not available yet. Ensure the product is approved in your store console (App Store Connect / Google Play Console) and your account is a sandbox tester.",
     "paywall.subscribeYearly": "$99.99 / year",
     "paywall.restore": "Restore purchase",
     "paywall.close": "Close",
@@ -432,7 +432,7 @@ const translations: Record<Language, Record<string, string>> = {
     "paywall.plusActive": "Family Plus is active for this household.",
     "paywall.purchaseNotVerified":
       "We could not verify this purchase. No upgrade was applied. Try Restore Purchase or contact support.",
-    "paywall.restoreNone": "No active Family Plus subscription was found for this Apple ID.",
+    "paywall.restoreNone": "No active Family Plus subscription was found for this store account.",
     "paywall.coordinatorOnly": "Only a household coordinator can manage Family Plus.",
     "paywall.iapUnavailable": "Subscriptions are currently available on iOS for signed-in households.",
     "paywall.localTest": "This local demo can toggle Plus for testing only.",
@@ -470,7 +470,7 @@ const translations: Record<Language, Record<string, string>> = {
     "quota.upgrade": "Upgrade",
     "confirm.sure": "Are you sure? This cannot be undone.",
     "paywall.disclosure":
-      "Family Plus is an auto-renewing subscription. Price: $9.99/month or $99.99/year. Payment is charged to your Apple ID. Subscription renews automatically unless canceled at least 24 hours before the end of the current period. You can manage or cancel anytime in Settings > Apple ID > Subscriptions.",
+      "Family Plus is an auto-renewing subscription. Price: $9.99/month or $99.99/year. Payment is charged to your store account (Apple ID or Google Play). Subscription renews automatically unless canceled at least 24 hours before the end of the current period. You can manage or cancel anytime in your store subscription settings (iOS: Settings > Apple ID > Subscriptions; Android: Google Play > Account > Subscriptions).",
     "paywall.manage": "Manage subscription",
     "paywall.length.monthly": "1 month",
     "paywall.length.yearly": "1 year",
@@ -908,14 +908,14 @@ const translations: Record<Language, Record<string, string>> = {
     "paywall.perYear": "/年",
     "paywall.save": "省 17%",
     "paywall.productUnavailable":
-      "订阅暂不可用。请确认产品已在 App Store Connect 审核通过，且你的 Apple ID 是沙盒测试员。",
+      "订阅暂不可用。请确认产品已在应用商店控制台（App Store Connect / Google Play Console）审核通过，且你的账户是沙盒测试员。",
     "paywall.subscribeYearly": "$99.99 / 年",
     "paywall.restore": "恢复购买",
     "paywall.close": "关闭",
     "paywall.currentPlan": "当前套餐",
     "paywall.plusActive": "本家庭已启用家庭 Plus。",
     "paywall.purchaseNotVerified": "未能验证此购买，未升级套餐。请尝试恢复购买或联系支持。",
-    "paywall.restoreNone": "未找到此 Apple ID 的有效家庭 Plus 订阅。",
+    "paywall.restoreNone": "未找到此商店账户的有效家庭 Plus 订阅。",
     "paywall.coordinatorOnly": "只有家庭协调人可以管理家庭 Plus。",
     "paywall.iapUnavailable": "订阅目前仅适用于已登录家庭的 iOS 版本。",
     "paywall.localTest": "此本地演示仅可切换 Plus 用于测试。",
@@ -953,7 +953,7 @@ const translations: Record<Language, Record<string, string>> = {
     "quota.upgrade": "升级",
     "confirm.sure": "确定吗？此操作不可撤销。",
     "paywall.disclosure":
-      "家庭 Plus 为自动续订订阅。价格：$9.99/月 或 $99.99/年。费用从你的 Apple ID 扣取。除非在当前周期结束前至少 24 小时取消，否则将自动续订。可在“设置 > Apple ID > 订阅”中随时管理或取消。",
+      "家庭 Plus 为自动续订订阅。价格：$9.99/月 或 $99.99/年。费用从你的商店账户（Apple ID 或 Google Play）扣取。除非在当前周期结束前至少 24 小时取消，否则将自动续订。可在商店订阅设置中管理或取消（iOS：设置 > Apple ID > 订阅；Android：Google Play > 账户 > 订阅）。",
     "paywall.manage": "管理订阅",
     "paywall.length.monthly": "1 个月",
     "paywall.length.yearly": "1 年",
@@ -1408,7 +1408,7 @@ const translations: Record<Language, Record<string, string>> = {
     "paywall.perYear": "/año",
     "paywall.save": "Ahorra 17%",
     "paywall.productUnavailable":
-      "Suscripción no disponible aún. Verifica que el producto esté aprobado en App Store Connect y que tu Apple ID sea un tester de sandbox.",
+      "Suscripción no disponible aún. Verifica que el producto esté aprobado en la consola de tu tienda (App Store Connect / Google Play Console) y que tu cuenta sea un tester de sandbox.",
     "paywall.subscribeYearly": "$99.99 / año",
     "paywall.restore": "Restaurar compra",
     "paywall.close": "Cerrar",
@@ -1416,7 +1416,7 @@ const translations: Record<Language, Record<string, string>> = {
     "paywall.plusActive": "Family Plus está activo para este hogar.",
     "paywall.purchaseNotVerified":
       "No pudimos verificar esta compra. No se aplicó ninguna mejora. Intenta restaurar la compra o contacta con soporte.",
-    "paywall.restoreNone": "No se encontró una suscripción activa a Family Plus para este Apple ID.",
+    "paywall.restoreNone": "No se encontró una suscripción activa a Family Plus para esta cuenta de tienda.",
     "paywall.coordinatorOnly": "Solo un coordinador del hogar puede gestionar Family Plus.",
     "paywall.iapUnavailable":
       "Las suscripciones están disponibles actualmente en iOS para hogares con sesión iniciada.",
@@ -1455,7 +1455,7 @@ const translations: Record<Language, Record<string, string>> = {
     "quota.upgrade": "Mejorar",
     "confirm.sure": "¿Seguro? No se puede deshacer.",
     "paywall.disclosure":
-      "Family Plus es una suscripción de renovación automática. Precio: $9.99/mes o $99.99/año. El cobro se realiza a tu Apple ID. Se renueva automáticamente salvo que canceles al menos 24 horas antes del fin del período. Puedes gestionar o cancelar en Ajustes > Apple ID > Suscripciones.",
+      "Family Plus es una suscripción de renovación automática. Precio: $9.99/mes o $99.99/año. El cobro se realiza a tu cuenta de tienda (Apple ID o Google Play). Se renueva automáticamente salvo que canceles al menos 24 horas antes del fin del período. Puedes gestionarla o cancelarla en los ajustes de suscripción de tu tienda (iOS: Ajustes > Apple ID > Suscripciones; Android: Google Play > Cuenta > Suscripciones).",
     "paywall.manage": "Gestionar suscripción",
     "paywall.length.monthly": "1 mes",
     "paywall.length.yearly": "1 año",

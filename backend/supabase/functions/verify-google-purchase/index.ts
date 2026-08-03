@@ -88,7 +88,10 @@ async function verifyPlaySubscription(
 ): Promise<{
   subscriptionState?: string;
   lineItems?: { productId?: string; expiryTime?: string }[];
+  // 官方 V2 结构：externalAccountIdentifiers.obfuscatedExternalAccountId
+  // （兼容旧版 accountIdentifiers 命名）
   accountIdentifiers?: { externalAccountId?: string; obfuscatedExternalAccountId?: string };
+  externalAccountIdentifiers?: { externalAccountId?: string; obfuscatedExternalAccountId?: string };
 }> {
   const url = `https://androidpublisher.googleapis.com/androidpublisher/v3/applications/${PACKAGE}/purchases/subscriptionsv2/tokens/${encodeURIComponent(purchaseToken)}`;
   const res = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}` } });
@@ -156,11 +159,13 @@ Deno.serve(async (req) => {
     if (!plan) return fail("UNKNOWN_PRODUCT_ID", "Unknown product id", 400, { productId: actualProductId });
 
     // 交易必须绑定当前用户：客户端购买时传 obfuscatedAccountId = 'u_' + auth.uid()（去连字符）。
-    // 客户端经 setObfuscatedAccountId 传入 → V2 响应 accountIdentifiers.obfuscatedExternalAccountId
-    // （externalAccountId 为普通账户标识，IAP 不填充）；两字段兼容读取。
+    // 客户端经 setObfuscatedAccountId 传入 → 官方 V2 响应 externalAccountIdentifiers.obfuscatedExternalAccountId
+    // （兼容读取 accountIdentifiers 旧命名）。
     const expectedObfuscatedId = `u_${userData.user.id.replace(/-/g, "")}`;
     const actualAccountId =
-      sub.accountIdentifiers?.obfuscatedExternalAccountId ?? sub.accountIdentifiers?.externalAccountId;
+      sub.externalAccountIdentifiers?.obfuscatedExternalAccountId ??
+      sub.accountIdentifiers?.obfuscatedExternalAccountId ??
+      sub.accountIdentifiers?.externalAccountId;
     if (!actualAccountId || actualAccountId !== expectedObfuscatedId) {
       return fail(
         "ACCOUNT_TOKEN_MISMATCH",

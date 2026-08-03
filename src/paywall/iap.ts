@@ -14,37 +14,16 @@ import {
 import { supabase } from "../lib/supabase";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import type { Plan } from "../types";
+import { ANDROID_SUB_SKUS, IOS_SUB_SKUS, SKU_TO_PLAN, skuForPlan as skuForPlanPure } from "./skus";
 
 export type { ProductSubscription };
 
 // ============ iOS 订阅产品（App Store Connect）============
 // Yearly: Apple ID 6795121970 / Monthly: Apple ID 6795120026
-export const IOS_SUB_SKUS = {
-  yearly: "TaskKin.care.pro.yearly",
-  monthly: "TaskKin.care.pro.mon"
-} as const;
-
-// Android（Google Play）SKU：独立小写 ID（Play 禁止大写；Product ID 创建后不可改）。
-export const ANDROID_SUB_SKUS = {
-  yearly: "taskkin.care.pro.yearly",
-  monthly: "taskkin.care.pro.monthly"
-} as const;
-
-const SKU_TO_PLAN: Record<string, "monthly" | "yearly"> = {
-  [IOS_SUB_SKUS.yearly]: "yearly",
-  [IOS_SUB_SKUS.monthly]: "monthly",
-  [ANDROID_SUB_SKUS.yearly]: "yearly",
-  [ANDROID_SUB_SKUS.monthly]: "monthly"
-};
+export { ANDROID_SUB_SKUS, IOS_SUB_SKUS, SKU_TO_PLAN } from "./skus";
 
 export function skuForPlan(plan: "monthly" | "yearly"): string {
-  return Platform.OS === "android"
-    ? plan === "yearly"
-      ? ANDROID_SUB_SKUS.yearly
-      : ANDROID_SUB_SKUS.monthly
-    : plan === "yearly"
-      ? IOS_SUB_SKUS.yearly
-      : IOS_SUB_SKUS.monthly;
+  return skuForPlanPure(plan, Platform.OS);
 }
 
 export function isIapAvailable(): boolean {
@@ -140,7 +119,8 @@ export async function initIap(): Promise<void> {
 export async function fetchIosSubscriptions(): Promise<ProductSubscription[]> {
   await initIap();
   if (!isIapAvailable()) return [];
-  const result = await fetchProducts({ skus: Object.values(IOS_SUB_SKUS), type: "subs" });
+  const skus: string[] = Platform.OS === "android" ? Object.values(ANDROID_SUB_SKUS) : Object.values(IOS_SUB_SKUS);
+  const result = await fetchProducts({ skus, type: "subs" });
   return (result ?? []) as ProductSubscription[];
 }
 

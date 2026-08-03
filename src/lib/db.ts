@@ -610,3 +610,15 @@ export async function listWeeklyReports(householdId: string, limit = 12): Promis
   if (error) throw error;
   return (data ?? []) as WeeklyReport[];
 }
+
+// R2（B6）：手动生成周报落库（definer + coordinator 校验；upsert 当周）
+export async function recordWeeklyReport(
+  householdId: string,
+  metrics: { tasksCreated?: number; tasksCompleted?: number; events?: number }
+): Promise<void> {
+  const { error } = await supabase.rpc("record_weekly_report", {
+    p_household_id: householdId,
+    p_metrics: { ...metrics }
+  });
+  if (error) throw error;
+}

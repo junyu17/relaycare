@@ -182,6 +182,7 @@ export async function toggleDigest(args: { householdId: string; actor: Member; m
   // （update_notification_preference 校验 effective_plan，Free 返回 'Family Plus required'，AC5-1）。
   const current = await getNotificationPreference(args.memberId);
   const { error } = await supabase.rpc("update_notification_preference", {
+    p_member_id: args.memberId,
     p_quiet_hours_start: current?.quietHoursStart ?? "22:00",
     p_quiet_hours_end: current?.quietHoursEnd ?? "07:00",
     p_task_digest: args.enabled

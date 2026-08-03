@@ -32,3 +32,50 @@ export function tasksToCsv(tasks: ReportExportRow[]): string {
     tasks.map((t) => [t.date, t.title, t.status, t.assignee, t.priority])
   );
 }
+
+// B3（IOS_SUBMISSION_REVIEW_R2）：CSV 需 UTF-8 BOM（Excel 中文不乱码）与 9 列规格。
+export const UTF8_BOM = "\uFEFF";
+
+export interface TaskCsvRow {
+  taskId: string;
+  title: string;
+  status: string;
+  priority: string;
+  ownerName: string;
+  ownerRole: string;
+  createdAt: string; // ISO
+  dueAt: string; // ISO 或空
+  completedAt: string; // ISO 或空
+}
+
+export const TASK_CSV_HEADER = [
+  "Task ID",
+  "Title",
+  "Status",
+  "Priority",
+  "Owner",
+  "Owner role",
+  "Created (ISO)",
+  "Due (ISO)",
+  "Completed (ISO)"
+];
+
+export function buildTaskCsvRows(tasks: TaskCsvRow[]): string {
+  return (
+    UTF8_BOM +
+    toCsv(
+      TASK_CSV_HEADER,
+      tasks.map((t) => [
+        t.taskId,
+        t.title,
+        t.status,
+        t.priority,
+        t.ownerName,
+        t.ownerRole,
+        t.createdAt,
+        t.dueAt,
+        t.completedAt
+      ])
+    )
+  );
+}

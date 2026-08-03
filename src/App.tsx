@@ -41,6 +41,7 @@ import {
   type HouseholdCode,
   type HouseholdSummary,
   listWeeklyReports,
+  recordWeeklyReport,
   type WeeklyReport
 } from "./lib/db";
 import { QRCode } from "./components/QRCode";
@@ -74,7 +75,11 @@ import {
   withAudit,
   withRoleNotification
 } from "./domain";
-import { tasksToCsv } from "./lib/export/csv";
+import { buildTaskCsvRows, type TaskCsvRow } from "./lib/export/csv";
+import { buildReportHtml, type PdfReportSection } from "./lib/export/pdf";
+import { File, Paths } from "expo-file-system";
+import * as Sharing from "expo-sharing";
+import { printToFileAsync } from "expo-print";
 import {
   Language,
   Translate,
@@ -680,6 +685,12 @@ function LocalApp(props: { cloud?: CloudProps } = {}) {
             openCount: snapshot.tasks.filter((task) => task.status !== "completed").length
           })
         );
+        // R2（B6）：手动生成同步落库周报历史（record_weekly_report，definer + coordinator 校验）
+        void recordWeeklyReport(cloud.householdId, {
+          tasksCreated: snapshot.tasks.length,
+          tasksCompleted: snapshot.tasks.filter((task) => task.status === "completed").length,
+          events: snapshot.events?.length ?? 0
+        }).catch((e) => console.warn("record_weekly_report failed", e));
       } else {
         setState(snapshot);
       }
@@ -702,19 +713,58 @@ function LocalApp(props: { cloud?: CloudProps } = {}) {
 
   // R4（IOS_SUBMISSION_DEV_SPEC）：报表导出 CSV（Plus 专属；客户端 canUse 为 UX 门禁——
   // 导出仅序列化本家庭已授权 state 走系统分享面板，无跨用户泄露面，属付费墙商业约束）。
+  // R2 修复（B3/B4）：CSV 落真实文件（UTF-8 BOM + 9 列 + 规范文件名）+ 导出审计（H4）。
+  const exportRows: TaskCsvRow[] = state.tasks.map((task) => ({
+    taskId: task.id,
+    title: task.title,
+    status: task.status,
+    priority: task.priority,
+    ownerName: memberName(state, task.ownerId ?? "", t),
+    ownerRole: roleLabel(state.members.find((m) => m.id === task.ownerId)?.role ?? "caregiver", t),
+    createdAt: task.createdAt ?? "",
+    dueAt: task.dueAt ?? "",
+    completedAt: ""
+  }));
   const onExportCsv = async () => {
-    const rows = state.tasks.map((task) => ({
-      date: task.dueAt?.slice(0, 10) ?? task.createdAt?.slice(0, 10) ?? "",
-      title: task.title,
-      status: task.status,
-      assignee: memberName(state, task.ownerId ?? "", t),
-      priority: task.priority
-    }));
-    const csv = tasksToCsv(rows);
+    const csv = buildTaskCsvRows(exportRows);
+    const fileName = `taskkin-tasks-${new Date().toISOString().slice(0, 10)}.csv`;
     try {
-      await Share.share({ title: t("report.exportCsv"), message: csv });
+      const dir = Paths.cache;
+      const file = new File(`${dir}/${fileName}`);
+      await file.write(csv);
+      const uri = file.uri;
+      await Sharing.shareAsync(uri, { mimeType: "text/csv", dialogTitle: fileName });
+      await exportAudit();
     } catch {
       // 用户取消分享等，静默
+    }
+  };
+  // R2（B2）：PDF 导出——HTML 模板 → expo-print 生成文件 → 分享。
+  const onExportPdf = async () => {
+    const weekLabel = `Week of ${new Date().toISOString().slice(0, 10)}`;
+    const sections: PdfReportSection[] = [
+      {
+        title: t("report.historyTitle"),
+        lines: state.tasks.slice(0, 20).map((task) => `${task.title} — ${task.status}`)
+      }
+    ];
+    const html = buildReportHtml(state.household?.name ?? "Household", weekLabel, sections);
+    const fileName = `taskkin-weekly-report-${new Date().toISOString().slice(0, 10)}.pdf`;
+    try {
+      // printToFileAsync 直接生成 PDF 文件（uri），分享即可（无需再复制）。
+      const { uri } = await printToFileAsync({ html, width: 612, height: 792 });
+      await Sharing.shareAsync(uri, { mimeType: "application/pdf", dialogTitle: fileName });
+      await exportAudit();
+    } catch {
+      // 用户取消分享等，静默
+    }
+  };
+  const exportAudit = async () => {
+    if (!cloud || !actor) return;
+    try {
+      await cloudActions.recordReportGenerated({ householdId: cloud.householdId, actor, openCount: 0 });
+    } catch {
+      // best-effort audit
     }
   };
 
@@ -1190,31 +1240,44 @@ function LocalApp(props: { cloud?: CloudProps } = {}) {
                 {t("report.modalTitle")}
               </Text>
               <IconButton icon="share-outline" label={t("report.share")} onPress={onShareReport} />
-              {canUse("export", plan) && (
-                <IconButton icon="download-outline" label={t("report.exportCsv")} onPress={onExportCsv} />
-              )}
-              {weeklyReports.length > 0 && (
-                <View style={styles.weeklyHistory}>
-                  <Text style={styles.weeklyHistoryTitle} allowFontScaling>
-                    {t("report.historyTitle")}
-                  </Text>
-                  {weeklyReports.map((w) => (
-                    <View key={w.weekStart} style={styles.weeklyHistoryRow}>
-                      <Text style={styles.weeklyHistoryDate} allowFontScaling>
-                        {w.weekStart}
-                      </Text>
-                      <Text style={styles.weeklyHistoryMetrics} allowFontScaling>
-                        {t("report.historySummary", {
-                          created: String(w.metrics?.tasksCreated ?? 0),
-                          completed: String(w.metrics?.tasksCompleted ?? 0)
-                        })}
-                      </Text>
-                    </View>
-                  ))}
-                </View>
+              {canUse("export", plan) ? (
+                <>
+                  <IconButton icon="document-text-outline" label={t("report.exportPdf")} onPress={onExportPdf} />
+                  <IconButton icon="download-outline" label={t("report.exportCsv")} onPress={onExportCsv} />
+                </>
+              ) : (
+                // R2（H3）：Free 显示置灰带锁导出按钮，点击打开付费墙（AC4-1）
+                <TouchableOpacity
+                  style={styles.lockedExportBtn}
+                  accessibilityRole="button"
+                  accessibilityLabel={t("report.exportCsv")}
+                  onPress={() => setPaywallVisible(true)}
+                >
+                  <Ionicons name="lock-closed" size={16} color="#94a3b8" />
+                </TouchableOpacity>
               )}
               <IconButton icon="close-outline" label={t("report.close")} onPress={() => setReportVisible(false)} />
             </View>
+            {weeklyReports.length > 0 && (
+              <View style={styles.weeklyHistory}>
+                <Text style={styles.weeklyHistoryTitle} allowFontScaling>
+                  {t("report.historyTitle")}
+                </Text>
+                {weeklyReports.map((w) => (
+                  <View key={w.weekStart} style={styles.weeklyHistoryRow}>
+                    <Text style={styles.weeklyHistoryDate} allowFontScaling>
+                      {w.weekStart}
+                    </Text>
+                    <Text style={styles.weeklyHistoryMetrics} allowFontScaling>
+                      {t("report.historySummary", {
+                        created: String(w.metrics?.tasksCreated ?? 0),
+                        completed: String(w.metrics?.tasksCompleted ?? 0)
+                      })}
+                    </Text>
+                  </View>
+                ))}
+              </View>
+            )}
             <ScrollView style={styles.modalReportScroll}>
               <Text style={styles.reportText} selectable allowFontScaling>
                 {report}
@@ -4077,5 +4140,6 @@ const styles = StyleSheet.create({
   weeklyHistoryTitle: { fontWeight: "700", fontSize: 13, color: "#334155", marginBottom: 4 },
   weeklyHistoryRow: { flexDirection: "row", justifyContent: "space-between", paddingVertical: 3 },
   weeklyHistoryDate: { fontSize: 12, color: "#64748b" },
-  weeklyHistoryMetrics: { fontSize: 12, color: "#334155" }
+  weeklyHistoryMetrics: { fontSize: 12, color: "#334155" },
+  lockedExportBtn: { padding: 6, borderRadius: 6, opacity: 0.6 }
 });

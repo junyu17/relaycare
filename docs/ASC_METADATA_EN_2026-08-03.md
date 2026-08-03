@@ -109,7 +109,7 @@ We'd love your feedback — reach us at [SUPPORT EMAIL].
 | Privacy Policy URL       | `https://junyu17.github.io/relaycare/privacy.html`                                                                                                                                            |
 | License Agreement (EULA) | Use Apple's standard EULA, **or** paste `https://junyu17.github.io/relaycare/terms.html`. If you use your own, it must be entered in App Store Connect → App Information → License Agreement. |
 
-⚠️ The Support URL should ideally reach a page with a working contact method. Add a visible support email to the landing page before submitting — a support URL with no way to contact anyone is a known review comment.
+✅ Verified 2026-08-03: the landing page already carries a `mailto:` contact link at the bottom (`Billy.yu@me.com`), so the Support URL requirement is satisfied. Use that same address for `[SUPPORT EMAIL]` below unless you want a separate support inbox.
 
 ## 8. Category & Ratings
 

@@ -22,6 +22,31 @@ export type EventType = "appointment" | "transport" | "visit" | "reminder" | "do
 
 export type DocumentStatus = "uploaded" | "pending_confirmation" | "confirmed";
 
+export const AUDIT_ACTIONS = [
+  "household.created",
+  "household.dissolved",
+  "member.invited",
+  "member.joined",
+  "member.removed",
+  "member.left",
+  "member.role_updated",
+  "task.created",
+  "task.claimed",
+  "task.rejected",
+  "task.handoff_requested",
+  "task.completed",
+  "task.deleted",
+  "timeline.event_added",
+  "timeline.event_deleted",
+  "notification.preference_updated",
+  "document.uploaded",
+  "document.confirmed",
+  "document.task_created",
+  "member.name_updated",
+  "report.generated",
+  "report.exported"
+] as const;
+
 export type AuditAction =
   | "household.created"
   | "household.dissolved"

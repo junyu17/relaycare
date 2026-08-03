@@ -1558,13 +1558,14 @@ function CloudApp() {
       active = false;
       channel?.unsubscribe();
     };
-  }, [householdId, actor?.id]);
+  }, [householdId]);
 
   useEffect(() => {
     if (!householdId) return;
     void Notifications.requestPermissionsAsync({ ios: { allowAlert: true, allowSound: true } }).catch(() => {});
     const ownPrefOf = (): NotificationPref => {
-      const ownPref = state?.notificationPreferences?.find((p) => p.memberId === actor?.id);
+      const myMemberId = state?.members?.find((m) => m.userId === user?.id)?.id;
+      const ownPref = state?.notificationPreferences?.find((p) => p.memberId === myMemberId);
       return ownPref
         ? {
             quietHoursStart: ownPref.quietHoursStart,
@@ -1578,7 +1579,8 @@ function CloudApp() {
       const title = t(n.titleKey, n.values);
       const body = t(n.bodyKey, n.values);
       // R2（B4）：按当前成员偏好决策即时投递 / 抑制 / 累积（AC5-3/5-4）。
-      const ownPref = state?.notificationPreferences?.find((p) => p.memberId === actor?.id);
+      const myMemberId = state?.members?.find((m) => m.userId === user?.id)?.id;
+      const ownPref = state?.notificationPreferences?.find((p) => p.memberId === myMemberId);
       const pref: NotificationPref = ownPref
         ? {
             quietHoursStart: ownPref.quietHoursStart,

@@ -71,7 +71,9 @@ async function queryV2(
   if (!res.ok) {
     const bodyText = await res.text();
     console.error("play-rtdn: V2 query failed", res.status, bodyText);
-    return null; // 查询失败：调用方保守跳过，不做降级
+    // 抛异常 → 外层 catch 返回 500，Pub/Sub 重试（幂等 RPC，重试无害）；
+    // 避免退款（REVOKED）等关键事件因临时失败被去重吞掉、权益回收延迟。
+    throw new Error(`Play V2 query failed: ${res.status}`);
   }
   return await res.json();
 }
@@ -94,11 +96,6 @@ async function syncEntitlement(
   }
   const accessToken = await getGoogleAccessToken();
   const v2 = await queryV2(accessToken, productId, purchaseToken);
-  if (!v2) {
-    // 查询失败：保守跳过（不降级有效订阅、不误改状态）。
-    console.warn("play-rtdn: V2 query unavailable, skip sync for", originalTxId.slice(0, 20));
-    return;
-  }
 
   // 以 lineItems[0].expiryTime 为准：到期时间在未来则保留权益（即使状态为
   // CANCELED/PAUSED/IN_GRACE 等——用户取消续订或宽限期，周期内权益仍应有效）；

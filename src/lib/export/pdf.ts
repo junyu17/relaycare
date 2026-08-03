@@ -6,7 +6,12 @@ export interface PdfReportSection {
   lines: string[];
 }
 
-export function buildReportHtml(householdName: string, weekLabel: string, sections: PdfReportSection[]): string {
+export function buildReportHtml(
+  householdName: string,
+  weekLabel: string,
+  sections: PdfReportSection[],
+  reportTitle = "Weekly report" // 本地化标题由调用方传入（R3 MEDIUM：避免硬编码英文）
+): string {
   const esc = (v: string) =>
     v.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
   const body = sections
@@ -17,7 +22,7 @@ export function buildReportHtml(householdName: string, weekLabel: string, sectio
     h1 { font-size: 20px; } h2 { font-size: 15px; margin-top: 18px; color: #0f766e; }
     li { margin: 4px 0; font-size: 13px; } .muted { color: #64748b; font-size: 12px; }
   </style></head><body>
-    <h1>${esc(householdName)} — Weekly report</h1>
+    <h1>${esc(householdName)} — ${esc(reportTitle)}</h1>
     <p class="muted">${esc(weekLabel)}</p>
     ${body}
   </body></html>`;

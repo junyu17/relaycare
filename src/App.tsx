@@ -769,7 +769,7 @@ function LocalApp(props: { cloud?: CloudProps } = {}) {
         lines: truncated ? [...lines.slice(0, 80), t("report.truncatedNote")] : lines
       }
     ];
-    const html = buildReportHtml(state.household?.name ?? "Household", weekLabel, sections);
+    const html = buildReportHtml(state.household?.name ?? "Household", weekLabel, sections, t("report.modalTitle"));
     const fileName = `taskkin-weekly-report-${new Date().toISOString().slice(0, 10)}.pdf`;
     try {
       // printToFileAsync 直接生成 PDF 文件（uri），分享即可（无需再复制）。

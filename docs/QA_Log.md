@@ -868,3 +868,9 @@ Actual artifact verification:
 - i18n paywall 三语文案泛化（iOS+Android）；删除页/隐私政策对齐（Billy.yu@me.com、审计 24 个月保留）
 - SKU 抽纯模块 src/paywall/skus.ts + 5 个单测（35/35）
 - 全部重新部署：verify-google-purchase、play-rtdn（Deployed on bwvtypmnhwzchrubziqy）
+
+### R3 整改部署证据 2026-08-03
+
+- 0043_weekly_report_notification 已 db push 应用（migration list 至 0043；实际执行输出 Finished supabase db push）
+- R3 提交推送：b45c19d（主修复）/ d94596d / c407aa3（H5 测试）已推送；本地 1cb20cb（H5 infinity guard）待网络补推
+- 测试：vitest 51/51（entitlement 恢复 6 函数 7 it + H5 数值断言）

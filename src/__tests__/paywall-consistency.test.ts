@@ -11,6 +11,21 @@ describe("paywall-consistency (R8, IOS_SUBMISSION_DEV_SPEC)", () => {
     }
   });
 
+  it("H5: ROWS numeric cells match PLAN_LIMITS (no overstated numbers)", () => {
+    const byLabel = Object.fromEntries(ROWS.map((r) => [r.labelKey, r]));
+    const row = (key: string) => byLabel[key]!;
+    expect(Number(row("paywall.row.members").plus)).toBe(PLAN_LIMITS.monthly.members);
+    expect(Number(row("paywall.row.ocr").plus)).toBe(PLAN_LIMITS.monthly.ocrPerMonth);
+    expect(Number(row("paywall.row.tasks").plus)).toBe(PLAN_LIMITS.monthly.inProgressTasks); // Infinity → NaN 需特殊断言
+    if (row("paywall.row.tasks").plus !== "∞") {
+      expect(Number(row("paywall.row.tasks").plus)).toBe(PLAN_LIMITS.monthly.inProgressTasks);
+    }
+    // 保留期：3 years ↔ 1095 天
+    if (row("paywall.row.audit").plus.includes("3")) {
+      expect(PLAN_LIMITS.monthly.auditRetentionDays).toBe(1095);
+    }
+  });
+
   it("ROWS covers every PLAN_FEATURES feature (no unshown gated feature)", () => {
     const gated = new Set(ROWS.filter((r) => r.backedBy).map((r) => r.backedBy));
     for (const key of Object.keys(PLAN_FEATURES)) {

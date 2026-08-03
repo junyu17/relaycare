@@ -685,10 +685,17 @@ function LocalApp(props: { cloud?: CloudProps } = {}) {
       if (cloud) {
         // R2（B6）：手动生成落库周报历史（record_weekly_report 内部写一次 report.generated 审计，
         // 不再重复调 recordReportGenerated 的通知+审计；H4 的导出动作单独记 report.exported）
+        // R2：手动生成指标按本周窗口统计（与自动 generate_weekly_reports 口径一致，避免历史不可比）
+        const weekStart = new Date();
+        weekStart.setHours(0, 0, 0, 0);
+        weekStart.setDate(weekStart.getDate() - ((weekStart.getDay() + 6) % 7)); // 本周一
+        const inWeek = (iso?: string) => (iso ? new Date(iso).getTime() >= weekStart.getTime() : false);
         void recordWeeklyReport(cloud.householdId, {
-          tasksCreated: snapshot.tasks.length,
-          tasksCompleted: snapshot.tasks.filter((task) => task.status === "completed").length,
-          events: snapshot.events?.length ?? 0
+          tasksCreated: snapshot.tasks.filter((task) => inWeek(task.createdAt)).length,
+          tasksCompleted: snapshot.tasks.filter(
+            (task) => task.status === "completed" && inWeek(task.updatedAt ?? task.createdAt)
+          ).length,
+          events: (snapshot.events ?? []).filter((e) => inWeek(e.startsAt)).length
         }).catch((e) => console.warn("record_weekly_report failed", e));
       } else {
         setState(snapshot);

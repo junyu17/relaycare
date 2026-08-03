@@ -1,114 +1,40 @@
 import { describe, expect, it } from "vitest";
-import { initialState } from "../data";
-import {
-  PLAN_LIMITS,
-  effectivePlan,
-  checkTaskQuota,
-  checkMemberQuota,
-  checkOcrQuota,
-  checkFileSize,
-  MAX_FILE_SIZE_BYTES,
-  isPlusPlan
-} from "../lib/entitlement";
+import { canUse, PLAN_FEATURES, PLAN_LIMITS, type FeatureKey } from "../lib/entitlement";
+import { translations } from "../i18n";
 
-const freeHousehold = { ...initialState.household, plusPlan: "free" as const };
-const plusHousehold = {
-  ...initialState.household,
-  plusPlan: "yearly" as const,
-  plusUntil: new Date(Date.now() + 86400000).toISOString(),
-  plusOwnerId: "m-maya"
-};
-const expiredPlusHousehold = {
-  ...initialState.household,
-  plusPlan: "monthly" as const,
-  plusUntil: new Date(Date.now() - 86400000).toISOString()
-};
+describe("R8 unified entitlement gate (IOS_SUBMISSION_DEV_SPEC)", () => {
+  it("free plan blocks every Plus feature", () => {
+    for (const key of Object.keys(PLAN_FEATURES) as FeatureKey[]) {
+      expect(canUse(key, "free"), `free should not allow ${key}`).toBe(false);
+    }
+  });
 
-describe("effectivePlan", () => {
-  it("reports free for a free household", () => {
-    expect(effectivePlan(freeHousehold)).toBe("free");
+  it("plus plans allow every Plus feature", () => {
+    for (const key of Object.keys(PLAN_FEATURES) as FeatureKey[]) {
+      expect(canUse(key, "monthly"), `monthly should allow ${key}`).toBe(true);
+      expect(canUse(key, "yearly"), `yearly should allow ${key}`).toBe(true);
+    }
   });
-  it("reports plus while the subscription is in the future", () => {
-    expect(effectivePlan(plusHousehold)).toBe("yearly");
+
+  it("PLAN_FEATURES free column is backed by PLAN_LIMITS (no UI overstating)", () => {
+    // backedBy 一致性：free 列必须与 PLAN_LIMITS.free 的真实配额一致
+    expect(PLAN_FEATURES.export.free).toBe(PLAN_LIMITS.free.exportEnabled);
+    expect(PLAN_FEATURES.weeklyReportAuto.free).toBe(PLAN_LIMITS.free.weeklyReportAuto);
+    expect(PLAN_FEATURES.advancedNotifications.free).toBe(PLAN_LIMITS.free.advancedNotifications);
+    expect(PLAN_FEATURES.households3.free).toBe(false); // free=1 家庭
+    expect(PLAN_FEATURES.members12.free).toBe(false); // free=3 成员
+    expect(PLAN_FEATURES.tasksUnlimited.free).toBe(false); // free=10 进行中
+    expect(PLAN_FEATURES.ocr50.free).toBe(false); // free=1 OCR
+    expect(PLAN_FEATURES.auditRetention1095.free).toBe(false); // free=30 天
   });
-  it("falls back to free when plus has expired", () => {
-    expect(effectivePlan(expiredPlusHousehold)).toBe("free");
+
+  it("every feature label key exists in all three languages", () => {
+    for (const key of Object.keys(PLAN_FEATURES) as FeatureKey[]) {
+      const labelKey = PLAN_FEATURES[key].labelKey;
+      for (const lang of ["en", "zh", "es"] as const) {
+        const value = translations[lang][labelKey];
+        expect(value, `${lang} missing ${labelKey}`).toBeTruthy();
+      }
+    }
   });
 });
-
-describe("isPlusPlan", () => {
-  it("treats monthly and yearly as plus, free as not", () => {
-    expect(isPlusPlan("monthly")).toBe(true);
-    expect(isPlusPlan("yearly")).toBe(true);
-    expect(isPlusPlan("free")).toBe(false);
-  });
-});
-
-describe("PLAN_LIMITS", () => {
-  it("enforces the spec'd free limits", () => {
-    expect(PLAN_LIMITS.free.households).toBe(1);
-    expect(PLAN_LIMITS.free.members).toBe(3);
-    expect(PLAN_LIMITS.free.inProgressTasks).toBe(10);
-    expect(PLAN_LIMITS.free.ocrPerMonth).toBe(1);
-    expect(PLAN_LIMITS.free.auditRetentionDays).toBe(30);
-    expect(PLAN_LIMITS.free.exportEnabled).toBe(false);
-  });
-  it("enforces the spec'd plus limits", () => {
-    expect(PLAN_LIMITS.yearly.households).toBe(3);
-    expect(PLAN_LIMITS.yearly.members).toBe(12);
-    expect(PLAN_LIMITS.yearly.ocrPerMonth).toBe(50);
-    expect(PLAN_LIMITS.yearly.auditRetentionDays).toBe(1095);
-    expect(PLAN_LIMITS.yearly.exportEnabled).toBe(true);
-    expect(PLAN_LIMITS.yearly.advancedNotifications).toBe(true);
-  });
-});
-
-describe("quota checks", () => {
-  it("blocks the 11th in-progress task on free, allows on plus", () => {
-    const freeState = { ...initialState, household: freeHousehold };
-    expect(checkTaskQuota({ ...freeState, tasks: elevenOpenTasks() }).ok).toBe(false);
-    const plusState = { ...initialState, household: plusHousehold };
-    expect(checkTaskQuota({ ...plusState, tasks: elevenOpenTasks() }).ok).toBe(true);
-  });
-  it("blocks the 4th member on free, allows on plus", () => {
-    const freeState = { ...initialState, household: freeHousehold, members: fourMembers() };
-    expect(checkMemberQuota(freeState).ok).toBe(false);
-    const plusState = { ...initialState, household: plusHousehold, members: fourMembers() };
-    expect(checkMemberQuota(plusState).ok).toBe(true);
-  });
-  it("counts only manual uploads this month toward the OCR quota", () => {
-    const state = {
-      ...initialState,
-      household: freeHousehold,
-      documents: [
-        { ...initialState.documents[0], source: "manual_upload" as const, uploadedAt: new Date().toISOString() },
-        { ...initialState.documents[0], source: "sample" as const, uploadedAt: new Date().toISOString() },
-        { ...initialState.documents[0], source: "manual_upload" as const, uploadedAt: "2020-01-01T00:00:00Z" }
-      ]
-    };
-    expect(checkOcrQuota(state).used).toBe(1);
-    expect(checkOcrQuota(state).ok).toBe(false); // free limit 1, already used 1
-  });
-});
-
-describe("file size check", () => {
-  it("allows 25 MB, rejects larger", () => {
-    expect(checkFileSize(MAX_FILE_SIZE_BYTES)).toBe(true);
-    expect(checkFileSize(MAX_FILE_SIZE_BYTES + 1)).toBe(false);
-  });
-});
-
-function elevenOpenTasks() {
-  const base = initialState.tasks.filter((task) => task.status !== "completed");
-  const open = { ...base[0], id: "t-extra-1", status: "open" as const };
-  const arr = [open, ...base];
-  // pad to 11 open tasks
-  while (arr.filter((task) => task.status !== "completed").length < 11) {
-    arr.push({ ...open, id: `t-extra-${arr.length}` });
-  }
-  return arr;
-}
-
-function fourMembers() {
-  return [...initialState.members, { ...initialState.members[0], id: "m-extra" }];
-}

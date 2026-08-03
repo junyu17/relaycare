@@ -23,6 +23,7 @@ import {
   finishIosPurchase,
   restoreIos,
   isIosIapAvailable,
+  skuForPlan,
   type ProductSubscription
 } from "./iap";
 
@@ -52,7 +53,8 @@ function rowValue(value: string, t: Translate): string {
 }
 
 function findPrice(subs: ProductSubscription[], plan: "monthly" | "yearly"): string | null {
-  const sku = plan === "yearly" ? "TaskKin.care.pro.yearly" : "TaskKin.care.pro.mon";
+  // R12（IOS_SUBMISSION_DEV_SPEC）：用平台 SKU 匹配（Android 小写 ID / iOS App Store ID）
+  const sku = skuForPlan(plan);
   const sub = subs.find((item) => item.id === sku);
   if (!sub) return null;
   const ios = sub as { localizedPrice?: string | null; price?: string };
@@ -152,7 +154,8 @@ export function Paywall({
       t("paywall.localTest"),
       isCoordinator
         ? [
-            { text: t("paywall.devEnablePlus"), onPress: () => onDevSetPlus(plan) },
+            // R11（IOS_SUBMISSION_DEV_SPEC）：dev 解锁仅 __DEV__ 构建可用
+            ...(__DEV__ ? [{ text: t("paywall.devEnablePlus"), onPress: () => onDevSetPlus(plan) }] : []),
             { text: t("paywall.close"), style: "cancel" as const }
           ]
         : [{ text: t("paywall.close"), style: "cancel" as const }]
@@ -282,7 +285,7 @@ export function Paywall({
           )}
 
           <Text style={s.disclosure} allowFontScaling>
-            {t("paywall.disclosure")}
+            {t("paywall.disclosure", { monthlyPrice, yearlyPrice: yearlyPriceLabel })}
           </Text>
 
           {/* R3（IOS_SUBMISSION_DEV_SPEC）：购买点提供可点击的 EULA / 隐私政策（Guideline 3.1.2），
@@ -330,19 +333,21 @@ export function Paywall({
           {/* dev 测试切换（仅本地 demo 模式；cloud 走真实 IAP，不提供）*/}
           {!householdId && isCoordinator && (
             <View style={s.devRow}>
-              {isPlus ? (
-                <TouchableOpacity style={s.devBtn} onPress={() => onDevSetPlus("free")}>
-                  <Text style={s.devBtnText} allowFontScaling>
-                    {t("paywall.devDisablePlus")}
-                  </Text>
-                </TouchableOpacity>
-              ) : (
-                <TouchableOpacity style={s.devBtn} onPress={() => onDevSetPlus("yearly")}>
-                  <Text style={s.devBtnText} allowFontScaling>
-                    {t("paywall.devEnablePlus")}
-                  </Text>
-                </TouchableOpacity>
-              )}
+              {/* R11：dev 解锁/降级按钮仅 __DEV__ 构建渲染；生产隐藏，防止误操作与审核问题 */}
+              {__DEV__ &&
+                (isPlus ? (
+                  <TouchableOpacity style={s.devBtn} onPress={() => onDevSetPlus("free")}>
+                    <Text style={s.devBtnText} allowFontScaling>
+                      {t("paywall.devDisablePlus")}
+                    </Text>
+                  </TouchableOpacity>
+                ) : (
+                  <TouchableOpacity style={s.devBtn} onPress={() => onDevSetPlus("yearly")}>
+                    <Text style={s.devBtnText} allowFontScaling>
+                      {t("paywall.devEnablePlus")}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
             </View>
           )}
         </View>

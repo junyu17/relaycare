@@ -8,7 +8,7 @@
     "scheme": "taskkin-care",
     "userInterfaceStyle": "light",
     "ios": {
-      "supportsTablet": true,
+      "supportsTablet": false,
       "bundleIdentifier": "cd.cc.relaycare",
       "buildNumber": "1"
     },

@@ -90,9 +90,13 @@ async function syncEntitlement(
     .from("subscriptions")
     .select("id, household_id, owner_user_id, plan")
     .eq("original_transaction_id", originalTxId);
-  if (subErr || !subs?.length) {
+  if (subErr) {
+    // DB 查询故障：抛异常 → 500 重试（事件不丢失）
+    throw new Error(`play-rtdn: subscription lookup failed: ${subErr.message}`);
+  }
+  if (!subs?.length) {
     console.warn("play-rtdn: no subscription record for", originalTxId.slice(0, 20));
-    return;
+    return; // 业务性"无记录"：确认不重试
   }
   const accessToken = await getGoogleAccessToken();
   const v2 = await queryV2(accessToken, productId, purchaseToken);
@@ -119,7 +123,7 @@ async function syncEntitlement(
           p_expires_at: new Date(expiresMs).toISOString()
         })
         .then((r) => {
-          if (r.error) console.error("play-rtdn: sync active failed", r.error.message);
+          if (r.error) throw new Error(`play-rtdn: sync active failed: ${r.error.message}`);
         });
     } else {
       // 状态语义对齐：EXPIRED=到期、CANCELED=用户取消续订、REVOKED=退款；其余非活跃归 revoked。
@@ -137,7 +141,7 @@ async function syncEntitlement(
           p_expires_at: new Date().toISOString()
         })
         .then((r) => {
-          if (r.error) console.error("play-rtdn: sync revoke failed", r.error.message);
+          if (r.error) throw new Error(`play-rtdn: sync revoke failed: ${r.error.message}`);
         });
     }
   }

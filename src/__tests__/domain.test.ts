@@ -197,6 +197,10 @@ describe("formatDateTime defensive (crash engine zeroing)", () => {
     expect(() => formatDateTime("2024-13-45")).not.toThrow();
     expect(formatDateTime("")).toBe("");
     expect(formatDateTime("not-a-date")).toBe("");
+    expect(() => formatDateTime(null as unknown as string)).not.toThrow();
+    expect(formatDateTime(null as unknown as string)).toBe(""); // new Date(null)=epoch，早退拦下
+    expect(() => formatDateTime(undefined as unknown as string)).not.toThrow();
+    expect(formatDateTime(undefined as unknown as string)).toBe(""); // 缺字段缓存场景
   });
 
   it("formats valid ISO normally", () => {

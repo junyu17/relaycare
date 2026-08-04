@@ -925,7 +925,6 @@ Actual artifact verification:
 - X3（低）：0050 已被 0051 取代（create or replace 顺序执行，生产生效 0051）——按 C7 不回改已 push 迁移，记录在案
 - 门禁：typecheck/lint/prettier/vitest 60/60
 
-
 ### Y1 修复（Claude 复审）2026-08-04
 
 - Y1（中）：X2 后事件失败时 taskPromise 被 resolve（不 reject），任务乐观行挂在 taskPromise.catch 上无人撤回 → 事件失败但勾选建任务时 UI 残留服务端不存在的任务。

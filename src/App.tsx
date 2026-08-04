@@ -1876,10 +1876,18 @@ export default function App() {
 }
 
 function AppInner() {
-  // R11（IOS_SUBMISSION_DEV_SPEC）：生产构建必须配置 Supabase，否则视为配置错误直接抛错（不静默进本地演示）。
+  // R11（IOS_SUBMISSION_DEV_SPEC）：生产构建必须配置 Supabase，否则视为配置错误。
+  // 直接渲染独立配置错误视图（不 throw 进 ErrorBoundary——配置错误不因重试消失，需明确提示）。
   if (!isSupabaseConfigured) {
     if (!__DEV__) {
-      throw new Error("Supabase is not configured in a production build");
+      return (
+        <View style={{ flex: 1, alignItems: "center", justifyContent: "center", padding: 24 }}>
+          <Text style={{ fontSize: 18, fontWeight: "600", marginBottom: 8 }}>Configuration error</Text>
+          <Text style={{ fontSize: 14, color: "#555", textAlign: "center" }}>
+            Supabase is not configured in this build. Reinstall the app from the store.
+          </Text>
+        </View>
+      );
     }
     return (
       <ConsentGate>

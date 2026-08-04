@@ -20,6 +20,9 @@ export const translations: Record<Language, Record<string, string>> = {
   en: {
     "app.subtitle": "Non-PHI family coordination",
     "language.switch": "Switch language. Current language: {language}",
+    "error.boundaryTitle": "Something went wrong",
+    "error.boundaryBody": "The app hit an unexpected error. Your data is safe — tap Try again to reload.",
+    "error.tryAgain": "Try again",
     "notice.boundary":
       "Coordination only. No diagnosis, prescription, billing, emergency triage, or deep EMR integration.",
     "tabs.home": "Home",
@@ -547,6 +550,9 @@ export const translations: Record<Language, Record<string, string>> = {
   zh: {
     "app.subtitle": "不处理 PHI 的家庭照护协同",
     "language.switch": "切换语言。当前语言：{language}",
+    "error.boundaryTitle": "出错了",
+    "error.boundaryBody": "应用遇到了意外错误，你的数据是安全的——点击重试重新加载。",
+    "error.tryAgain": "重试",
     "notice.boundary": "仅用于家庭协同。不提供诊断、处方、账单/支付、紧急分诊或深度 EMR 集成。",
     "tabs.home": "首页",
     "tabs.tasks": "任务",
@@ -1057,6 +1063,10 @@ export const translations: Record<Language, Record<string, string>> = {
   es: {
     "app.subtitle": "Coordinación familiar sin PHI",
     "language.switch": "Cambiar idioma. Idioma actual: {language}",
+    "error.boundaryTitle": "Algo salió mal",
+    "error.boundaryBody":
+      "La app encontró un error inesperado. Tus datos están a salvo — pulsa Reintentar para recargar.",
+    "error.tryAgain": "Reintentar",
     "notice.boundary":
       "Solo coordinación. Sin diagnóstico, recetas, facturación, triaje de emergencia ni integración EMR profunda.",
     "tabs.home": "Inicio",

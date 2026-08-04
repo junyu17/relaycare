@@ -1,5 +1,7 @@
 import { Component, type ReactNode } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
+import { makeTranslator } from "./i18n";
+import { getStoredLanguage } from "./lib/language";
 
 interface Props {
   children: ReactNode;
@@ -8,8 +10,9 @@ interface State {
   error: string | null;
 }
 
-// 全局兜底：任何未预期错误（render/事件处理器）显示可恢复界面，绝不静默退出 app。
-// 上线最后一道防线——错误信息不泄露内部细节（仅展示已本地化提示 + 重试）。
+// 全局兜底（最后一道防线）：React 错误边界捕获 **render / 生命周期 / 构造函数** 中抛出的错误
+// （注意：事件处理器内的错误不会进入边界——那些路径已由各按钮的 .catch/reportCloudActionFailure 兜底）。
+// 错误信息不泄露内部细节；文案跟随已存语言。
 export class ErrorBoundary extends Component<Props, State> {
   state: State = { error: null };
 
@@ -25,12 +28,13 @@ export class ErrorBoundary extends Component<Props, State> {
 
   render() {
     if (this.state.error) {
+      const t = makeTranslator(getStoredLanguage());
       return (
         <View style={styles.container}>
-          <Text style={styles.title}>Something went wrong</Text>
-          <Text style={styles.body}>The app hit an unexpected error. Your data is safe — try again.</Text>
-          <Pressable style={styles.button} onPress={this.reset}>
-            <Text style={styles.buttonText}>Try again</Text>
+          <Text style={styles.title}>{t("error.boundaryTitle")}</Text>
+          <Text style={styles.body}>{t("error.boundaryBody")}</Text>
+          <Pressable style={styles.button} onPress={this.reset} accessibilityRole="button">
+            <Text style={styles.buttonText}>{t("error.tryAgain")}</Text>
           </Pressable>
         </View>
       );

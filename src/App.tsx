@@ -1829,7 +1829,11 @@ function CloudApp() {
           ? tr("userNotif.dissolvedBody", { name })
           : tr("userNotif.removedBody", { name });
       Notifications.scheduleNotificationAsync({ content: { title, body }, trigger: null }).catch(() => {});
-      Alert.alert(title, body, [{ text: "OK", onPress: () => void signOut() }]);
+      // 登出不得挂在 Alert 的 onPress 上：弹窗被系统对话框遮挡、用户不点、或 App 切后台时，
+      // 被移除者会继续停留在已失效的家庭视图上（服务端 RLS 已拒绝，但客户端保留 last-known-good
+      // 陈旧数据，见 CloudApp 的 guardedFetch 回退）。改为收到通知即无条件登出，Alert 仅作告知。
+      Alert.alert(title, body);
+      void signOut();
     });
     return () => {
       ch.unsubscribe();

@@ -1,3 +1,4 @@
+import { errorMessage } from "../lib/error";
 import { useEffect, useState } from "react";
 import {
   View,
@@ -50,7 +51,7 @@ export function AuthScreen() {
         Alert.alert(t("auth.checkEmail"), t("auth.resetSentMsg"));
         setMode("signin");
       } catch (e) {
-        Alert.alert(t("auth.error"), e instanceof Error ? e.message : String(e));
+        Alert.alert(t("auth.error"), errorMessage(e));
       } finally {
         setBusy(false);
       }
@@ -70,7 +71,7 @@ export function AuthScreen() {
         await joinByCode(joinCode, displayName.trim() || undefined);
         clearPendingJoinCode();
       } catch (e) {
-        Alert.alert(t("auth.error"), e instanceof Error ? e.message : String(e));
+        Alert.alert(t("auth.error"), errorMessage(e));
       } finally {
         setBusy(false);
       }
@@ -89,7 +90,7 @@ export function AuthScreen() {
         }
       }
     } catch (e) {
-      Alert.alert(t("auth.error"), e instanceof Error ? e.message : String(e));
+      Alert.alert(t("auth.error"), errorMessage(e));
     } finally {
       setBusy(false);
     }
@@ -258,7 +259,7 @@ export function OnboardingScreen() {
         memberTimezone: "America/Los_Angeles"
       });
     } catch (e) {
-      Alert.alert(t("auth.error"), e instanceof Error ? e.message : String(e));
+      Alert.alert(t("auth.error"), errorMessage(e));
     } finally {
       setBusy(false);
     }
@@ -277,7 +278,7 @@ export function OnboardingScreen() {
     try {
       await joinByCode(joinCode, memberName.trim() || undefined);
     } catch (e) {
-      Alert.alert(t("auth.error"), e instanceof Error ? e.message : String(e));
+      Alert.alert(t("auth.error"), errorMessage(e));
     } finally {
       setBusy(false);
     }

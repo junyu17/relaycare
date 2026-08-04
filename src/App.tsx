@@ -58,7 +58,7 @@ import { canUse, effectivePlan, checkTaskQuota, checkOcrQuota, checkFileSize } f
 import { DEFAULT_PREF, shouldDeliverNow, type NotificationPref } from "./lib/notify";
 import { enqueueDigestNotification, flushDigestQueue } from "./lib/digest-queue";
 import { newClientRequestId } from "./lib/uuid";
-import { tryAcquireCreateLock, releaseCreateLock } from "./lib/create-lock";
+import { isCreateBusy, beginCreate, endCreate } from "./lib/create-lock";
 
 // S3（SYNC_FIX_REVIEW）：创建类操作同步防重入（连点/双指）。
 // 模块级可变对象——useState setter 不更新当前闭包（同批次连点会漏），
@@ -532,7 +532,8 @@ function LocalApp(props: { cloud?: CloudProps } = {}) {
         return;
       }
       if (cloud) {
-        if (tryAcquireCreateLock("custom-task")) return;
+        if (isCreateBusy("custom-task")) return; // X1：忙则返回；否则继续
+        beginCreate("custom-task");
         const optimisticId = newClientRequestId(); // P1：同时作为 task.id 与 client_request_id
         const optimisticTask: Task = {
           id: optimisticId,
@@ -564,7 +565,7 @@ function LocalApp(props: { cloud?: CloudProps } = {}) {
             reportCloudActionFailure(e);
           })
           .finally(() => {
-            releaseCreateLock("custom-task");
+            endCreate("custom-task");
           });
       } else {
         setState((current) =>
@@ -599,7 +600,8 @@ function LocalApp(props: { cloud?: CloudProps } = {}) {
   }) => {
     runIfAllowed("timeline:add", () => {
       if (cloud) {
-        if (tryAcquireCreateLock("other-update")) return;
+        if (isCreateBusy("other-update")) return; // X1：忙则返回；否则继续
+        beginCreate("other-update");
         // P2（SYNC_FIX_REVIEW）：事件乐观插入（id1），随后可选任务乐观插入（id2），各自独立回滚。
         // 只动 events/tasks，绝不伪造 audit/roleNotifications（规格硬约束）。
         const eventId = newClientRequestId();
@@ -638,22 +640,27 @@ function LocalApp(props: { cloud?: CloudProps } = {}) {
           eventId,
           clientRequestId: eventId
         });
-        const taskPromise = eventPromise.then(() => {
-          if (taskId && args.taskTitle && args.taskDueAt && args.taskMinutes && args.taskPriority) {
-            return cloudActions.createTask({
-              householdId: cloud.householdId,
-              actor,
-              title: args.taskTitle,
-              expectedMinutes: args.taskMinutes,
-              dueAt: args.taskDueAt,
-              priority: args.taskPriority,
-              subtasks: [],
-              taskId,
-              clientRequestId: taskId
-            });
-          }
-          return undefined;
-        });
+        // X2（SYNC_FIX_REVIEW_R2）：事件失败时任务链静默跳过（onRejected → undefined），
+        // 事件错误已由下方 eventPromise.catch 弹一次；否则派生链会再弹一次相同错误（双弹窗）。
+        const taskPromise = eventPromise.then(
+          () => {
+            if (taskId && args.taskTitle && args.taskDueAt && args.taskMinutes && args.taskPriority) {
+              return cloudActions.createTask({
+                householdId: cloud.householdId,
+                actor,
+                title: args.taskTitle,
+                expectedMinutes: args.taskMinutes,
+                dueAt: args.taskDueAt,
+                priority: args.taskPriority,
+                subtasks: [],
+                taskId,
+                clientRequestId: taskId
+              });
+            }
+            return undefined;
+          },
+          () => undefined // 事件已失败：静默跳过，避免重复报错（X2）
+        );
         // P2（SYNC_FIX_REVIEW 复审）：分侧回滚——事件失败撤事件，任务失败只撤任务，
         // 已持久化的事件不被误撤（避免真实事件从 UI 消失且无新事件收敛）。
         eventPromise.catch((e) => {
@@ -667,7 +674,7 @@ function LocalApp(props: { cloud?: CloudProps } = {}) {
             reportCloudActionFailure(e);
           })
           .finally(() => {
-            releaseCreateLock("other-update");
+            endCreate("other-update");
           });
       } else {
         setState((current) => {
@@ -931,7 +938,8 @@ function LocalApp(props: { cloud?: CloudProps } = {}) {
       }
       const input = taskTemplateInput(templateKey, t);
       if (cloud) {
-        if (tryAcquireCreateLock("template-task")) return;
+        if (isCreateBusy("template-task")) return; // X1：忙则返回；否则继续
+        beginCreate("template-task");
         const optimisticId = newClientRequestId();
         const optimisticTask: Task = {
           id: optimisticId,
@@ -962,7 +970,7 @@ function LocalApp(props: { cloud?: CloudProps } = {}) {
             reportCloudActionFailure(e);
           })
           .finally(() => {
-            releaseCreateLock("template-task");
+            endCreate("template-task");
           });
       } else {
         setState((current) => createTask(current, actor, input, t));
@@ -974,7 +982,8 @@ function LocalApp(props: { cloud?: CloudProps } = {}) {
     runIfAllowed("timeline:add", () => {
       const input = timelineTemplateInput(templateKey, t);
       if (cloud) {
-        if (tryAcquireCreateLock("template-event")) return;
+        if (isCreateBusy("template-event")) return; // X1：忙则返回；否则继续
+        beginCreate("template-event");
         const optimisticId = newClientRequestId();
         const optimisticEvent: CareEvent = {
           id: optimisticId,
@@ -1002,7 +1011,7 @@ function LocalApp(props: { cloud?: CloudProps } = {}) {
             reportCloudActionFailure(e);
           })
           .finally(() => {
-            releaseCreateLock("template-event");
+            endCreate("template-event");
           });
       } else {
         setState((current) => addTimelineEvent(current, actor, input, t));

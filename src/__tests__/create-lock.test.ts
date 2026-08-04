@@ -1,20 +1,37 @@
 import { describe, expect, it } from "vitest";
-import { tryAcquireCreateLock, releaseCreateLock } from "../lib/create-lock";
+import { isCreateBusy, beginCreate, endCreate } from "../lib/create-lock";
 
-describe("create-lock (S3, SYNC_FIX_REVIEW)", () => {
-  it("rejects same-key re-entry while held", () => {
-    expect(tryAcquireCreateLock("k")).toBe(true);
-    expect(tryAcquireCreateLock("k")).toBe(false); // 连点被拒
-    releaseCreateLock("k");
-    expect(tryAcquireCreateLock("k")).toBe(true); // 释放后可再获取
-    releaseCreateLock("k");
+describe("create-lock (S3 + X1, SYNC_FIX_REVIEW)", () => {
+  it("call-site pattern: busy -> return, else begin + proceed (X1 regression)", () => {
+    // 模拟 App.tsx 调用点形状：忙则 return，否则 begin 后继续。
+    // 无 finally（模拟请求在途、锁未释放时的第二次点击）。
+    let ran = 0;
+    const guarded = (key: string, fn: () => void) => {
+      if (isCreateBusy(key)) return; // 忙：直接返回（X1 修复后的正确形状）
+      beginCreate(key);
+      fn();
+    };
+    guarded("t", () => {
+      ran += 1;
+    }); // 第一次：执行，锁在途
+    expect(ran).toBe(1);
+    guarded("t", () => {
+      ran += 1;
+    }); // 在途重入：被拒
+    expect(ran).toBe(1);
+    endCreate("t"); // 请求结束释放
+    guarded("t", () => {
+      ran += 1;
+    }); // 释放后再点：执行
+    expect(ran).toBe(2);
+    endCreate("t");
   });
 
-  it("allows different keys concurrently", () => {
-    tryAcquireCreateLock("a");
-    tryAcquireCreateLock("b");
-    expect(tryAcquireCreateLock("b")).toBe(false);
-    releaseCreateLock("a");
-    releaseCreateLock("b");
+  it("busy state is per-key", () => {
+    beginCreate("a");
+    expect(isCreateBusy("a")).toBe(true);
+    expect(isCreateBusy("b")).toBe(false);
+    endCreate("a");
+    expect(isCreateBusy("a")).toBe(false);
   });
 });

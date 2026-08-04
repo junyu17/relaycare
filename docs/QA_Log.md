@@ -932,3 +932,11 @@ Actual artifact verification:
   修复：eventPromise.catch 内双撤（events + tasks），事件失败 = 任务从未发起。
 - tsconfig 恢复原状（移除 types:["node"]，保持 @types 自动引入全局范围）；create-lock.test.ts 用三斜线 `/// <reference types="node" />` 仅本文件启用 node 类型。
 - 测试计数统一为 60/60。
+
+### 崩溃修复：点击创建（paper work reminder 等）即退出 app 2026-08-04
+
+- 根因：Hermes 运行时无 globalThis.crypto（WebCrypto）——上轮"最高标准清零"把 Math.random fallback 删成 throw 后，newClientRequestId() 在所有创建路径（模板任务/时间线、自定义任务等）直接抛 JS fatal → RN reportFatal → SIGABRT。crash log：Thread 9 com.meta.react.turbomodulemanager.queue + RCTExceptionsManager reportFatal。
+- 修复：改 expo-crypto（官方原生模块，Hermes 可用，CSPRNG）`Crypto.randomUUID()`；uuid.ts 不再引用 globalThis.crypto。
+- 回归防线：uuid.test 源码断言（uuid.ts 必须 import expo-crypto、禁止 globalThis.crypto/getRandomValues）——防再次退回 WebCrypto 依赖。
+- 教训：单测环境（node）有 crypto 而 Hermes 没有——"测试环境≠运行时"盲区，源码断言已堵。
+- 注意：expo-crypto 是新原生模块，需重新 prebuild + pod install + 重新构建 app 后生效。

@@ -473,6 +473,7 @@ export const translations: Record<Language, Record<string, string>> = {
     "settings.updateName": "Update name",
     "settings.save": "Save",
     "settings.updateNameHelper": "Change your display name in this household.",
+    "settings.nameTooLong": "Name is too long (max 80 characters).",
     "settings.dissolveConfirm":
       "This permanently deletes the household and ALL its data (tasks, timeline, documents, audit). All members lose access. This cannot be undone. Continue?",
     "settings.leaveConfirm": "Leave this household? You will lose access to its tasks and timeline.",
@@ -986,6 +987,7 @@ export const translations: Record<Language, Record<string, string>> = {
     "settings.updateName": "修改名字",
     "settings.save": "保存",
     "settings.updateNameHelper": "修改你在这个家庭中的显示名。",
+    "settings.nameTooLong": "名字过长（最多 80 个字符）。",
     "settings.dissolveConfirm":
       "这将永久删除该家庭及全部数据（任务、时间线、文件、审计），所有成员将失去访问权限。不可撤销。是否继续？",
     "settings.leaveConfirm": "确定退出该家庭？你将无法再访问其任务与时间线。",
@@ -1519,6 +1521,7 @@ export const translations: Record<Language, Record<string, string>> = {
     "settings.updateName": "Cambiar nombre",
     "settings.save": "Guardar",
     "settings.updateNameHelper": "Cambia tu nombre para mostrar en este hogar.",
+    "settings.nameTooLong": "El nombre es demasiado largo (máximo 80 caracteres).",
     "settings.dissolveConfirm":
       "Esto elimina permanentemente el hogar y TODOS sus datos (tareas, línea, documentos, auditoría). Los miembros pierden acceso. No se puede deshacer. ¿Continuar?",
     "settings.leaveConfirm": "¿Salir de este hogar? Perderás acceso a sus tareas y línea de tiempo.",

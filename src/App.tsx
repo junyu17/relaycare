@@ -1154,6 +1154,10 @@ function LocalApp(props: { cloud?: CloudProps } = {}) {
       Alert.alert(t("tasks.errTitleEmpty"), "");
       return;
     }
+    if (trimmed.length > 80) {
+      Alert.alert(t("alerts.actionFailedTitle"), t("settings.nameTooLong"));
+      return;
+    }
     setNameEditorVisible(false);
     if (cloud) {
       updateMyName(trimmed, cloud.householdId)
@@ -1518,6 +1522,7 @@ function LocalApp(props: { cloud?: CloudProps } = {}) {
               <TextInput
                 style={styles.roleNameInput}
                 value={nameEditValue}
+                maxLength={80} // 与 0052 update_my_name 上限一致
                 onChangeText={setNameEditValue}
                 placeholder={t("settings.updateNameHelper")}
                 autoFocus

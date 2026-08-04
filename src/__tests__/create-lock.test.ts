@@ -37,10 +37,11 @@ describe("create-lock (S3 + X1, SYNC_FIX_REVIEW)", () => {
 });
 
 // LOW 清零（R2 复查）：X1 回归测试引用真实调用点——未来任何调用点写反/漏改，本测试必挂。
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
+
 describe("call sites reference the fail-safe shape (X1 source assertion)", () => {
-  const fs = require("node:fs") as typeof import("node:fs");
-  const path = require("node:path") as typeof import("node:path");
-  const appSource = fs.readFileSync(path.resolve(__dirname, "../App.tsx"), "utf8");
+  const appSource = readFileSync(resolve(__dirname, "../App.tsx"), "utf8");
   const keys = ["custom-task", "other-update", "template-task", "template-event"] as const;
   it("every creation call site uses isCreateBusy -> return, then beginCreate", () => {
     for (const key of keys) {

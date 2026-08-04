@@ -1,6 +1,6 @@
 // 幂等请求 id。
 // 崩溃教训（2026-08-04）：
-//  1) globalThis.crypto（WebCrypto）在 Hermes 不存在 → 曾在调用处 throw → 创建即崩（已弃用）。
+//  1) WebCrypto（Hermes 不提供）曾在调用处 throw → 创建即崩（已弃用）。
 //  2) expo-crypto 的 JS 模块在 import 时顶层 requireNativeModule('ExpoCrypto') → 若原生模块未编入
 //     二进制（pod install 未跑/构建未同步）→ import 即抛 → **整个 bundle 求值失败 → 启动白屏**。
 // 因此这里用**运行时动态 require + try/catch**：原生模块缺失时降级为非加密 UUID（仅构建未同步的

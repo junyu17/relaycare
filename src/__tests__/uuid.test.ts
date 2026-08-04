@@ -25,8 +25,8 @@ describe("uuid source: crash-resistant crypto loading (white-screen regression)"
     expect(source).toMatch(/require\("expo-crypto"\)/); // 动态 require，非顶层 import
     expect(source).toContain("try {");
     expect(source).toContain("} catch");
-    expect(source).not.toContain('from "expo-crypto"'); // 禁止顶层静态 import（白屏根因）
-    expect(source).not.toContain("c = globalThis.crypto"); // 禁止读取 WebCrypto（注释里允许提及）
+    expect(source).not.toMatch(/^import[\s\S]*expo-crypto/m); // 禁止任何顶层静态 import（白屏根因，含副作用导入）
+    expect(source).not.toMatch(/globalThis\s*\.\s*crypto/); // 禁止读取 WebCrypto（注释里中文提及允许）
   });
   it("falls back to RFC4122-shaped uuid without throwing", () => {
     expect(newClientRequestId()).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);

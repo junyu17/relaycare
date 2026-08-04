@@ -901,3 +901,9 @@ Actual artifact verification:
 - S6：首次加载失败透传真实 error
 - 门禁：typecheck/lint/prettier/vitest 56/56；review + security_review 双 pass
 - 残留 LOW：uuid fallback Math.random（改 expo-crypto 后续）、p_task_id 撞 PK 裸 23505、2s 锁慢网可重入
+
+### SYNC_FIX_REVIEW 复审 should-fix 2026-08-04
+
+- P2 分侧回滚：事件失败撤事件、任务失败只撤任务（已持久化事件不再被误撤）
+- S3 锁抽到 src/lib/create-lock.ts（30s 仅异常兜底，release 随 promise finally）+ 单测 2 用例（同 key 互斥/异 key 并发）
+- vitest 56→58；typecheck/lint/prettier 全绿

@@ -58,6 +58,7 @@ import { canUse, effectivePlan, checkTaskQuota, checkOcrQuota, checkFileSize } f
 import { DEFAULT_PREF, shouldDeliverNow, type NotificationPref } from "./lib/notify";
 import { enqueueDigestNotification, flushDigestQueue } from "./lib/digest-queue";
 import { newClientRequestId } from "./lib/uuid";
+import { tryAcquireCreateLock, releaseCreateLock } from "./lib/create-lock";
 
 // S3（SYNC_FIX_REVIEW）：创建类操作同步防重入（连点/双指）。
 // 模块级可变对象——useState setter 不更新当前闭包（同批次连点会漏），
@@ -115,16 +116,6 @@ import {
   RoleNotification,
   Task
 } from "./types";
-const createLocks: Record<string, number> = {};
-const tryAcquireCreateLock = (key: string): boolean => {
-  const now = Date.now();
-  if ((createLocks[key] ?? 0) > now) return true;
-  createLocks[key] = now + 2000; // 2s 兜底超时，防异常路径卡死
-  return false;
-};
-const releaseCreateLock = (key: string): void => {
-  delete createLocks[key];
-};
 
 type TabKey = "home" | "tasks" | "timeline" | "documents" | "audit" | "settings";
 type IconName = keyof typeof Ionicons.glyphMap;
@@ -663,14 +654,16 @@ function LocalApp(props: { cloud?: CloudProps } = {}) {
           }
           return undefined;
         });
+        // P2（SYNC_FIX_REVIEW 复审）：分侧回滚——事件失败撤事件，任务失败只撤任务，
+        // 已持久化的事件不被误撤（避免真实事件从 UI 消失且无新事件收敛）。
+        eventPromise.catch((e) => {
+          applyOptimistic((cur) => ({ ...cur, events: cur.events.filter((x) => x.id !== eventId) }));
+          showMessage(t("alerts.actionFailedTitle"), errorMessage(e));
+        });
         taskPromise
           .catch((e) => {
-            // 事件或任务失败：撤回各自乐观行（若对应 RPC 失败）。
-            applyOptimistic((cur) => ({
-              ...cur,
-              events: cur.events.filter((x) => x.id !== eventId),
-              tasks: cur.tasks.filter((x) => x.id !== taskId)
-            }));
+            // 任务失败：只撤任务乐观行。
+            applyOptimistic((cur) => ({ ...cur, tasks: cur.tasks.filter((x) => x.id !== taskId) }));
             showMessage(t("alerts.actionFailedTitle"), errorMessage(e));
           })
           .finally(() => {

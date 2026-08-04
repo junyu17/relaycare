@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { isCreateBusy, beginCreate, endCreate } from "../lib/create-lock";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 
 describe("create-lock (S3 + X1, SYNC_FIX_REVIEW)", () => {
   it("call-site pattern: busy -> return, else begin + proceed (X1 regression)", () => {
@@ -37,9 +39,6 @@ describe("create-lock (S3 + X1, SYNC_FIX_REVIEW)", () => {
 });
 
 // LOW 清零（R2 复查）：X1 回归测试引用真实调用点——未来任何调用点写反/漏改，本测试必挂。
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
-
 describe("call sites reference the fail-safe shape (X1 source assertion)", () => {
   const appSource = readFileSync(resolve(__dirname, "../App.tsx"), "utf8");
   const keys = ["custom-task", "other-update", "template-task", "template-event"] as const;

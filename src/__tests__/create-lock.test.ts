@@ -45,10 +45,11 @@ describe("call sites reference the fail-safe shape (X1 source assertion)", () =>
   const appSource = readFileSync(resolve(__dirname, "../App.tsx"), "utf8");
   const keys = ["custom-task", "other-update", "template-task", "template-event"] as const;
   it("every creation call site uses isCreateBusy -> visible feedback + return, then beginCreate", () => {
+    const normalized = appSource.replace(/\s+/g, " "); // prettier 拆行后空白归一化，断言仍真实
     for (const key of keys) {
-      // 忙时可见反馈 + return（杜绝静默无反应），随后 beginCreate
-      expect(appSource).toContain(`if (isCreateBusy("${key}")) { showMessage`);
-      expect(appSource).toContain(`return; } // 忙时可见反馈`);
+      // 忙时可见反馈（限频）+ return（杜绝静默无反应），随后 beginCreate
+      expect(normalized).toContain(`if (isCreateBusy("${key}")) { if (shouldShowBusyAlert("${key}")) {`);
+      expect(normalized).toContain(`return; } // 忙时可见反馈`);
       expect(appSource.indexOf(`isCreateBusy("${key}")`)).toBeLessThan(appSource.indexOf(`beginCreate("${key}");`));
     }
   });

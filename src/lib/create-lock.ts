@@ -23,4 +23,15 @@ export function endCreate(key: string): void {
 //（曾导致 ErrorBoundary 恢复后所有创建按钮静默无反应）。
 export function resetCreateLocks(): void {
   locks.clear();
+  lastBusyAlertAt.clear();
+}
+
+// 忙时提示限频：同一 key 在 minIntervalMs 内只提示一次（防连点 Alert 轰炸）。
+const lastBusyAlertAt = new Map<string, number>();
+export function shouldShowBusyAlert(key: string, minIntervalMs = 2000): boolean {
+  const now = Date.now();
+  const last = lastBusyAlertAt.get(key) ?? 0;
+  if (now - last < minIntervalMs) return false;
+  lastBusyAlertAt.set(key, now);
+  return true;
 }

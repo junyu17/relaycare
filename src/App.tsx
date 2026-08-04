@@ -59,7 +59,7 @@ import { DEFAULT_PREF, shouldDeliverNow, type NotificationPref } from "./lib/not
 import { enqueueDigestNotification, flushDigestQueue } from "./lib/digest-queue";
 import { newClientRequestId } from "./lib/uuid";
 import { ErrorBoundary } from "./ErrorBoundary";
-import { isCreateBusy, beginCreate, endCreate, resetCreateLocks } from "./lib/create-lock";
+import { isCreateBusy, beginCreate, endCreate, resetCreateLocks, shouldShowBusyAlert } from "./lib/create-lock";
 
 // S3（SYNC_FIX_REVIEW）：创建类操作同步防重入（连点/双指）。
 // 模块级可变对象——useState setter 不更新当前闭包（同批次连点会漏），
@@ -539,7 +539,9 @@ function LocalApp(props: { cloud?: CloudProps } = {}) {
       }
       if (cloud) {
         if (isCreateBusy("custom-task")) {
-          showMessage(t("alerts.actionFailedTitle"), t("alerts.busy"));
+          if (shouldShowBusyAlert("custom-task")) {
+            showMessage(t("alerts.busyTitle"), t("alerts.busy"));
+          }
           return;
         } // 忙时可见反馈，杜绝静默无反应
         beginCreate("custom-task");
@@ -610,7 +612,9 @@ function LocalApp(props: { cloud?: CloudProps } = {}) {
     runIfAllowed("timeline:add", () => {
       if (cloud) {
         if (isCreateBusy("other-update")) {
-          showMessage(t("alerts.actionFailedTitle"), t("alerts.busy"));
+          if (shouldShowBusyAlert("other-update")) {
+            showMessage(t("alerts.busyTitle"), t("alerts.busy"));
+          }
           return;
         } // 忙时可见反馈，杜绝静默无反应
         beginCreate("other-update");
@@ -957,7 +961,9 @@ function LocalApp(props: { cloud?: CloudProps } = {}) {
       const input = taskTemplateInput(templateKey, t);
       if (cloud) {
         if (isCreateBusy("template-task")) {
-          showMessage(t("alerts.actionFailedTitle"), t("alerts.busy"));
+          if (shouldShowBusyAlert("template-task")) {
+            showMessage(t("alerts.busyTitle"), t("alerts.busy"));
+          }
           return;
         } // 忙时可见反馈，杜绝静默无反应
         beginCreate("template-task");
@@ -1004,7 +1010,9 @@ function LocalApp(props: { cloud?: CloudProps } = {}) {
       const input = timelineTemplateInput(templateKey, t);
       if (cloud) {
         if (isCreateBusy("template-event")) {
-          showMessage(t("alerts.actionFailedTitle"), t("alerts.busy"));
+          if (shouldShowBusyAlert("template-event")) {
+            showMessage(t("alerts.busyTitle"), t("alerts.busy"));
+          }
           return;
         } // 忙时可见反馈，杜绝静默无反应
         beginCreate("template-event");

@@ -22,7 +22,7 @@ describe("newClientRequestId", () => {
 describe("uuid source uses expo-crypto (Hermes crash regression)", () => {
   const source = readFileSync(resolve(__dirname, "../lib/uuid.ts"), "utf8");
   it("imports expo-crypto and never reads globalThis.crypto", () => {
-    expect(source).toContain('from "expo-crypto"');
+    expect(source).toMatch(/from ['"]expo-crypto['"]/); // 接受单/双引号
     expect(source).not.toContain("globalThis.crypto");
     expect(source).not.toContain("getRandomValues");
   });

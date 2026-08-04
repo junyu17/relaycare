@@ -53,12 +53,16 @@ export function memberName(state: AppState, memberId?: string, t?: Translate): s
 }
 
 export function formatDateTime(value: string, language: Language = "en"): string {
+  // 防御：DB 可空列（starts_at/due_at）可能映射为 "" 或旧缓存缺字段，
+  // Intl.format(new Date("")) 会抛 RangeError → 事件处理器内 = RN fatal（崩溃引擎，全量扫描发现）。
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
   return new Intl.DateTimeFormat(localeForLanguage(language), {
     month: "short",
     day: "numeric",
     hour: "numeric",
     minute: "2-digit"
-  }).format(new Date(value));
+  }).format(date);
 }
 
 export function makeAuditEvent(

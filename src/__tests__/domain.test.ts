@@ -5,6 +5,7 @@ import {
   completeTask,
   confirmDocumentAndCreateTask,
   createTask,
+  formatDateTime,
   hasPermission,
   inviteMember,
   isHouseholdInviteExpired,
@@ -186,5 +187,20 @@ describe("updateMemberRole", () => {
     expect(next.members.find((member) => member.id === target.id)!.role).toBe("caregiver");
     expect(next.auditEvents[0].action).toBe("member.role_updated");
     expect(next.auditEvents[0].entityId).toBe(target.id);
+  });
+});
+
+describe("formatDateTime defensive (crash engine zeroing)", () => {
+  it("never throws for empty/invalid input (P0/P1 from full scan)", () => {
+    expect(() => formatDateTime("")).not.toThrow();
+    expect(() => formatDateTime("not-a-date")).not.toThrow();
+    expect(() => formatDateTime("2024-13-45")).not.toThrow();
+    expect(formatDateTime("")).toBe("");
+    expect(formatDateTime("not-a-date")).toBe("");
+  });
+
+  it("formats valid ISO normally", () => {
+    const out = formatDateTime("2026-08-03T10:30:00.000Z", "en");
+    expect(out).toContain("Aug"); // 格式为 month day, time（无年份）
   });
 });

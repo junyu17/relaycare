@@ -1068,13 +1068,8 @@ function LocalApp(props: { cloud?: CloudProps } = {}) {
                 notificationPreferences: current.notificationPreferences.filter((pref) => pref.memberId !== memberId)
               }));
               showMessage(t("settings.memberRemovedTitle"), t("settings.memberRemovedBody", { name: targetName }));
-              try {
-                const refreshed = await fetchHouseholdState(cloud.householdId);
-                setState(refreshed);
-                await cacheHouseholdState(cloud.householdId, refreshed);
-              } catch {
-                // The optimistic state above already reflects the successful RPC.
-              }
+              // 一致性由 realtime 收敛（CloudApp 的 guardedFetch 带 refetchSeq 守卫）；
+              // 此处不再显式 refetch，避免无守卫的 setState 竞态覆盖较新快照（LOW 清零）。
             })
             .catch((e) => reportCloudActionFailure(e));
         }

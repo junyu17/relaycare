@@ -44,7 +44,10 @@ export function AuthScreen() {
   const submit = async () => {
     if (busy) return;
     if (mode === "reset") {
-      if (!email) return;
+      if (!email) {
+        Alert.alert(t("auth.error"), t("auth.requiredFields"));
+        return;
+      }
       setBusy(true);
       try {
         await resetPassword(email);
@@ -77,7 +80,10 @@ export function AuthScreen() {
       }
       return;
     }
-    if (!email || !password) return;
+    if (!email || !password) {
+      Alert.alert(t("auth.error"), t("auth.requiredFields"));
+      return;
+    }
     setBusy(true);
     try {
       if (mode === "signin") {
@@ -247,7 +253,10 @@ export function OnboardingScreen() {
   const [busy, setBusy] = useState(false);
 
   const onCreate = async () => {
-    if (!householdName || !memberName) return;
+    if (!householdName || !memberName) {
+      Alert.alert(t("auth.error"), t("auth.requiredFields"));
+      return;
+    }
     setBusy(true);
     try {
       await createHousehold({

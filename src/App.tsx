@@ -59,7 +59,7 @@ import { DEFAULT_PREF, shouldDeliverNow, type NotificationPref } from "./lib/not
 import { enqueueDigestNotification, flushDigestQueue } from "./lib/digest-queue";
 import { newClientRequestId } from "./lib/uuid";
 import { ErrorBoundary } from "./ErrorBoundary";
-import { isCreateBusy, beginCreate, endCreate } from "./lib/create-lock";
+import { isCreateBusy, beginCreate, endCreate, resetCreateLocks } from "./lib/create-lock";
 
 // S3（SYNC_FIX_REVIEW）：创建类操作同步防重入（连点/双指）。
 // 模块级可变对象——useState setter 不更新当前闭包（同批次连点会漏），
@@ -287,6 +287,11 @@ function LocalApp(props: { cloud?: CloudProps } = {}) {
   const actor = cloud ? cloud.actor : localActor;
   const state = useMemo(() => orderAppStateForDisplay(rawState, actor.id), [actor.id, rawState]);
   const plan = effectivePlan(state.household);
+
+  // 组件卸载/错误边界恢复时清空在途创建锁（杜绝模块级锁残留导致按钮静默无反应）。
+  useEffect(() => {
+    return () => resetCreateLocks();
+  }, []);
 
   // cloud 模式：加载当前加入码（仅协调人有意义）。
   useEffect(() => {
@@ -533,7 +538,10 @@ function LocalApp(props: { cloud?: CloudProps } = {}) {
         return;
       }
       if (cloud) {
-        if (isCreateBusy("custom-task")) return; // X1：忙则返回；否则继续
+        if (isCreateBusy("custom-task")) {
+          showMessage(t("alerts.actionFailedTitle"), t("alerts.busy"));
+          return;
+        } // 忙时可见反馈，杜绝静默无反应
         beginCreate("custom-task");
         const optimisticId = newClientRequestId(); // P1：同时作为 task.id 与 client_request_id
         const optimisticTask: Task = {
@@ -601,7 +609,10 @@ function LocalApp(props: { cloud?: CloudProps } = {}) {
   }) => {
     runIfAllowed("timeline:add", () => {
       if (cloud) {
-        if (isCreateBusy("other-update")) return; // X1：忙则返回；否则继续
+        if (isCreateBusy("other-update")) {
+          showMessage(t("alerts.actionFailedTitle"), t("alerts.busy"));
+          return;
+        } // 忙时可见反馈，杜绝静默无反应
         beginCreate("other-update");
         // P2（SYNC_FIX_REVIEW）：事件乐观插入（id1），随后可选任务乐观插入（id2），各自独立回滚。
         // 只动 events/tasks，绝不伪造 audit/roleNotifications（规格硬约束）。
@@ -945,7 +956,10 @@ function LocalApp(props: { cloud?: CloudProps } = {}) {
       }
       const input = taskTemplateInput(templateKey, t);
       if (cloud) {
-        if (isCreateBusy("template-task")) return; // X1：忙则返回；否则继续
+        if (isCreateBusy("template-task")) {
+          showMessage(t("alerts.actionFailedTitle"), t("alerts.busy"));
+          return;
+        } // 忙时可见反馈，杜绝静默无反应
         beginCreate("template-task");
         const optimisticId = newClientRequestId();
         const optimisticTask: Task = {
@@ -989,7 +1003,10 @@ function LocalApp(props: { cloud?: CloudProps } = {}) {
     runIfAllowed("timeline:add", () => {
       const input = timelineTemplateInput(templateKey, t);
       if (cloud) {
-        if (isCreateBusy("template-event")) return; // X1：忙则返回；否则继续
+        if (isCreateBusy("template-event")) {
+          showMessage(t("alerts.actionFailedTitle"), t("alerts.busy"));
+          return;
+        } // 忙时可见反馈，杜绝静默无反应
         beginCreate("template-event");
         const optimisticId = newClientRequestId();
         const optimisticEvent: CareEvent = {

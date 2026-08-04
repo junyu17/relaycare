@@ -44,12 +44,12 @@ describe("create-lock (S3 + X1, SYNC_FIX_REVIEW)", () => {
 describe("call sites reference the fail-safe shape (X1 source assertion)", () => {
   const appSource = readFileSync(resolve(__dirname, "../App.tsx"), "utf8");
   const keys = ["custom-task", "other-update", "template-task", "template-event"] as const;
-  it("every creation call site uses isCreateBusy -> return, then beginCreate", () => {
+  it("every creation call site uses isCreateBusy -> visible feedback + return, then beginCreate", () => {
     for (const key of keys) {
-      expect(appSource).toContain(`if (isCreateBusy("${key}")) return;`);
-      expect(appSource.indexOf(`if (isCreateBusy("${key}")) return;`)).toBeLessThan(
-        appSource.indexOf(`beginCreate("${key}");`)
-      );
+      // 忙时可见反馈 + return（杜绝静默无反应），随后 beginCreate
+      expect(appSource).toContain(`if (isCreateBusy("${key}")) { showMessage`);
+      expect(appSource).toContain(`return; } // 忙时可见反馈`);
+      expect(appSource.indexOf(`isCreateBusy("${key}")`)).toBeLessThan(appSource.indexOf(`beginCreate("${key}");`));
     }
   });
   it("every lock is released via endCreate in a finally", () => {

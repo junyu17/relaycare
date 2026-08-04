@@ -18,3 +18,9 @@ export function beginCreate(key: string, timeoutMs = 30_000): void {
 export function endCreate(key: string): void {
   locks.delete(key);
 }
+
+// 组件卸载/ErrorBoundary 恢复时调用：清空全部在途锁，杜绝"模块级锁跨组件生命周期残留"
+//（曾导致 ErrorBoundary 恢复后所有创建按钮静默无反应）。
+export function resetCreateLocks(): void {
+  locks.clear();
+}

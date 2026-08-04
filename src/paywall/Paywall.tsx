@@ -29,6 +29,7 @@ import {
 } from "./iap";
 
 import { ROWS, rowValue } from "./paywallRows";
+import { PLAN_FALLBACK_PRICES } from "./prices";
 
 function findPrice(subs: ProductSubscription[], plan: "monthly" | "yearly"): string | null {
   // R12（IOS_SUBMISSION_DEV_SPEC）：用平台 SKU 匹配（Android 小写 ID / iOS App Store ID）
@@ -108,7 +109,7 @@ export function Paywall({
   const onSubscribe = (plan: "monthly" | "yearly") => {
     if (canIap) {
       if (!findPrice(subs, plan)) {
-        Alert.alert("Error", t("paywall.productUnavailable"));
+        Alert.alert(t("alerts.actionFailedTitle"), t("paywall.productUnavailable"));
         return;
       }
       setBusy(true);
@@ -159,8 +160,8 @@ export function Paywall({
     Alert.alert(t("paywall.title"), t("paywall.iapUnavailable"));
   };
 
-  const yearlyPriceLabel = `${findPrice(subs, "yearly") ?? "$99.99"}${t("paywall.perYear")}`;
-  const monthlyPrice = `${findPrice(subs, "monthly") ?? "$9.99"}${t("paywall.perMonth")}`;
+  const yearlyPriceLabel = `${findPrice(subs, "yearly") ?? PLAN_FALLBACK_PRICES.yearly}${t("paywall.perYear")}`;
+  const monthlyPrice = `${findPrice(subs, "monthly") ?? PLAN_FALLBACK_PRICES.monthly}${t("paywall.perMonth")}`;
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>

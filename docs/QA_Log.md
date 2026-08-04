@@ -907,3 +907,13 @@ Actual artifact verification:
 - P2 分侧回滚：事件失败撤事件、任务失败只撤任务（已持久化事件不再被误撤）
 - S3 锁抽到 src/lib/create-lock.ts（30s 仅异常兜底，release 随 promise finally）+ 单测 2 用例（同 key 互斥/异 key 并发）
 - vitest 56→58；typecheck/lint/prettier 全绿
+
+### 最高标准残留清零 2026-08-04（上线前逐项清零，Claude 复审前自查）
+
+- A：uuid.ts 改 crypto.getRandomValues（CSPRNG），删 Math.random fallback（无 WebCrypto 显式失败）
+- B：0051 迁移——TASK_ID_TAKEN 改 unique_violation 捕获（跨家庭 id oracle + TOCTOU 清零）、幂等回查前置（0047/0049 重试契约保留）——已 db push
+- C：缓存回退加 seq 守卫（防覆盖 realtime 新数据）
+- D：P2 提示统一 reportCloudActionFailure；6 处 Alert("Error",…) 改 t("alerts.actionFailedTitle")（三语）
+- E：paywall storage 标签从 MAX_FILE_SIZE_BYTES 派生、价格 fallback 抽 PLAN_FALLBACK_PRICES 常量（prices.ts，无硬编码金额）
+- F：onRemoveMember 改 applyOptimistic（S7 同款残留清零）+ 删缓存写入
+- 门禁：typecheck/lint/prettier/vitest 58/58

@@ -658,13 +658,13 @@ function LocalApp(props: { cloud?: CloudProps } = {}) {
         // 已持久化的事件不被误撤（避免真实事件从 UI 消失且无新事件收敛）。
         eventPromise.catch((e) => {
           applyOptimistic((cur) => ({ ...cur, events: cur.events.filter((x) => x.id !== eventId) }));
-          showMessage(t("alerts.actionFailedTitle"), errorMessage(e));
+          reportCloudActionFailure(e);
         });
         taskPromise
           .catch((e) => {
             // 任务失败：只撤任务乐观行。
             applyOptimistic((cur) => ({ ...cur, tasks: cur.tasks.filter((x) => x.id !== taskId) }));
-            showMessage(t("alerts.actionFailedTitle"), errorMessage(e));
+            reportCloudActionFailure(e);
           })
           .finally(() => {
             releaseCreateLock("other-update");
@@ -1034,7 +1034,7 @@ function LocalApp(props: { cloud?: CloudProps } = {}) {
         onPress: () => {
           deleteAccount()
             .then(() => cloud.onSignOut())
-            .catch((e) => Alert.alert("Error", errorMessage(e)));
+            .catch((e) => Alert.alert(t("alerts.actionFailedTitle"), errorMessage(e)));
         }
       }
     ]);
@@ -1045,7 +1045,7 @@ function LocalApp(props: { cloud?: CloudProps } = {}) {
     if (!cloud) return;
     generateHouseholdCode()
       .then(setJoinCode)
-      .catch((e) => Alert.alert("Error", errorMessage(e)));
+      .catch((e) => Alert.alert(t("alerts.actionFailedTitle"), errorMessage(e)));
   };
 
   // 移除成员（协调人，不能移除自己）。
@@ -1061,15 +1061,12 @@ function LocalApp(props: { cloud?: CloudProps } = {}) {
         onPress: () => {
           removeMember(memberId)
             .then(async () => {
-              setState((current) => {
-                const next = {
-                  ...current,
-                  members: current.members.filter((member) => member.id !== memberId),
-                  notificationPreferences: current.notificationPreferences.filter((pref) => pref.memberId !== memberId)
-                };
-                void cacheHouseholdState(cloud.householdId, next);
-                return next;
-              });
+              // S7/P0（最高标准清零）：乐观更新走 applyOptimistic；不写离线缓存（缓存只由服务端快照写入）。
+              applyOptimistic((current) => ({
+                ...current,
+                members: current.members.filter((member) => member.id !== memberId),
+                notificationPreferences: current.notificationPreferences.filter((pref) => pref.memberId !== memberId)
+              }));
               showMessage(t("settings.memberRemovedTitle"), t("settings.memberRemovedBody", { name: targetName }));
               try {
                 const refreshed = await fetchHouseholdState(cloud.householdId);
@@ -1102,7 +1099,7 @@ function LocalApp(props: { cloud?: CloudProps } = {}) {
               onPress: () => {
                 leaveHousehold(cloud.householdId)
                   .then(() => cloud.onSignOut())
-                  .catch((e) => Alert.alert("Error", errorMessage(e)));
+                  .catch((e) => Alert.alert(t("alerts.actionFailedTitle"), errorMessage(e)));
               }
             }
           ])
@@ -1127,7 +1124,7 @@ function LocalApp(props: { cloud?: CloudProps } = {}) {
               onPress: () => {
                 dissolveHousehold()
                   .then(() => cloud.onSignOut())
-                  .catch((e) => Alert.alert("Error", errorMessage(e)));
+                  .catch((e) => Alert.alert(t("alerts.actionFailedTitle"), errorMessage(e)));
               }
             }
           ])
@@ -1152,7 +1149,7 @@ function LocalApp(props: { cloud?: CloudProps } = {}) {
         .then(() => {
           Alert.alert(t("settings.save"), t("settings.updateNameHelper"));
         })
-        .catch((e) => Alert.alert("Error", errorMessage(e)));
+        .catch((e) => Alert.alert(t("alerts.actionFailedTitle"), errorMessage(e)));
     } else {
       setState((current) => ({
         ...current,
@@ -1706,8 +1703,11 @@ function CloudApp() {
     void (async () => {
       const ok = await guardedFetch();
       if (ok || !active) return;
-      // 首次加载失败：回退缓存，避免空白页；无缓存时透传真实错误（S6，排障有线索）。
+      // 首次加载失败：回退缓存，避免空白页；无缓存时透传真实错误（S6）。
+      // 竞态防护：回退缓存前若已有更新的 refetch 成功（seq 变化），不再用缓存覆盖新数据。
+      const seqBefore = refetchSeq;
       const cached = await getCachedHouseholdState(householdId);
+      if (!active || seqBefore !== refetchSeq) return;
       if (cached) setState(cached);
       else setErr(errorMessage(firstLoadError instanceof Error ? firstLoadError : new Error("load failed")));
     })();

@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { canUse, PLAN_FEATURES, PLAN_LIMITS } from "../lib/entitlement";
+import { canUse, PLAN_FEATURES, PLAN_LIMITS, MAX_FILE_SIZE_BYTES } from "../lib/entitlement";
 import { ROWS } from "../paywall/paywallRows";
+
+// E（最高标准清零）：storage/report 展示值从常量派生，不再硬编码（改常量即失败）。
+const storageLabel = `${Math.round(MAX_FILE_SIZE_BYTES / 1024 / 1024)} MB`;
 
 describe("paywall-consistency (R8, IOS_SUBMISSION_DEV_SPEC)", () => {
   it("every ROWS row with backedBy is actually Plus-gated by canUse", () => {
@@ -22,7 +25,7 @@ describe("paywall-consistency (R8, IOS_SUBMISSION_DEV_SPEC)", () => {
       },
       "paywall.row.members": { free: String(PLAN_LIMITS.free.members), plus: String(PLAN_LIMITS.monthly.members) },
       "paywall.row.tasks": { free: String(PLAN_LIMITS.free.inProgressTasks), plus: "∞" },
-      "paywall.row.storage": { free: "25 MB", plus: "25 MB" },
+      "paywall.row.storage": { free: storageLabel, plus: storageLabel },
       "paywall.row.report": { free: "reportManual", plus: "reportAuto" },
       "paywall.row.ocr": { free: String(PLAN_LIMITS.free.ocrPerMonth), plus: String(PLAN_LIMITS.monthly.ocrPerMonth) },
       "paywall.row.audit": { free: "30 days", plus: "3 years" },

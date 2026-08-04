@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { makeTranslator } from "../i18n";
 import { translations, type Language } from "../i18n";
 
 import { AUDIT_ACTIONS } from "../types";
@@ -46,5 +47,13 @@ describe("i18n completeness (R2, IOS_SUBMISSION_DEV_SPEC 2026-08-03)", () => {
       expect(translations[lang]["audit.detail.timeline.event_deleted"]).toBeTruthy();
       expect(translations[lang]["audit.detail.member.name_updated"]).toBeTruthy();
     }
+  });
+});
+
+describe("makeTranslator defensive (dirty language)", () => {
+  it("never throws for unknown language (falls back to en)", () => {
+    const t = makeTranslator("klingon" as never);
+    expect(() => t("auth.signIn")).not.toThrow();
+    expect(() => t("alerts.actionFailedTitle")).not.toThrow();
   });
 });

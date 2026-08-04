@@ -1625,8 +1625,11 @@ export function localeForLanguage(language: Language): string {
 }
 
 export function makeTranslator(language: Language): Translate {
+  // 防御：语言脏值（存储损坏/旧版本遗留）时 fallback "en"，绝不 translations[language] 取 undefined 抛 TypeError
+  //（t() 在事件处理器内被调用，同步 throw = RN fatal 闪退）。
+  const safeLanguage: Language = translations[language] ? language : "en";
   return (key, values = {}) => {
-    const template = translations[language][key] ?? translations.en[key] ?? key;
+    const template = translations[safeLanguage][key] ?? translations.en[key] ?? key;
     return Object.entries(values).reduce(
       (text, [name, value]) => text.replaceAll(`{${name}}`, String(value)),
       template

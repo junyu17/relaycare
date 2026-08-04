@@ -1,3 +1,5 @@
+// 仅本文件启用 node 类型（不修改 tsconfig 全局 types，保持 @types 自动引入范围不变）。
+/// <reference types="node" />
 import { describe, expect, it } from "vitest";
 import { isCreateBusy, beginCreate, endCreate } from "../lib/create-lock";
 import { readFileSync } from "node:fs";

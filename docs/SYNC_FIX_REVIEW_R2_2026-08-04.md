@@ -8,7 +8,7 @@
 
 ## 结论
 
-**NO-GO —— 1 项阻断，但只是一个字符。**
+**第 1 轮：NO-GO（1 项阻断）→ 整改后复查：GO。** 详见第六节。
 
 S1 / S2 / S7 / P0 / P1 / P2 / S6 全部正确关闭，质量很高（0051 的跨家庭 id 占用处理是主动加固，超出规格）。
 
@@ -154,4 +154,74 @@ const taskPromise = eventPromise.then(
 | 8   | 断网冷启动                                             | 显示本家庭缓存，**不是 Chen Family 演示数据**（← P0-5） |
 | 9   | 手动执行 `select public.cleanup_audit_by_retention();` | 在线客户端不出现大量刷新（← S2）                        |
 
-第 1 条是本轮新增的必查项 —— 现在会失败。
+第 1 条是本轮新增的必查项 —— 整改前会失败，整改后已修复（见第六节）。
+
+---
+
+## 六、整改复查（`41c2447..8ec1ced`，5 个 commit）
+
+**结论：X1 / X2 / X3 全部关闭，可以进真机测试。** 新发现 1 项中等（Y1），是 X2 修复顺带带出来的错误路径遗漏，建议一并修但不阻断。
+
+门禁全绿：typecheck / lint / **60 tests**（58 → 60）/ prettier。App.tsx 的改动经逐行核对，只有锁与 X2 两处，无其他夹带。
+
+### X1　✅ 关闭，而且是按"从根上消除歧义"的方式修的
+
+没有简单加 `!` 了事，而是把 API 换成了防呆形状：
+
+```ts
+export function isCreateBusy(key: string): boolean; // 名字即语义：忙 → 调用点 return
+export function beginCreate(key: string): void;
+export function endCreate(key: string): void;
+```
+
+4 个调用点（`App.tsx:535 / 603 / 941 / 985`）全部改成 `if (isCreateBusy(k)) return; beginCreate(k);`，`endCreate` 在 `.finally()` 里。这种形状**读一眼就不可能反着理解**。
+
+更好的是补了一条**源码断言回归测试**（`create-lock.test.ts:40-60`）：直接读 `App.tsx` 文本，断言 4 个 key 都出现 `if (isCreateBusy("<key>")) return;`、且其位置在 `beginCreate` 之前，并断言旧 API 名 `tryAcquireCreateLock` / `releaseCreateLock` 已彻底消失。
+
+这正好补上了上一轮门禁失灵的原因 —— 单测只测模块、不测调用点。以后任何调用点写反或漏改，这条测试必挂。
+
+### X2　✅ 关闭
+
+`eventPromise.then(onOk, () => undefined)`（`App.tsx:645-663`），事件失败时派生链静默跳过，错误只由 `eventPromise.catch` 弹一次。
+
+### X3　✅ 按 C7 处理
+
+0050 未回改，只在 `QA_Log.md` 记录"已被 0051 取代、生产生效 0051"。符合"不改写已应用迁移"的约束。
+
+---
+
+### Y1（中）　X2 的修复漏了任务侧回滚 —— 事件失败会留下幽灵任务
+
+`App.tsx:618-631` 在发请求**之前**就插入了两条乐观行（事件 + 可选任务）。现在的回滚分工是：
+
+| 失败方           | 事件乐观行                   | 任务乐观行                  |
+| ---------------- | ---------------------------- | --------------------------- |
+| 任务创建失败     | 保留（正确，事件已落库）     | `taskPromise.catch` 撤回 ✅ |
+| **事件创建失败** | `eventPromise.catch` 撤回 ✅ | **无人撤回** ❌             |
+
+因为 X2 让 `taskPromise` 在事件失败时**走 resolve**（`onRejected → undefined`），`taskPromise.catch` 就不再触发了 —— 而任务的回滚恰恰挂在那个 catch 上。
+
+后果：勾选了"同时创建任务"、而事件创建失败时，UI 里会**留下一条服务端根本不存在的任务**。失败本身不触发 refetch，所以它会一直挂着，直到别处产生 realtime 事件或用户切换家庭 / 重启才被整份快照冲掉。期间用户还能点它去 claim / complete，然后收到莫名其妙的服务端报错。
+
+**修复**：事件失败时任务从未发起，两条乐观行一起撤。
+
+```ts
+eventPromise.catch((e) => {
+  applyOptimistic((cur) => ({
+    ...cur,
+    events: cur.events.filter((x) => x.id !== eventId),
+    tasks: taskId ? cur.tasks.filter((x) => x.id !== taskId) : cur.tasks // Y1：事件失败 → 任务未发起，一并撤回
+  }));
+  reportCloudActionFailure(e);
+});
+```
+
+验收补一条：**勾选"同时创建任务" + 断网 → 提交 → 事件和任务两条都要消失，且只弹一个错误框。**
+
+### Y2（低）　QA_Log 的测试数字过期
+
+`QA_Log.md` 的 R2 整改条目写 "vitest 58/58"，实际是 60/60 —— 那条记录写于 `05c2612`，后面 3 个 commit 又补了源码断言测试。不影响任何东西，下次更新顺手改掉即可。
+
+### 已核实无问题
+
+`tsconfig.json` 新增 `"types": ["node"]` 我特意查了一遍：`@types/node@26.1.2` 本来就在 `node_modules/@types` 里，而 `expo/tsconfig.base` 没有设 `types` 字段 —— 也就是说改之前**所有** @types 包（含 node）就已经全局自动引入了。这次显式声明反而把范围**收窄**成只有 node（chai / emscripten / yargs 等全局声明被排除掉了）。不是放宽类型安全网，可以放心。

@@ -3,8 +3,7 @@
   "compilerOptions": {
     "strict": true,
     "noImplicitReturns": true,
-    "noFallthroughCasesInSwitch": true,
-    "types": ["node"]
+    "noFallthroughCasesInSwitch": true
   },
   "exclude": ["node_modules", "backend/supabase/functions"]
 }

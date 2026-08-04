@@ -664,7 +664,13 @@ function LocalApp(props: { cloud?: CloudProps } = {}) {
         // P2（SYNC_FIX_REVIEW 复审）：分侧回滚——事件失败撤事件，任务失败只撤任务，
         // 已持久化的事件不被误撤（避免真实事件从 UI 消失且无新事件收敛）。
         eventPromise.catch((e) => {
-          applyOptimistic((cur) => ({ ...cur, events: cur.events.filter((x) => x.id !== eventId) }));
+          // Y1（Claude 复审）：事件失败 = 任务从未发起 → 两条乐观行一起撤（任务不再等 taskPromise.catch，
+          // 因 X2 后事件失败路径 taskPromise 已被 resolve 跳过）。下次 realtime 刷新自愈。
+          applyOptimistic((cur) => ({
+            ...cur,
+            events: cur.events.filter((x) => x.id !== eventId),
+            tasks: taskId ? cur.tasks.filter((x) => x.id !== taskId) : cur.tasks
+          }));
           reportCloudActionFailure(e);
         });
         taskPromise

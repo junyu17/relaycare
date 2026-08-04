@@ -916,11 +916,19 @@ Actual artifact verification:
 - D：P2 提示统一 reportCloudActionFailure；6 处 Alert("Error",…) 改 t("alerts.actionFailedTitle")（三语）
 - E：paywall storage 标签从 MAX_FILE_SIZE_BYTES 派生、价格 fallback 抽 PLAN_FALLBACK_PRICES 常量（prices.ts，无硬编码金额）
 - F：onRemoveMember 改 applyOptimistic（S7 同款残留清零）+ 删缓存写入
-- 门禁：typecheck/lint/prettier/vitest 58/58
+- 门禁：typecheck/lint/prettier/vitest 60/60
 
 ### SYNC_FIX_REVIEW_R2 整改 2026-08-04（X1 阻断 + X2 + X3）
 
 - X1（阻断）：tryAcquireCreateLock 布尔语义在 4 个调用点写反（if (acquire) return → 首次点击静默失效）。修复：换防呆 API isCreateBusy/beginCreate/endCreate（名字即语义，不可能写反）+ 4 调用点修正 + 调用点模式回归测试（模拟 guarded 形状，拦 X1 同类回归——上一轮门禁绿灯没拦住就是单测只测模块不测调用点）
 - X2（中）：other-update 事件失败时派生任务链重复弹窗 → eventPromise.then(onOk, () => undefined) 静默跳过
 - X3（低）：0050 已被 0051 取代（create or replace 顺序执行，生产生效 0051）——按 C7 不回改已 push 迁移，记录在案
-- 门禁：typecheck/lint/prettier/vitest 58/58
+- 门禁：typecheck/lint/prettier/vitest 60/60
+
+
+### Y1 修复（Claude 复审）2026-08-04
+
+- Y1（中）：X2 后事件失败时 taskPromise 被 resolve（不 reject），任务乐观行挂在 taskPromise.catch 上无人撤回 → 事件失败但勾选建任务时 UI 残留服务端不存在的任务。
+  修复：eventPromise.catch 内双撤（events + tasks），事件失败 = 任务从未发起。
+- tsconfig 恢复原状（移除 types:["node"]，保持 @types 自动引入全局范围）；create-lock.test.ts 用三斜线 `/// <reference types="node" />` 仅本文件启用 node 类型。
+- 测试计数统一为 60/60。

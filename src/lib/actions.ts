@@ -60,6 +60,7 @@ export async function createTask(args: {
   eventId?: string;
   documentId?: string;
   clientRequestId?: string; // Bug2：幂等键，重试/连点不产生重复任务
+  taskId?: string; // P1（SYNC_FIX_REVIEW）：乐观插入指定主键，refetch 原地替换不闪烁
 }) {
   const { error } = await supabase.rpc("create_task_with_activity", {
     p_household_id: args.householdId,
@@ -70,7 +71,8 @@ export async function createTask(args: {
     p_subtasks: args.subtasks,
     p_event_id: args.eventId ?? null,
     p_document_id: args.documentId ?? null,
-    p_client_request_id: args.clientRequestId ?? null
+    p_client_request_id: args.clientRequestId ?? null,
+    p_task_id: args.taskId ?? null
   });
   if (error) throw error;
 }
@@ -146,11 +148,13 @@ export async function addTimelineEvent(args: {
   startsAt: string;
   location: string;
   clientRequestId?: string; // Bug2：幂等键，连点不产生重复事件
+  eventId?: string; // P2（SYNC_FIX_REVIEW）：乐观插入指定主键
 }) {
   let { data, error } = await supabase
     .from("care_events")
     .upsert(
       {
+        id: args.eventId ?? undefined, // P2：乐观插入指定主键（客户端生成）
         household_id: args.householdId,
         type: args.type,
         title: args.title,

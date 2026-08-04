@@ -345,7 +345,12 @@ export async function clearHouseholdCaches(): Promise<void> {
 export async function getCachedHouseholdState(householdId: string): Promise<AppState | null> {
   try {
     const raw = await AsyncStorage.getItem(`taskkin-care:household:${householdId}`);
-    return raw ? (JSON.parse(raw) as AppState) : null;
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as AppState;
+    // S7/P0（SYNC_FIX_REVIEW）：缓存必须属于该家庭；曾经有乐观路径把演示数据写进真实家庭缓存，
+    // 这里兜底丢弃错配缓存（同时防未来同类 bug）。
+    if (!parsed.household || parsed.household.id !== householdId) return null;
+    return parsed;
   } catch {
     return null;
   }

@@ -890,3 +890,14 @@ Actual artifact verification:
 - Bug2 根因：创建入口无防抖/幂等，RPC 裸 insert + 客户端直插。
 - 修复：tasks/care_events 加 client_request_id 唯一索引（0046 改非部分适配 REST ON CONFLICT inference）+ create_task_with_activity 原子幂等（0047 on conflict do nothing 返回已有 id，不重复写审计/通知）+ actions.ts upsert ignoreDuplicates + maybeSingle 命中重查 + App.tsx createInFlight 防重入（4 路径）+ newClientRequestId()。
 - 部署：0045/0046/0047 已 db push（migration 至 0047）；门禁 typecheck/lint/prettier/vitest 54/54；review + security_review 双 pass（残留 LOW：Math.random fallback、乐观删除失败无回滚——记录）。
+
+### SYNC_FIX_REVIEW 整改 2026-08-04（0048/0049 + S7/P0/P1/P2/S3/S6）
+
+- 0048：members replica identity full（S1，成员硬删 ×5 处同步修复）+ audit_events 回 default（S2，保留期批删不触发刷新风暴）——已 db push
+- 0049：create_task_with_activity 加 p_task_id（P1 乐观插入主键，幂等/审计/通知与 0047 一致）——已 db push
+- S7/P0：CloudProps.applyOptimistic + LocalApp 统一乐观入口 + 乐观删除走 applyOptimistic（不写缓存）+ getCachedHouseholdState household.id 校验（演示数据污染兜底）
+- P1/P2：4 入口乐观插入（任务/事件，client id = 幂等 id，失败撤回）；只动 tasks/events 不伪造 audit/roleNotifications（硬约束）
+- S3：createInFlight useState → 模块级同步锁（4 对 acquire/release，2s 兜底）
+- S6：首次加载失败透传真实 error
+- 门禁：typecheck/lint/prettier/vitest 56/56；review + security_review 双 pass
+- 残留 LOW：uuid fallback Math.random（改 expo-crypto 后续）、p_task_id 撞 PK 裸 23505、2s 锁慢网可重入

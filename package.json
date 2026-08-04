@@ -39,6 +39,7 @@
     "react-native-url-polyfill": "^4.0.0"
   },
   "devDependencies": {
+    "@types/node": "^26.1.2",
     "@types/react": "^19.2.7",
     "eslint": "^9.39.5",
     "eslint-config-expo": "~57.0.1",

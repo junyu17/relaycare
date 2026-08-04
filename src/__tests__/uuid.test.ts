@@ -19,11 +19,16 @@ describe("newClientRequestId", () => {
   });
 });
 
-describe("uuid source uses expo-crypto (Hermes crash regression)", () => {
+describe("uuid source: crash-resistant crypto loading (white-screen regression)", () => {
   const source = readFileSync(resolve(__dirname, "../lib/uuid.ts"), "utf8");
-  it("imports expo-crypto and never reads globalThis.crypto", () => {
-    expect(source).toMatch(/from ['"]expo-crypto['"]/); // 接受单/双引号
-    expect(source).not.toContain("globalThis.crypto");
-    expect(source).not.toContain("getRandomValues");
+  it("loads expo-crypto dynamically with try/catch (native-missing must not white-screen)", () => {
+    expect(source).toMatch(/require\("expo-crypto"\)/); // 动态 require，非顶层 import
+    expect(source).toContain("try {");
+    expect(source).toContain("} catch");
+    expect(source).not.toContain('from "expo-crypto"'); // 禁止顶层静态 import（白屏根因）
+    expect(source).not.toContain("c = globalThis.crypto"); // 禁止读取 WebCrypto（注释里允许提及）
+  });
+  it("falls back to RFC4122-shaped uuid without throwing", () => {
+    expect(newClientRequestId()).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
   });
 });

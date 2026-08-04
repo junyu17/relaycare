@@ -944,3 +944,10 @@ Actual artifact verification:
 
 - 自查结论：同步 throw 源已清零（newClientRequestId → expo-crypto 原生；OCR/cloud/Auth/actions throw 均在 async 链、UI catch 兜底）；App.tsx:1873 为启动守卫（生产无 Supabase 配置显式失败，R11 设计，非按钮）；render 路径无同步 throw 源。
 - 新增 src/ErrorBoundary.tsx 全局兜底（App 顶层包裹）：任何未预期错误显示可恢复界面（Try again），不再静默退出；错误不泄露内部细节。
+
+### 启动白屏修复（Cannot find native module 'ExpoCrypto'）2026-08-04
+
+- 根因：expo-crypto 的 JS 模块在 import 时顶层 requireNativeModule('ExpoCrypto')——构建未同步（未 pod install/未重建原生层）时 import 即抛 → 整个 bundle 求值失败 → 启动白屏（Unhandled JS Exception: runtime not ready）。
+- 修复：uuid.ts 改**运行时动态 require("expo-crypto") + try/catch**——原生缺失时捕获并降级为非加密 RFC4122 UUID（console.warn 提示重建）；正确构建后自动走 CSPRNG。降级不白屏、不崩；幂等键仍受 RLS 强制本人（跨用户预占需先知他人 uid）。
+- 回归断言：uuid.test 源码断言（必须动态 require + try/catch、禁止顶层静态 import、禁止读取 WebCrypto）。
+- 注意：正确构建（pod install + rebuild）后降级分支永不执行；降级仅防构建未同步时白屏。

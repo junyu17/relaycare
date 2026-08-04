@@ -940,3 +940,8 @@ Actual artifact verification:
 - 回归防线：uuid.test 源码断言（uuid.ts 必须 import expo-crypto、禁止 globalThis.crypto/getRandomValues）——防再次退回 WebCrypto 依赖。
 - 教训：单测环境（node）有 crypto 而 Hermes 没有——"测试环境≠运行时"盲区，源码断言已堵。
 - 注意：expo-crypto 是新原生模块，需重新 prebuild + pod install + 重新构建 app 后生效。
+
+### 点击不退出自查 + ErrorBoundary 兜底 2026-08-04
+
+- 自查结论：同步 throw 源已清零（newClientRequestId → expo-crypto 原生；OCR/cloud/Auth/actions throw 均在 async 链、UI catch 兜底）；App.tsx:1873 为启动守卫（生产无 Supabase 配置显式失败，R11 设计，非按钮）；render 路径无同步 throw 源。
+- 新增 src/ErrorBoundary.tsx 全局兜底（App 顶层包裹）：任何未预期错误显示可恢复界面（Try again），不再静默退出；错误不泄露内部细节。

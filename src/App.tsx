@@ -58,6 +58,7 @@ import { canUse, effectivePlan, checkTaskQuota, checkOcrQuota, checkFileSize } f
 import { DEFAULT_PREF, shouldDeliverNow, type NotificationPref } from "./lib/notify";
 import { enqueueDigestNotification, flushDigestQueue } from "./lib/digest-queue";
 import { newClientRequestId } from "./lib/uuid";
+import { ErrorBoundary } from "./ErrorBoundary";
 import { isCreateBusy, beginCreate, endCreate } from "./lib/create-lock";
 
 // S3（SYNC_FIX_REVIEW）：创建类操作同步防重入（连点/双指）。
@@ -1867,6 +1868,14 @@ function CloudApp() {
 }
 
 export default function App() {
+  return (
+    <ErrorBoundary>
+      <AppInner />
+    </ErrorBoundary>
+  );
+}
+
+function AppInner() {
   // R11（IOS_SUBMISSION_DEV_SPEC）：生产构建必须配置 Supabase，否则视为配置错误直接抛错（不静默进本地演示）。
   if (!isSupabaseConfigured) {
     if (!__DEV__) {

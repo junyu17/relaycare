@@ -25,6 +25,9 @@ function text(
 }
 
 export function hasPermission(state: AppState, role: Role, permission: Permission): boolean {
+  // 防御：roleDefinitions 缺失/为空时返回 false（绝不 .find 抛 TypeError 导致点击闪退）。
+  // find 未命中由下方 ?. 兜底（勿删）。
+  if (!state.roleDefinitions || state.roleDefinitions.length === 0) return false;
   return Boolean(state.roleDefinitions.find((item) => item.role === role)?.permissions.includes(permission));
 }
 

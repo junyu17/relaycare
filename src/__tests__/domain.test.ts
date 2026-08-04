@@ -15,6 +15,7 @@ import {
   withAudit
 } from "../domain";
 import { makeTranslator } from "../i18n";
+import type { AppState } from "../types";
 
 const coordinator = initialState.members[0]; // Maya, coordinator
 const caregiver = initialState.members[1]; // Eli, caregiver
@@ -187,6 +188,19 @@ describe("updateMemberRole", () => {
     expect(next.members.find((member) => member.id === target.id)!.role).toBe("caregiver");
     expect(next.auditEvents[0].action).toBe("member.role_updated");
     expect(next.auditEvents[0].entityId).toBe(target.id);
+  });
+});
+
+describe("hasPermission defensive (crash engine zeroing)", () => {
+  it("returns false when roleDefinitions missing or empty (no .find TypeError)", () => {
+    const base = { ...initialState } as AppState;
+    expect(hasPermission({ ...base, roleDefinitions: undefined as never }, "coordinator", "timeline:add")).toBe(false);
+    expect(hasPermission({ ...base, roleDefinitions: [] as never }, "coordinator", "timeline:add")).toBe(false);
+  });
+
+  it("normal state still works", () => {
+    expect(hasPermission(initialState, "coordinator", "timeline:add")).toBe(true);
+    expect(hasPermission(initialState, "viewer", "timeline:add")).toBe(false);
   });
 });
 

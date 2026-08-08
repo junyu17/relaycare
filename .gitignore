@@ -21,3 +21,6 @@ android/
 # Supabase CLI local state
 backend/supabase/.temp/
 supabase/.temp/
+keystore.properties
+*.jks
+*.keystore

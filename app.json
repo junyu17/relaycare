@@ -22,7 +22,13 @@
       },
       "package": "cd.cc.taskkincare",
       "versionCode": 1,
-      "allowBackup": false
+      "allowBackup": false,
+      "blockedPermissions": ["android.permission.SYSTEM_ALERT_WINDOW"],
+      "permissions": [
+        "android.permission.POST_NOTIFICATIONS",
+        "android.permission.VIBRATE",
+        "android.permission.RECEIVE_BOOT_COMPLETED"
+      ]
     },
     "plugins": [
       "expo-font",
@@ -33,6 +39,17 @@
           "cameraPermission": "TaskKin Care uses the camera to scan your family join QR code.",
           "microphonePermission": false,
           "recordAudioAndroid": false
+        }
+      ],
+      "expo-notifications",
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "compileSdkVersion": 36,
+            "targetSdkVersion": 36,
+            "minSdkVersion": 26
+          }
         }
       ],
       [

@@ -2,15 +2,15 @@
   "expo": {
     "name": "TaskKin Care",
     "slug": "taskkin-care",
-    "version": "1.0.0",
+    "version": "1.5",
     "icon": "./assets/icon.png",
     "orientation": "portrait",
     "scheme": "taskkin-care",
     "userInterfaceStyle": "light",
     "ios": {
-      "supportsTablet": false,
+      "supportsTablet": true,
       "bundleIdentifier": "cd.cc.relaycare",
-      "buildNumber": "1",
+      "buildNumber": "9",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
       }
@@ -59,7 +59,9 @@
           "nodePath": "/Users/jun/.hermes/node/bin/node"
         }
       ],
-      "./plugins/with-no-push-entitlement"
+      "./plugins/with-no-push-entitlement",
+      "expo-sharing",
+      "expo-localization"
     ]
   }
 }

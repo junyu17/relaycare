@@ -19,9 +19,11 @@ import {
 
 import { uniqueId } from "./lib/id";
 import { getStoredLanguage, initStoredLanguage, setStoredLanguage } from "./lib/language";
+import { recordValueMoment } from "./lib/review-prompter";
 import { ocrProviderName } from "./lib/ocr";
 import { initialState } from "./data";
 import { AuthProvider, useAuth, type CreateHouseholdArgs } from "./auth/AuthContext";
+import { cloudScopeKey } from "./auth/cloudScope";
 import { AuthScreen, OnboardingScreen } from "./auth/AuthScreen";
 import { HouseholdSwitcher } from "./auth/HouseholdSwitcher";
 import {
@@ -457,6 +459,8 @@ function LocalApp(props: { cloud?: CloudProps } = {}) {
       } else {
         setState((current) => completeTask(current, task.id, actor, t));
       }
+      // 价值时刻：刚完成一件照护任务。不 await——评分请求不该拖住 UI。
+      void recordValueMoment();
     });
   };
 
@@ -818,7 +822,8 @@ function LocalApp(props: { cloud?: CloudProps } = {}) {
       const localized: Record<Language, string> = {
         en: buildLocalizedReportText(snapshot, "en", makeTranslator("en")),
         zh: buildLocalizedReportText(snapshot, "zh", makeTranslator("zh")),
-        es: buildLocalizedReportText(snapshot, "es", makeTranslator("es"))
+        es: buildLocalizedReportText(snapshot, "es", makeTranslator("es")),
+        ja: buildLocalizedReportText(snapshot, "ja", makeTranslator("ja"))
       };
       if (cloud) {
         // R2（B6）：手动生成落库周报历史（record_weekly_report 内部写一次 report.generated 审计，
@@ -1901,6 +1906,11 @@ function CloudApp() {
   );
 }
 
+function ScopedCloudApp() {
+  const { user, householdId } = useAuth();
+  return <CloudApp key={cloudScopeKey(user?.id, householdId)} />;
+}
+
 export default function App() {
   return (
     <ErrorBoundary>
@@ -1932,7 +1942,7 @@ function AppInner() {
   return (
     <ConsentGate>
       <AuthProvider>
-        <CloudApp />
+        <ScopedCloudApp />
       </AuthProvider>
     </ConsentGate>
   );
@@ -3667,13 +3677,15 @@ function showMessage(title: string, message: string) {
   Alert.alert(title, message);
 }
 
+const isPad = Platform.OS === "ios" && Platform.isPad;
+
 const styles = StyleSheet.create({
   app: {
     flex: 1,
     backgroundColor: palette.page
   },
   topBar: {
-    paddingTop: Platform.OS === "ios" ? 58 : 34,
+    paddingTop: Platform.OS === "ios" ? (isPad ? 24 : 58) : 34,
     paddingHorizontal: 14,
     paddingBottom: 14,
     backgroundColor: palette.surface,
@@ -3732,8 +3744,14 @@ const styles = StyleSheet.create({
     flex: 1
   },
   content: {
-    padding: 8,
-    paddingBottom: 16
+    padding: isPad ? 16 : 8,
+    paddingBottom: 16,
+    // Every one of the six tabs renders inside the single ScrollView that uses
+    // this as its contentContainerStyle, so capping the measure here is what
+    // stops the whole app reading as a stretched phone app on a 1376pt iPad.
+    maxWidth: 700,
+    width: "100%",
+    alignSelf: "center"
   },
   actorRow: {
     gap: 10,
@@ -4344,6 +4362,12 @@ const styles = StyleSheet.create({
     backgroundColor: palette.surface,
     borderTopLeftRadius: 8,
     borderTopRightRadius: 8,
+    borderBottomLeftRadius: isPad ? 8 : 0,
+    borderBottomRightRadius: isPad ? 8 : 0,
+    marginBottom: isPad ? 24 : 0,
+    maxWidth: 560,
+    width: "100%",
+    alignSelf: "center",
     padding: 18,
     gap: 12
   },
@@ -4352,6 +4376,12 @@ const styles = StyleSheet.create({
     backgroundColor: palette.surface,
     borderTopLeftRadius: 8,
     borderTopRightRadius: 8,
+    borderBottomLeftRadius: isPad ? 8 : 0,
+    borderBottomRightRadius: isPad ? 8 : 0,
+    marginBottom: isPad ? 24 : 0,
+    maxWidth: 560,
+    width: "100%",
+    alignSelf: "center",
     padding: 18,
     gap: 12
   },
@@ -4361,7 +4391,7 @@ const styles = StyleSheet.create({
     justifyContent: "space-between"
   },
   modalReportScroll: {
-    maxHeight: 440
+    maxHeight: isPad ? 720 : 440
   },
   roleChoiceList: {
     gap: 8

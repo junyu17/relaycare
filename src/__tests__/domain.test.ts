@@ -5,6 +5,7 @@ import {
   completeTask,
   confirmDocumentAndCreateTask,
   createTask,
+  declineHandoff,
   formatDateTime,
   hasPermission,
   inviteMember,
@@ -97,6 +98,55 @@ describe("createTask ID uniqueness", () => {
       ids.add(state.tasks[0].id);
     }
     expect(ids.size).toBe(50);
+  });
+});
+
+describe("declineHandoff", () => {
+  it("hands the task back to whoever offered it", () => {
+    // The offer model is the product's whole claim: a task stays yours until
+    // someone else accepts it. Declining must not break that.
+    const claimed = claimTask(initialState, openTaskId, caregiver);
+    const offered = requestHandoff(claimed, openTaskId, caregiver, anotherCaregiver);
+    const next = declineHandoff(offered, openTaskId, anotherCaregiver);
+
+    const task = next.tasks.find((item) => item.id === openTaskId)!;
+    expect(task.status).toBe("claimed");
+    expect(task.ownerId).toBe(caregiver.id);
+    expect(task.handoffToId).toBeUndefined();
+  });
+
+  it("does not orphan the task the way rejecting it would", () => {
+    // The old button routed decline through rejectTask, which nulled the owner
+    // and left handoffToId pointing at the person who said no.
+    const claimed = claimTask(initialState, openTaskId, caregiver);
+    const offered = requestHandoff(claimed, openTaskId, caregiver, anotherCaregiver);
+    const next = declineHandoff(offered, openTaskId, anotherCaregiver);
+
+    const task = next.tasks.find((item) => item.id === openTaskId)!;
+    expect(task.ownerId).not.toBeUndefined();
+    expect(task.status).not.toBe("rejected");
+  });
+
+  it("records a declined-handoff audit event", () => {
+    const claimed = claimTask(initialState, openTaskId, caregiver);
+    const offered = requestHandoff(claimed, openTaskId, caregiver, anotherCaregiver);
+    const next = declineHandoff(offered, openTaskId, anotherCaregiver);
+    expect(next.auditEvents[0].action).toBe("task.handoff_declined");
+  });
+
+  it("returns the task to the pool when the offerer is gone", () => {
+    const claimed = claimTask(initialState, openTaskId, caregiver);
+    const offered = requestHandoff(claimed, openTaskId, caregiver, anotherCaregiver);
+    const orphaned: AppState = {
+      ...offered,
+      members: offered.members.filter((member) => member.id !== caregiver.id)
+    };
+    const next = declineHandoff(orphaned, openTaskId, anotherCaregiver);
+
+    const task = next.tasks.find((item) => item.id === openTaskId)!;
+    expect(task.status).toBe("open");
+    expect(task.ownerId).toBeUndefined();
+    expect(task.handoffToId).toBeUndefined();
   });
 });
 

@@ -34,6 +34,7 @@ export const AUDIT_ACTIONS = [
   "task.claimed",
   "task.rejected",
   "task.handoff_requested",
+  "task.handoff_declined",
   "task.completed",
   "task.deleted",
   "timeline.event_added",

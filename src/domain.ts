@@ -257,6 +257,60 @@ export function rejectTask(state: AppState, taskId: string, actor: Member, t?: T
   );
 }
 
+export function declineHandoff(state: AppState, taskId: string, actor: Member, t?: Translate): AppState {
+  const task = state.tasks.find((item) => item.id === taskId);
+  const owner = state.members.find((member) => member.id === task?.ownerId);
+
+  // Declining is not rejecting. A pending handoff keeps ownerId on the person
+  // who offered the task, so handing it back means clearing handoffToId and
+  // leaving ownerId exactly where it was - the offerer never stopped owning it.
+  // Routing this through rejectTask cleared the owner instead, which stranded
+  // the task on nobody and left handoffToId pointing at whoever said no.
+  const tasks = state.tasks.map((item) =>
+    item.id === taskId
+      ? owner
+        ? { ...item, status: "claimed" as const, handoffToId: undefined }
+        : { ...item, status: "open" as const, ownerId: undefined, handoffToId: undefined }
+      : item
+  );
+
+  const notified = owner
+    ? withRoleNotification(
+        { ...state, tasks },
+        owner.role,
+        "info",
+        "notification.title.handoffDeclined",
+        "notification.body.handoffDeclined",
+        { name: actor.name, task: task?.title ?? text(t, "member.unknown", "Unknown") },
+        "task",
+        taskId
+      )
+    : withRoleNotification(
+        { ...state, tasks },
+        "coordinator",
+        "info",
+        "notification.title.taskReturned",
+        "notification.body.taskReturned",
+        { actor: actor.name, task: task?.title ?? text(t, "member.unknown", "Unknown") },
+        "task",
+        taskId
+      );
+
+  return withAudit(
+    notified,
+    actor.id,
+    "task.handoff_declined",
+    "task",
+    taskId,
+    text(
+      t,
+      "audit.detail.task.handoffDeclined",
+      `${actor.name} declined the handoff; the task stays with ${owner?.name ?? "the pool"}.`,
+      { actor: actor.name, owner: owner?.name ?? "" }
+    )
+  );
+}
+
 export function requestHandoff(
   state: AppState,
   taskId: string,

@@ -79,6 +79,7 @@ import {
   hasPermission,
   isHouseholdInviteExpired,
   memberName,
+  declineHandoff,
   rejectTask,
   requestHandoff,
   toggleDigest,
@@ -394,6 +395,23 @@ function LocalApp(props: { cloud?: CloudProps } = {}) {
         );
       } else {
         setState((current) => claimTask(current, task.id, actor, t));
+      }
+    });
+  };
+
+  const onDeclineHandoff = (task: Task) => {
+    runIfAllowed("task:claim", () => {
+      if (cloud) {
+        runCloudAction(
+          cloudActions.declineHandoff({
+            householdId: cloud.householdId,
+            taskId: task.id,
+            actor,
+            taskTitle: task.title
+          })
+        );
+      } else {
+        setState((current) => declineHandoff(current, task.id, actor, t));
       }
     });
   };
@@ -1368,6 +1386,7 @@ function LocalApp(props: { cloud?: CloudProps } = {}) {
             onCreateTaskFromTemplate,
             onClaim,
             onReject,
+            onDeclineHandoff,
             onHandoff,
             onComplete,
             onDeleteTask,
@@ -2131,6 +2150,7 @@ function renderTasks(
   onCreateTaskFromTemplate: (templateKey: TaskTemplateKey) => void,
   onClaim: (task: Task) => void,
   onReject: (task: Task) => void,
+  onDeclineHandoff: (task: Task) => void,
   onHandoff: (task: Task) => void,
   onComplete: (task: Task) => void,
   onDeleteTask: (task: Task) => void,
@@ -2201,6 +2221,7 @@ function renderTasks(
           t={t}
           onClaim={() => onClaim(task)}
           onReject={() => onReject(task)}
+          onDeclineHandoff={() => onDeclineHandoff(task)}
           onHandoff={() => onHandoff(task)}
           onComplete={() => onComplete(task)}
           onDelete={() => onDeleteTask(task)}
@@ -3104,6 +3125,7 @@ function TaskCard({
   t,
   onClaim,
   onReject,
+  onDeclineHandoff,
   onHandoff,
   onComplete,
   onDelete
@@ -3115,6 +3137,7 @@ function TaskCard({
   t: Translate;
   onClaim: () => void;
   onReject: () => void;
+  onDeclineHandoff: () => void;
   onHandoff: () => void;
   onComplete: () => void;
   onDelete: () => void;
@@ -3199,7 +3222,7 @@ function TaskCard({
             icon="close-circle-outline"
             label={t("tasks.declineHandoff")}
             tone="secondary"
-            onPress={onReject}
+            onPress={onDeclineHandoff}
           />
         )}
         {task.status !== "completed" && canFinish && (

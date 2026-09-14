@@ -82,8 +82,9 @@ describe("missing placeholders never reach the UI", () => {
 
   it("still substitutes every value that is supplied", () => {
     const t = makeTranslator("en");
-    expect(t("notification.body.taskClaimed", { actor: "Tan", task: "Call the office" }))
-      .toBe("Tan claimed: Call the office");
+    expect(t("notification.body.taskClaimed", { actor: "Tan", task: "Call the office" })).toBe(
+      "Tan claimed: Call the office"
+    );
   });
 
   it("defines the fallback words in all three languages", () => {

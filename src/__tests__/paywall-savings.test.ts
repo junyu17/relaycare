@@ -28,9 +28,7 @@ describe("yearlySavingPercent", () => {
   });
 
   it("matches the shipped fallback prices", () => {
-    expect(
-      yearlySavingPercent(PLAN_FALLBACK_PRICES.monthly, PLAN_FALLBACK_PRICES.yearly)
-    ).toBe(42);
+    expect(yearlySavingPercent(PLAN_FALLBACK_PRICES.monthly, PLAN_FALLBACK_PRICES.yearly)).toBe(42);
   });
 
   it("hides the badge when yearly is not actually cheaper", () => {

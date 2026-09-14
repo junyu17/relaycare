@@ -1697,7 +1697,8 @@ export const translations: Record<Language, Record<string, string>> = {
     "home.rolePermissions": "できること",
     "home.availability": "対応できる時間：{value}",
     "home.inviteStatus": "招待の状態",
-    "home.inviteCopy": "世帯の招待リンクは {date} に期限が切れます。新しいメンバーは最小限の権限から始まり、いつでも抜けられます。",
+    "home.inviteCopy":
+      "世帯の招待リンクは {date} に期限が切れます。新しいメンバーは最小限の権限から始まり、いつでも抜けられます。",
     "home.roleNotifications": "あなたの役割向け",
     "home.noRoleNotifications": "いまは役割に関する通知はありません。",
     "home.notificationControls": "通知の設定",
@@ -1748,7 +1749,8 @@ export const translations: Record<Language, Record<string, string>> = {
     "handoff.empty": "いま引き受けられる人がいません。",
     "timeline.filters": "タイムラインの絞り込み",
     "timeline.quickUpdate": "タイムラインにすぐ追加",
-    "timeline.quickUpdateCopy": "医療情報を含まない連携メモのみを追加してください。診断・薬・臨床的な内容は書かないでください。",
+    "timeline.quickUpdateCopy":
+      "医療情報を含まない連携メモのみを追加してください。診断・薬・臨床的な内容は書かないでください。",
     "timeline.addTemplate": "タイムラインに追加：{name}",
     "timeline.templateCheckin": "訪問メモ",
     "timeline.templateCheckinMeta": "いま・訪問の記録",
@@ -1777,8 +1779,10 @@ export const translations: Record<Language, Record<string, string>> = {
     "documents.basicUploads": "基本のアップロード",
     "documents.upload": "アップロード",
     "documents.sample": "サンプル",
-    "documents.notice": "{name} がアップロードできるのは、伏せ字済みまたは医療情報を含まないファイルだけです。候補のアクションは手動確認が必要です。",
-    "documents.safetyConfirm": "このファイルは伏せ字済み、または医療情報を含まず、診断・薬・個人を特定する情報が入っていないことを確認しました。",
+    "documents.notice":
+      "{name} がアップロードできるのは、伏せ字済みまたは医療情報を含まないファイルだけです。候補のアクションは手動確認が必要です。",
+    "documents.safetyConfirm":
+      "このファイルは伏せ字済み、または医療情報を含まず、診断・薬・個人を特定する情報が入っていないことを確認しました。",
     "documents.uploadedBy": "{name} がアップロード・{date}",
     "documents.ocr": "OCR の確からしさ：{confidence}%。自動では何も入力されません。",
     "documents.ocrText": "読み取ったテキスト",
@@ -1786,7 +1790,8 @@ export const translations: Record<Language, Record<string, string>> = {
     "documents.suggestedAction": "提案されたアクション：{action}",
     "documents.confirmCreateTask": "確認してタスクを作る",
     "report.familyWeekly": "家族向け週次レポート",
-    "report.explainer": "レポートはタスクとタイムラインの記録から作られ、履歴に残ります。医療的な助言は含まず、家族の連携のためだけのものです。",
+    "report.explainer":
+      "レポートはタスクとタイムラインの記録から作られ、履歴に残ります。医療的な助言は含まず、家族の連携のためだけのものです。",
     "report.done": "完了",
     "report.pending": "未完了",
     "report.generate": "レポートを作成",
@@ -1817,13 +1822,15 @@ export const translations: Record<Language, Record<string, string>> = {
     "alerts.notificationBlocked": "{name} が変更できるのは自分の通知設定だけです。",
     "alerts.selfRoleBlocked": "まとめ役は自分の役割を変更できません。",
     "alerts.documentSafetyTitle": "ファイルの範囲を確認",
-    "alerts.documentSafetyBody": "アップロードの前に、伏せ字済みまたは医療情報を含まず、診断・薬・個人を特定する情報が入っていないことを確認してください。",
+    "alerts.documentSafetyBody":
+      "アップロードの前に、伏せ字済みまたは医療情報を含まず、診断・薬・個人を特定する情報が入っていないことを確認してください。",
     "alerts.actionFailedTitle": "保存できませんでした",
     "alerts.actionFailedBody": "変更を保存できませんでした。通信状況を確認してもう一度お試しください。",
     "settings.title": "役割の設定",
     "settings.sameApp": "全員が同じアプリを使います。いまの役割によってできることが決まります。",
     "settings.localSave": "プレビューの変更はこの端末にだけ保存されます。クラウド同期は無効です。",
-    "settings.cloudSync": "変更は世帯のすべての端末に同期されます。オフラインの編集は保存され、再接続時に自動で同期されます。",
+    "settings.cloudSync":
+      "変更は世帯のすべての端末に同期されます。オフラインの編集は保存され、再接続時に自動で同期されます。",
     "households.title": "世帯",
     "households.current": "現在：{name}",
     "households.manage": "世帯を切り替える／追加する",
@@ -2025,8 +2032,10 @@ export const translations: Record<Language, Record<string, string>> = {
     "audit.detail.task.handoffDeclined": "{actor} が引き継ぎを辞退しました。タスクは {owner} のままです。",
     "audit.detail.task.completed": "{actor} が簡単な記録とともにタスクを完了しました。",
     "audit.detail.timeline.event_added": "{actor} が連携のタイムライン記録を追加しました：{title}。",
-    "audit.detail.notification.preference_updated": "重要でないタスクのまとめ通知の設定を変更しました。重要な期限通知は有効のままです。",
-    "audit.detail.document.uploaded": "医療情報を含まない書類の情報をアップロードしました。タスクにする前に手動での確認が必要です。",
+    "audit.detail.notification.preference_updated":
+      "重要でないタスクのまとめ通知の設定を変更しました。重要な期限通知は有効のままです。",
+    "audit.detail.document.uploaded":
+      "医療情報を含まない書類の情報をアップロードしました。タスクにする前に手動での確認が必要です。",
     "audit.detail.document.confirmed": "書類の候補項目を手動で確認しました。",
     "audit.detail.document.task_created": "確認済みの書類情報から引き受け可能な連携タスクを作成しました。",
     "audit.detail.report.generated": "書き出しや共有のために週次レポートを作成しました。",
@@ -2034,15 +2043,18 @@ export const translations: Record<Language, Record<string, string>> = {
     "domain.proof": "{actor} が確認",
     "member.actAs": "{name} として操作",
     "alerts.inviteExpiredTitle": "招待リンクの期限が切れました",
-    "alerts.inviteExpiredBody": "世帯の招待リンクの期限が切れました。まとめ役が招待期間を更新するまで、新しい招待はできません。",
-    "settings.inviteExpiredNotice": "世帯の招待リンクの期限が切れました。まとめ役が招待期間を更新するまで、新しい招待はできません。",
+    "alerts.inviteExpiredBody":
+      "世帯の招待リンクの期限が切れました。まとめ役が招待期間を更新するまで、新しい招待はできません。",
+    "settings.inviteExpiredNotice":
+      "世帯の招待リンクの期限が切れました。まとめ役が招待期間を更新するまで、新しい招待はできません。",
     "settings.viewAllAudit": "すべての履歴を見る",
     "audit.back": "設定に戻る",
     "settings.legalTitle": "規約",
     "settings.openPrivacy": "プライバシーポリシー",
     "settings.openTerms": "利用規約",
     "consent.title": "はじめる前に",
-    "consent.body": "TaskKin Care は、医療情報を持たない家族向けのケア連携ツールです。医療機器でも救急サービスでもありません。続けると、プライバシーポリシーと利用規約に同意したことになります。",
+    "consent.body":
+      "TaskKin Care は、医療情報を持たない家族向けのケア連携ツールです。医療機器でも救急サービスでもありません。続けると、プライバシーポリシーと利用規約に同意したことになります。",
     "consent.privacy": "プライバシーポリシーを読む",
     "consent.terms": "利用規約を読む",
     "consent.agree": "同意して続ける",
@@ -2077,15 +2089,19 @@ export const translations: Record<Language, Record<string, string>> = {
     "paywall.perYear": "／年",
     "paywall.save": "{percent}% おトク",
     "paywall.bestValue": "いちばんおトク",
-    "paywall.productUnavailable": "サブスクリプションはまだ利用できません。ストアの管理画面（App Store Connect／Google Play Console）で商品が承認済みか、アカウントが Sandbox テスターかご確認ください。",
+    "paywall.productUnavailable":
+      "サブスクリプションはまだ利用できません。ストアの管理画面（App Store Connect／Google Play Console）で商品が承認済みか、アカウントが Sandbox テスターかご確認ください。",
     "paywall.subscribeYearly": "年額プラン",
     "paywall.restore": "購入を復元",
     "paywall.close": "閉じる",
     "paywall.currentPlan": "現在のプラン",
     "paywall.plusActive": "この世帯ではファミリープラスが有効です。",
-    "paywall.purchaseNotVerified": "この購入を確認できませんでした。アップグレードは適用されていません。「購入を復元」を試すか、サポートにご連絡ください。",
-    "paywall.accountBindingMissing": "この購入は古い、または不完全なアカウント紐づけによるものです。サインインしたまま、もう一度購入をお試しください。Sandbox アカウントの場合は先に購入履歴をリセットしてください。",
-    "paywall.accountTokenMismatch": "この Apple のサブスクリプションは、この端末ではなく別の TaskKin Care のメールアカウントに紐づいています。元のメールでサインインして「購入を復元」をお使いください。新しいメールには別途 Apple のサブスクリプションが必要です。Sandbox では、このテスターの購入履歴を消すか別の Sandbox Apple アカウントを使ってから購入し直してください。",
+    "paywall.purchaseNotVerified":
+      "この購入を確認できませんでした。アップグレードは適用されていません。「購入を復元」を試すか、サポートにご連絡ください。",
+    "paywall.accountBindingMissing":
+      "この購入は古い、または不完全なアカウント紐づけによるものです。サインインしたまま、もう一度購入をお試しください。Sandbox アカウントの場合は先に購入履歴をリセットしてください。",
+    "paywall.accountTokenMismatch":
+      "この Apple のサブスクリプションは、この端末ではなく別の TaskKin Care のメールアカウントに紐づいています。元のメールでサインインして「購入を復元」をお使いください。新しいメールには別途 Apple のサブスクリプションが必要です。Sandbox では、このテスターの購入履歴を消すか別の Sandbox Apple アカウントを使ってから購入し直してください。",
     "paywall.restoreNone": "このストアアカウントで有効なファミリープラスは見つかりませんでした。",
     "paywall.coordinatorOnly": "ファミリープラスを管理できるのは世帯のまとめ役だけです。",
     "paywall.iapUnavailable": "サブスクリプションは、サインイン済みの世帯で iOS と Android からご利用いただけます。",
@@ -2107,7 +2123,8 @@ export const translations: Record<Language, Record<string, string>> = {
     "settings.save": "保存",
     "settings.updateNameHelper": "この世帯での表示名を変更します。",
     "settings.nameTooLong": "名前が長すぎます（最大 80 文字）。",
-    "settings.dissolveConfirm": "世帯とそのすべてのデータ（タスク・タイムライン・書類・履歴）を完全に削除します。全員がアクセスできなくなります。元に戻せません。続けますか？",
+    "settings.dissolveConfirm":
+      "世帯とそのすべてのデータ（タスク・タイムライン・書類・履歴）を完全に削除します。全員がアクセスできなくなります。元に戻せません。続けますか？",
     "settings.leaveConfirm": "この世帯から抜けますか？タスクとタイムラインを見られなくなります。",
     "settings.removeConfirm": "このメンバーを世帯から外しますか？",
     "settings.memberRemovedTitle": "メンバーを外しました",
@@ -2125,7 +2142,8 @@ export const translations: Record<Language, Record<string, string>> = {
     "confirm.sure": "本当によろしいですか？元に戻せません。",
     "paywall.disclosureTrial":
       "ファミリープラスは自動更新のサブスクリプションです。初めてのご利用は {trialDays} 日間の無料トライアルから始まり、その間は課金されません。トライアル終了後は {monthlyPrice} または {yearlyPrice} で自動更新され、ストアのアカウント（Apple ID または Google Play）に請求されます。トライアル終了の 24 時間以上前に解約した場合は課金されません。ストアのサブスクリプション設定からいつでも管理・解約できます（iOS：設定 > Apple ID > サブスクリプション／Android：Google Play > アカウント > 定期購入）。",
-    "paywall.disclosure": "ファミリープラスは自動更新のサブスクリプションです。料金：{monthlyPrice} または {yearlyPrice}。お支払いはストアのアカウント（Apple ID または Google Play）に請求されます。期間終了の 24 時間以上前に解約しない限り自動更新されます。ストアのサブスクリプション設定からいつでも管理・解約できます（iOS：設定 > Apple ID > サブスクリプション／Android：Google Play > アカウント > 定期購入）。",
+    "paywall.disclosure":
+      "ファミリープラスは自動更新のサブスクリプションです。料金：{monthlyPrice} または {yearlyPrice}。お支払いはストアのアカウント（Apple ID または Google Play）に請求されます。期間終了の 24 時間以上前に解約しない限り自動更新されます。ストアのサブスクリプション設定からいつでも管理・解約できます（iOS：設定 > Apple ID > サブスクリプション／Android：Google Play > アカウント > 定期購入）。",
     "paywall.manage": "サブスクリプションを管理",
     "paywall.exportReports": "週次レポートの書き出し（PDF／CSV）",
     "paywall.autoWeeklyReport": "週次レポートの自動作成",
@@ -2138,7 +2156,8 @@ export const translations: Record<Language, Record<string, string>> = {
     "paywall.length.monthly": "1 か月",
     "paywall.length.yearly": "1 年",
     "settings.deleteAccount": "アカウントと世帯を削除",
-    "settings.deleteAccountConfirm": "あなたのアカウントと、あなたがまとめ役をしているすべての世帯を、そのデータ（タスク・タイムライン・書類・履歴）ごと完全に削除します。ほかの世帯での参加履歴は匿名化されます。元に戻せません。ストアのサブスクリプションは解約されないため、ストアのアカウントで別途解約してください。続けますか？",
+    "settings.deleteAccountConfirm":
+      "あなたのアカウントと、あなたがまとめ役をしているすべての世帯を、そのデータ（タスク・タイムライン・書類・履歴）ごと完全に削除します。ほかの世帯での参加履歴は匿名化されます。元に戻せません。ストアのサブスクリプションは解約されないため、ストアのアカウントで別途解約してください。続けますか？",
     "settings.deleteAccountTitle": "アカウントを削除",
     "settings.deleting": "削除しています…",
     "auth.tabSignIn": "サインイン",

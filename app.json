@@ -13,12 +13,7 @@
       "buildNumber": "10",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
-        "CFBundleLocalizations": [
-          "en",
-          "zh-Hans",
-          "es",
-          "ja"
-        ]
+        "CFBundleLocalizations": ["en", "zh-Hans", "es", "ja"]
       }
     },
     "android": {

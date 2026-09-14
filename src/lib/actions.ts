@@ -100,12 +100,7 @@ export async function rejectTask(args: {
   if (error) throw error;
 }
 
-export async function declineHandoff(args: {
-  householdId: string;
-  taskId: string;
-  actor: Member;
-  taskTitle: string;
-}) {
+export async function declineHandoff(args: { householdId: string; taskId: string; actor: Member; taskTitle: string }) {
   const { error } = await supabase.rpc("transition_task_with_activity", {
     p_task_id: args.taskId,
     p_action: "decline_handoff"

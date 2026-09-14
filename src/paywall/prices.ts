@@ -30,18 +30,31 @@ export function yearlySavingPercent(monthly: string | null, yearly: string | nul
  *  the paywall falls back to the plain renewal wording instead of promising an
  *  offer the buyer will not get. */
 export function freeTrialDays(sub: unknown): number | null {
-  const offer = (sub as {
-    subscriptionInfoIOS?: { introductoryOffer?: { paymentMode?: string; period?: { unit?: string; value?: number }; periodCount?: number } | null };
-  } | null)?.subscriptionInfoIOS?.introductoryOffer;
+  const offer = (
+    sub as {
+      subscriptionInfoIOS?: {
+        introductoryOffer?: {
+          paymentMode?: string;
+          period?: { unit?: string; value?: number };
+          periodCount?: number;
+        } | null;
+      };
+    } | null
+  )?.subscriptionInfoIOS?.introductoryOffer;
   if (!offer || offer.paymentMode !== "free-trial") return null;
   const value = offer.period?.value ?? 0;
   const count = offer.periodCount ?? 1;
   const units = value * count;
   switch (offer.period?.unit) {
-    case "day": return units;
-    case "week": return units * 7;
-    case "month": return units * 30;
-    case "year": return units * 365;
-    default: return null;
+    case "day":
+      return units;
+    case "week":
+      return units * 7;
+    case "month":
+      return units * 30;
+    case "year":
+      return units * 365;
+    default:
+      return null;
   }
 }

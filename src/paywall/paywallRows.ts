@@ -15,7 +15,7 @@ export const ROWS: Row[] = [
   { labelKey: "paywall.row.storage", free: "25 MB", plus: "25 MB" },
   { labelKey: "paywall.row.report", free: "reportManual", plus: "reportAuto", backedBy: "weeklyReportAuto" },
   { labelKey: "paywall.row.ocr", free: "1", plus: "50", backedBy: "ocr50" },
-  { labelKey: "paywall.row.audit", free: "30 days", plus: "3 years", backedBy: "auditRetention1095" },
+  { labelKey: "paywall.row.audit", free: "audit30Days", plus: "audit3Years", backedBy: "auditRetention1095" },
   { labelKey: "paywall.row.export", free: "none", plus: "PDF/CSV", backedBy: "export" },
   { labelKey: "paywall.row.notifications", free: "none", plus: "✓", backedBy: "advancedNotifications" }
 ];
@@ -24,5 +24,7 @@ export function rowValue(value: string, t: (key: string) => string): string {
   if (value === "reportManual") return t("paywall.value.reportManual");
   if (value === "reportAuto") return t("paywall.value.reportAuto");
   if (value === "none") return t("paywall.value.none");
+  if (value === "audit30Days") return t("paywall.value.audit30Days");
+  if (value === "audit3Years") return t("paywall.value.audit3Years");
   return value;
 }

@@ -167,17 +167,6 @@ Deno.serve(async (req) => {
         transactionProductId: tx.productId
       });
     }
-    // B5: 交易必须绑定当前用户（appAccountToken = auth.uid()），防订阅劫持。
-    if (!tx.appAccountToken || String(tx.appAccountToken) !== userData.user.id) {
-      return fail(
-        "ACCOUNT_TOKEN_MISMATCH",
-        "This purchase is not bound to your account. Please restore purchases.",
-        403,
-        {
-          jwsHasAccountToken: Boolean(tx.appAccountToken)
-        }
-      );
-    }
     // B5: signedDate 新鲜度，防退款/状态变更前的旧 JWS 重放。恢复购买按订阅周期放宽阈值。
     const signedMs = Number(tx.signedDate);
     const staleMs = isRestore ? (RESTORE_STALE_MS[plan] ?? STALE_SIGNED_DATE_MS) : STALE_SIGNED_DATE_MS;
@@ -203,7 +192,7 @@ Deno.serve(async (req) => {
     // 首次购买（无记录）放行；恢复购买必须已有登记记录且属于本用户。
     const { data: sub, error: subErr } = await admin
       .from("subscriptions")
-      .select("status, owner_user_id")
+      .select("id, status, owner_user_id, owner_app_account_token, household_id")
       .eq("original_transaction_id", originalTxId)
       .maybeSingle();
     if (subErr) {
@@ -211,13 +200,56 @@ Deno.serve(async (req) => {
         dbError: subErr.message
       });
     }
-    if (sub && (sub.status === "revoked" || sub.status === "expired")) {
+    if (sub && (sub.status === "revoked" || sub.status === "expired" || sub.status === "canceled")) {
       return fail(
         "SUBSCRIPTION_NOT_RESTORABLE",
         "This subscription has been revoked or expired and cannot be reactivated.",
         400
       );
     }
+
+    const appAccountToken = tx.appAccountToken ? String(tx.appAccountToken) : null;
+    if (!appAccountToken) {
+      return fail(
+        "ACCOUNT_TOKEN_MISSING",
+        "This purchase was created without an account binding. Please retry from the signed-in app.",
+        403
+      );
+    }
+
+    // Apple requires a UUID, so the immutable Supabase auth UUID represents
+    // the TaskKin login-email account. It is never derived from a device ID.
+    // Preserve the transaction token on legacy rows before rejecting so account
+    // deletion cannot make an existing subscription transferable later.
+    const storedAccountToken = sub?.owner_app_account_token ? String(sub.owner_app_account_token) : null;
+    const hasStoredOwnerConflict = Boolean(storedAccountToken && storedAccountToken !== userData.user.id);
+    const hasUserOwnerConflict = Boolean(sub?.owner_user_id && sub.owner_user_id !== userData.user.id);
+    if (appAccountToken !== userData.user.id || hasStoredOwnerConflict || hasUserOwnerConflict) {
+      if (sub && !storedAccountToken) {
+        const { error: persistTokenError } = await admin
+          .from("subscriptions")
+          .update({ owner_app_account_token: appAccountToken })
+          .eq("id", sub.id)
+          .is("owner_app_account_token", null);
+        if (persistTokenError) {
+          return fail("ACCOUNT_TOKEN_PERSIST_FAILED", "Unable to preserve subscription ownership.", 500, {
+            dbError: persistTokenError.message
+          });
+        }
+      }
+      return fail(
+        "ACCOUNT_TOKEN_MISMATCH",
+        "This Apple subscription belongs to a different TaskKin Care email account, not to this device. Sign in to the original account to restore it, or use an Apple account without an active TaskKin Care subscription to purchase for a new TaskKin Care account.",
+        403,
+        {
+          jwsHasAccountToken: true,
+          hasDatabaseOwner: Boolean(sub?.owner_user_id),
+          hasStoredAccountToken: Boolean(storedAccountToken),
+          hasDatabaseHousehold: Boolean(sub?.household_id)
+        }
+      );
+    }
+
     if (isRestore && (!sub || (sub.owner_user_id !== null && sub.owner_user_id !== userData.user.id))) {
       return fail("RESTORE_NOT_ALLOWED", "This subscription cannot be restored in its current state.", 400);
     }

@@ -54,11 +54,13 @@ The MVP is designed to operate **without** processing PHI. Whether TaskKin Care 
 
 ## 8. Retention and Deletion
 
-Household content (households, members, tasks, timeline, documents, document files, notification preferences) is retained until you delete your account in the app, which deletes your household and all household-scoped data. Audit records are retained for 24 months after household deletion for security and accountability. This retention period is an operator-selected policy and has not received independent legal counsel review. You can request an export of your household data or other privacy assistance by emailing [Billy.yu@me.com](mailto:Billy.yu@me.com); the export procedure is defined in `COMPLIANCE_CHECKLIST.md §6`.
+You can delete your account in the app through Settings > Delete account & households. Deleting your account permanently deletes your account and every household you coordinate, together with all of that household's data (households, members, tasks, timeline, documents, document files, notification preferences, reports, and audit records). This cannot be undone.
+
+If you belong to other households you do not coordinate, your membership is anonymized: your name becomes a "Deleted member" placeholder and those households and their data are kept. Shared tasks, documents, and audit records you created there remain attributable to that placeholder without retaining your account link or profile name. Audit records inside a household are automatically removed after the plan's retention window (30 days on the Free tier, up to 3 years on Family Plus). You can request an export of your household data or other privacy assistance by emailing [Billy.yu@me.com](mailto:Billy.yu@me.com); the export procedure is defined in `COMPLIANCE_CHECKLIST.md §6`.
 
 ## 9. Your Rights
 
-You may request access to, correction of, or export of your data by emailing [Billy.yu@me.com](mailto:Billy.yu@me.com). You may delete your account and household data directly in the app through Settings > Delete account & household data.
+You may request access to, correction of, or export of your data by emailing [Billy.yu@me.com](mailto:Billy.yu@me.com). You may delete your account and its household data directly in the app through Settings > Delete account & households.
 
 ## 10. Minors and Authorized Representatives
 

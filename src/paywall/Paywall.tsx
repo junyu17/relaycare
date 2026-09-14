@@ -25,11 +25,12 @@ import {
   restoreIos,
   isIosIapAvailable,
   skuForPlan,
+  PurchaseVerificationError,
   type ProductSubscription
 } from "./iap";
 
 import { ROWS, rowValue } from "./paywallRows";
-import { PLAN_FALLBACK_PRICES } from "./prices";
+import { PLAN_FALLBACK_PRICES, freeTrialDays, yearlySavingPercent } from "./prices";
 
 function findPrice(subs: ProductSubscription[], plan: "monthly" | "yearly"): string | null {
   // R12（IOS_SUBMISSION_DEV_SPEC）：用平台 SKU 匹配（Android 小写 ID / iOS App Store ID）
@@ -38,6 +39,19 @@ function findPrice(subs: ProductSubscription[], plan: "monthly" | "yearly"): str
   if (!sub) return null;
   const ios = sub as { localizedPrice?: string | null; price?: string };
   return ios.localizedPrice ?? ios.price ?? null;
+}
+
+/** The subscription product for a plan, or null when StoreKit has not answered. */
+function findSub(subs: ProductSubscription[], plan: "monthly" | "yearly"): ProductSubscription | null {
+  return subs.find((item) => item.id === skuForPlan(plan)) ?? null;
+}
+
+function purchaseFailureMessage(error: unknown, t: Translate): string {
+  if (error instanceof PurchaseVerificationError) {
+    if (error.code === "ACCOUNT_TOKEN_MISSING") return t("paywall.accountBindingMissing");
+    if (error.code === "ACCOUNT_TOKEN_MISMATCH") return t("paywall.accountTokenMismatch");
+  }
+  return errorMessage(error);
 }
 
 // 付费墙：Free / Family Plus 对比 + 订阅。
@@ -102,7 +116,7 @@ export function Paywall({
         Alert.alert(t("paywall.title"), t("paywall.purchaseNotVerified"));
       }
     } catch (e) {
-      Alert.alert(t("paywall.title"), `${t("paywall.purchaseNotVerified")}\n\n${errorMessage(e)}`);
+      Alert.alert(t("paywall.title"), `${t("paywall.purchaseNotVerified")}\n\n${purchaseFailureMessage(e, t)}`);
     }
   };
 
@@ -153,15 +167,25 @@ export function Paywall({
             Alert.alert(t("paywall.title"), t("paywall.restoreNone"));
           }
         })
-        .catch((e) => Alert.alert(t("paywall.title"), `${t("paywall.purchaseNotVerified")}\n\n${errorMessage(e)}`))
+        .catch((e) =>
+          Alert.alert(t("paywall.title"), `${t("paywall.purchaseNotVerified")}\n\n${purchaseFailureMessage(e, t)}`)
+        )
         .finally(() => setBusy(false));
       return;
     }
     Alert.alert(t("paywall.title"), t("paywall.iapUnavailable"));
   };
 
-  const yearlyPriceLabel = `${findPrice(subs, "yearly") ?? PLAN_FALLBACK_PRICES.yearly}${t("paywall.perYear")}`;
-  const monthlyPrice = `${findPrice(subs, "monthly") ?? PLAN_FALLBACK_PRICES.monthly}${t("paywall.perMonth")}`;
+  const yearlyRaw = findPrice(subs, "yearly") ?? PLAN_FALLBACK_PRICES.yearly;
+  const monthlyRaw = findPrice(subs, "monthly") ?? PLAN_FALLBACK_PRICES.monthly;
+  const yearlyPriceLabel = `${yearlyRaw}${t("paywall.perYear")}`;
+  const monthlyPrice = `${monthlyRaw}${t("paywall.perMonth")}`;
+  const savingPercent = yearlySavingPercent(monthlyRaw, yearlyRaw);
+  // Guideline 3.1.2: when an introductory free trial is live, the disclosure
+  // beside the buy button must state its length and the price that follows.
+  // Read it from the product, never hardcode it — a returning subscriber is
+  // not eligible and must see the plain renewal terms.
+  const trialDays = freeTrialDays(findSub(subs, "yearly")) ?? freeTrialDays(findSub(subs, "monthly"));
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
@@ -236,7 +260,9 @@ export function Paywall({
                     </Text>
                     <View style={s.saveBadge}>
                       <Text style={s.saveBadgeText} allowFontScaling>
-                        {t("paywall.save")}
+                        {savingPercent === null
+                          ? t("paywall.bestValue")
+                          : t("paywall.save", { percent: savingPercent })}
                       </Text>
                     </View>
                   </View>
@@ -249,12 +275,18 @@ export function Paywall({
                 disabled={busy}
                 onPress={() => onSubscribe("monthly")}
               >
-                <Text style={s.subscribeText} allowFontScaling>
-                  {monthlyPrice}
-                </Text>
-                <Text style={s.periodHint} allowFontScaling>
-                  {t("paywall.length.monthly")}
-                </Text>
+                {busy ? (
+                  <ActivityIndicator color="#fff" />
+                ) : (
+                  <View style={s.subscribeRow}>
+                    <Text style={s.subscribeText} allowFontScaling>
+                      {monthlyPrice}
+                    </Text>
+                    <Text style={s.periodHint} allowFontScaling>
+                      {t("paywall.length.monthly")}
+                    </Text>
+                  </View>
+                )}
               </TouchableOpacity>
               <TouchableOpacity
                 accessibilityRole="button"
@@ -270,7 +302,13 @@ export function Paywall({
           )}
 
           <Text style={s.disclosure} allowFontScaling>
-            {t("paywall.disclosure", { monthlyPrice, yearlyPrice: yearlyPriceLabel })}
+            {trialDays
+              ? t("paywall.disclosureTrial", {
+                  trialDays,
+                  monthlyPrice,
+                  yearlyPrice: yearlyPriceLabel
+                })
+              : t("paywall.disclosure", { monthlyPrice, yearlyPrice: yearlyPriceLabel })}
           </Text>
 
           {/* R3（IOS_SUBMISSION_DEV_SPEC）：购买点提供可点击的 EULA / 隐私政策（Guideline 3.1.2），
@@ -371,7 +409,16 @@ const s = StyleSheet.create({
   featureCol: { flex: 1.4 },
   plusCol: { backgroundColor: "rgba(15,118,110,0.06)" },
   plusValue: { fontWeight: "700", color: "#0f766e" },
-  subscribeBtn: { paddingVertical: 14, borderRadius: 10, alignItems: "center", marginBottom: 8 },
+  subscribeBtn: {
+    width: "100%",
+    alignSelf: "stretch",
+    minHeight: 52,
+    paddingVertical: 14,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 8
+  },
   yearlyBtn: { backgroundColor: "#0f766e" },
   monthlyBtn: { backgroundColor: "#0e6b63" },
   disabledBtn: { opacity: 0.6 },

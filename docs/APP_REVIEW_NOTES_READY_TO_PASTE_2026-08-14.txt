@@ -1,0 +1,44 @@
+TASKKIN CARE REVIEW INFORMATION - BUILD 2
+
+1) VIDEO
+Attached: [VIDEO], recorded [DATE] on [IPHONE MODEL], iOS [VERSION]. It begins with app launch and shows registration/login, household setup/join, core tabs, on-device OCR, permissions, reports/export, IAP/restore/manage, member controls, and account deletion.
+
+Content is private to invited households. There is no public feed, discovery, messaging, comments, or stranger interaction. Coordinators can remove members and members can leave; public UGC report/block flows are not applicable.
+
+Notifications are for local coordination alerts. Camera is requested only after Scan QR; users may enter the 6-digit code manually. No location, contacts, microphone, ATT, ads, analytics, or tracking.
+
+2) TESTED DEVICES
+- [DEVICE 1] - iOS [VERSION] - physical - TestFlight 2 - [DATE]
+- [DEVICE 2] - iOS [VERSION] - physical - TestFlight 2 - [DATE]
+3) PURPOSE/AUDIENCE
+TaskKin Care helps adult family members and trusted caregivers coordinate tasks/handoffs, timeline updates, private documents, notifications, reports, and audit. It provides no diagnosis, treatment, prescription, billing, emergency triage, or medical-record integration.
+
+4) ACCESS
+Coordinator: [EMAIL] / [PASSWORD]
+Caregiver (optional): [EMAIL] / [PASSWORD]
+Viewer (optional): [EMAIL] / [PASSWORD]
+Deletion-only: [EMAIL] / [PASSWORD]
+
+Home shows metrics/notifications. Tasks covers the full lifecycle. Timeline adds/filters updates. Docs > acknowledge safety > Upload document > select `taskkin-care-review-sample-schedule.pdf` > review OCR > Confirm and create task. Settings contains households, roles, reports/export, audit, Plan, legal links, and deletion. Do not delete the permanent Coordinator account.
+
+5) SERVICES
+Supabase (Auth, database, Realtime, private Storage, Edge Functions); Apple StoreKit 2/Server Notifications; Apple Vision on-device OCR; iOS notification/camera/file/share/PDF services; GitHub Pages; Expo/React Native. No external LLM/cloud OCR, ads, analytics, tracking, or social login.
+
+6) REGIONS
+Core features are the same in all regions. EN, Simplified Chinese, and Spanish are selectable everywhere. App Store localizes subscription price/currency. No regional restrictions.
+
+7) REGULATED/PROTECTED CONTENT
+Not applicable. This is a general family organization tool, not a medical device, healthcare provider, telehealth, pharmacy, insurer, or emergency service. It bundles no protected third-party material. Users may upload only authorized private files and must acknowledge the non-PHI notice.
+
+8) IAP
+Family Plus is an optional auto-renewable household subscription, purchasable/restorable only by the Coordinator:
+- Monthly: `TaskKin.care.pro.mon`, 1 month, StoreKit-localized price.
+- Yearly: `TaskKin.care.pro.yearly`, 1 year, StoreKit-localized price.
+
+Plus unlocks 3 households/12 members, unlimited active tasks, 50 OCR uploads/month, PDF/CSV export, advanced notifications, weekly report history, and 3-year audit retention. Path: Settings > Plan > Upgrade to Family Plus. Paywall shows duration, localized price, renewal terms, Restore, Terms, and Privacy. Manage Plan opens Apple subscription settings. Account deletion does not cancel the subscription.
+
+Account deletion (Settings > Delete account & households) permanently deletes the account and every household the user coordinates, including all data and audit. Memberships in other households are anonymized as "Deleted member"; their shared records remain.
+
+Support: Billy.yu@me.com
+Privacy: https://junyu17.github.io/relaycare/privacy.html
+Terms: https://junyu17.github.io/relaycare/terms.html

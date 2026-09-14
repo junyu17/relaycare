@@ -15,8 +15,19 @@ import { supabase } from "../lib/supabase";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import type { Plan } from "../types";
 import { ANDROID_SUB_SKUS, IOS_SUB_SKUS, SKU_TO_PLAN, skuForPlan as skuForPlanPure } from "./skus";
+import { isCompactJws, selectAppleTransactionJws } from "./appleReceipt";
 
 export type { ProductSubscription };
+
+export class PurchaseVerificationError extends Error {
+  constructor(
+    message: string,
+    readonly code?: string
+  ) {
+    super(message);
+    this.name = "PurchaseVerificationError";
+  }
+}
 
 // ============ iOS 订阅产品（App Store Connect）============
 // Yearly: Apple ID 6795121970 / Monthly: Apple ID 6795120026
@@ -133,10 +144,14 @@ export async function purchaseIosSubscription(plan: "monthly" | "yearly"): Promi
     pendingRejecter = reject;
   });
   try {
-    // B5/Android: 绑定当前用户——iOS appAccountToken、Android obfuscatedAccountId，
-    // 服务端据此校验交易归属（防订阅劫持）。
-    const { data: sessionData } = await supabase.auth.getSession();
+    // Bind purchases to the signed-in TaskKin account UUID (the auth account
+    // represented by its login email), never to a device or installation ID.
+    // The server enforces this binding to prevent cross-account subscription use.
+    const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
     const userId = sessionData.session?.user.id ?? null;
+    if (sessionError || !userId) {
+      throw new Error("Not signed in. Please sign in again before purchasing.");
+    }
     const result = await requestPurchase({
       request: {
         apple: { sku: skuForPlan(plan), appAccountToken: userId },
@@ -177,10 +192,16 @@ export async function verifyApplePurchase(args: {
     throw new Error("Not signed in. Please sign in again, then restore or retry the purchase.");
   }
   const isAndroid = Platform.OS === "android";
-  const transactionJws = isAndroid ? null : await getTransactionJwsIOS(args.purchase.productId).catch(() => null);
+  // The Purchase object contains the exact StoreKit transaction returned by this
+  // purchase/restore event. A fresh latestTransaction lookup can resolve to an
+  // older transaction for the same SKU after switching subscription plans, so
+  // use it only as a compatibility fallback when the event has no compact JWS.
+  const eventJws = isAndroid || !isCompactJws(args.purchase.purchaseToken) ? null : args.purchase.purchaseToken;
+  const latestTransactionJws =
+    isAndroid || eventJws ? null : await getTransactionJwsIOS(args.purchase.productId).catch(() => null);
   const purchaseToken = isAndroid
     ? (args.purchase.purchaseToken ?? null) // Android: Play purchaseToken
-    : transactionJws || args.purchase.purchaseToken || null; // iOS: JWS（签名交易）
+    : selectAppleTransactionJws(eventJws, latestTransactionJws); // iOS: exact event JWS first
   const functionName = isAndroid ? "verify-google-purchase" : "verify-apple-receipt";
   const { data, error } = await supabase.functions.invoke(functionName, {
     headers: { Authorization: `Bearer ${accessToken}` },
@@ -194,14 +215,16 @@ export async function verifyApplePurchase(args: {
   });
   if (error) {
     let detail = error.message;
+    let verificationCode: string | undefined;
     const context = (error as { context?: unknown }).context as
       (Response & { status?: number; statusText?: string }) | undefined;
     if (context && typeof context === "object" && typeof context.clone === "function") {
       try {
         const body = (await context.clone().json()) as { error?: unknown; message?: unknown; code?: unknown };
         const bodyMessage = body.error ?? body.message;
+        if (typeof body.code === "string" && body.code) verificationCode = body.code;
         if (typeof bodyMessage === "string" && bodyMessage) {
-          const code = typeof body.code === "string" && body.code ? ` (${body.code})` : "";
+          const code = verificationCode ? ` (${verificationCode})` : "";
           detail = `${bodyMessage}${code}`;
         }
       } catch {
@@ -215,7 +238,7 @@ export async function verifyApplePurchase(args: {
       const status = context.status ? `HTTP ${context.status}` : "";
       if (status && detail === error.message) detail = `${detail} (${status})`;
     }
-    throw new Error(detail);
+    throw new PurchaseVerificationError(detail, verificationCode);
   }
   return { ok: Boolean(data?.ok), plan: data?.ok ? plan : null };
 }

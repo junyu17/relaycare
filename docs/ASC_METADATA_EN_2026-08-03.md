@@ -188,8 +188,13 @@ not sent to any server for processing. Every extracted suggestion requires
 explicit manual confirmation before it creates a task.
 
 ACCOUNT DELETION
-Settings tab > "Delete account & household data". This permanently deletes the
-account, the household, and all associated data.
+Settings tab > "Delete account & households". This permanently deletes the
+account and every household the user coordinates, including all household data
+and audit records. If the user is a member of other households they do not
+coordinate, the membership is anonymized (name becomes a "Deleted member"
+placeholder) and shared tasks, documents, and audit records remain there.
+Deleting the account does not cancel an Apple subscription; cancel via Apple
+Account subscription settings.
 
 LANGUAGES
 English, Simplified Chinese, and Spanish. Switch via the language button in the

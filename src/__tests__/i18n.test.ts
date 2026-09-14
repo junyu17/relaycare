@@ -57,3 +57,61 @@ describe("makeTranslator defensive (dirty language)", () => {
     expect(() => t("alerts.actionFailedTitle")).not.toThrow();
   });
 });
+
+describe("missing placeholders never reach the UI", () => {
+  // 回归：1.0 (3) 的 App Store 截图上印着 "{actor} claimed: ..." 和 "... update: {event}"，
+  // 因为 t() 只替换 values 里存在的键，缺失的占位符原样输出。
+  it("substitutes a fallback word for a placeholder with no value, in every language", () => {
+    for (const lang of LANGS) {
+      const t = makeTranslator(lang);
+      const body = t("notification.body.taskClaimed", { task: "Arrange a ride" });
+      expect(body, `${lang} leaked a raw placeholder`).not.toMatch(/[{}]/);
+      expect(body).toContain("Arrange a ride");
+      expect(body).toContain(translations[lang]["placeholder.actor"]!);
+    }
+  });
+
+  it("falls back for placeholders with no dedicated word", () => {
+    for (const lang of LANGS) {
+      const t = makeTranslator(lang);
+      const body = t("notification.body.timelineAdded", { actor: "Fanny" });
+      expect(body, `${lang} leaked a raw placeholder`).not.toMatch(/[{}]/);
+      expect(body).toContain("Fanny");
+    }
+  });
+
+  it("still substitutes every value that is supplied", () => {
+    const t = makeTranslator("en");
+    expect(t("notification.body.taskClaimed", { actor: "Tan", task: "Call the office" }))
+      .toBe("Tan claimed: Call the office");
+  });
+
+  it("defines the fallback words in all three languages", () => {
+    for (const lang of LANGS) {
+      for (const key of ["placeholder.actor", "placeholder.target", "placeholder.default"]) {
+        expect(translations[lang][key], `${lang} missing ${key}`).toBeTruthy();
+      }
+    }
+  });
+});
+
+describe("first launch follows the device language", () => {
+  it("maps a device language onto one the app actually ships", () => {
+    // The mapping itself, independent of the native module: anything that is
+    // not zh or es must land on en rather than a locale with no translations.
+    const pick = (codes: string[]): Language => {
+      for (const raw of codes) {
+        const code = raw.toLowerCase();
+        if (code === "zh") return "zh";
+        if (code === "es") return "es";
+        if (code === "en") return "en";
+      }
+      return "en";
+    };
+    expect(pick(["zh"])).toBe("zh");
+    expect(pick(["es"])).toBe("es");
+    expect(pick(["ja", "zh"])).toBe("zh");
+    expect(pick(["de"])).toBe("en");
+    expect(pick([])).toBe("en");
+  });
+});

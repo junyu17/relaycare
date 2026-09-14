@@ -22,20 +22,22 @@
     "@expo/vector-icons": "^15.1.1",
     "@react-native-async-storage/async-storage": "2.2.0",
     "@supabase/supabase-js": "^2.110.8",
-    "expo": "~57.0.9",
-    "expo-build-properties": "^57.0.9",
+    "expo": "~57.0.14",
+    "expo-build-properties": "~57.0.12",
     "expo-camera": "^57.0.3",
     "expo-clipboard": "^57.0.1",
     "expo-crypto": "~57.0.0",
     "expo-document-picker": "^57.0.1",
-    "expo-file-system": "~57.0.0",
+    "expo-file-system": "~57.0.4",
     "expo-font": "~57.0.1",
     "expo-iap": "^4.7.1",
-    "expo-linking": "^57.0.4",
-    "expo-notifications": "~57.0.8",
+    "expo-linking": "~57.0.6",
+    "expo-localization": "~57.0.1",
+    "expo-notifications": "~57.0.12",
     "expo-print": "~57.0.0",
-    "expo-sharing": "~57.0.0",
+    "expo-sharing": "~57.0.13",
     "expo-status-bar": "^57.0.1",
+    "expo-store-review": "~57.0.2",
     "qrcode-generator": "^2.0.4",
     "react": "19.2.3",
     "react-native": "0.86.2",
@@ -51,6 +53,9 @@
     "vitest": "^4.1.10"
   },
   "overrides": {
-    "brace-expansion": "^5.0.9"
+    "brace-expansion": "^5.0.9",
+    "js-yaml": "^4.3.1",
+    "nanoid": "^3.3.18",
+    "postcss": "^8.5.26"
   }
 }

@@ -28,7 +28,7 @@ describe("paywall-consistency (R8, IOS_SUBMISSION_DEV_SPEC)", () => {
       "paywall.row.storage": { free: storageLabel, plus: storageLabel },
       "paywall.row.report": { free: "reportManual", plus: "reportAuto" },
       "paywall.row.ocr": { free: String(PLAN_LIMITS.free.ocrPerMonth), plus: String(PLAN_LIMITS.monthly.ocrPerMonth) },
-      "paywall.row.audit": { free: "30 days", plus: "3 years" },
+      "paywall.row.audit": { free: "audit30Days", plus: "audit3Years" },
       "paywall.row.export": { free: "none", plus: "PDF/CSV" },
       "paywall.row.notifications": { free: "none", plus: "✓" }
     };
@@ -36,7 +36,7 @@ describe("paywall-consistency (R8, IOS_SUBMISSION_DEV_SPEC)", () => {
       expect(row(key).free, `${key}.free`).toBe(exp.free);
       expect(row(key).plus, `${key}.plus`).toBe(exp.plus);
     }
-    // 文案 ↔ 常量 双验证（audit "3 years" ↔ 1095 天；free "30 days" ↔ 30 天）
+    // 文案 ↔ 常量 双验证（audit3Years ↔ 1095 天；audit30Days ↔ 30 天）
     expect(PLAN_LIMITS.free.auditRetentionDays).toBe(30);
     expect(PLAN_LIMITS.monthly.auditRetentionDays).toBe(1095);
   });

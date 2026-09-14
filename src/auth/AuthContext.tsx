@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import type { User } from "@supabase/supabase-js";
 import { supabase, isSupabaseConfigured } from "../lib/supabase";
 import {
@@ -50,6 +50,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(isSupabaseConfigured);
   const [pendingInviteToken, setPendingInviteToken] = useState<string | null>(null);
   const [pendingJoinCode, setPendingJoinCode] = useState<string | null>(null);
+  const authUserIdRef = useRef<string | null | undefined>(undefined);
+  const authRefreshSeq = useRef(0);
+  const householdRefreshSeq = useRef(0);
 
   // Deep link: taskkin-care://invite?token=<token> 或 taskkin-care://join?code=<6位码>
   // I8: invite token 解析后暂未被消费（加入流程走 join code/QR）；保留解析供后续接入。
@@ -71,8 +74,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => sub.remove();
   }, []);
 
-  async function refreshHouseholds(preferredId?: string): Promise<void> {
+  async function refreshHouseholds(preferredId?: string, expectedAuthSeq?: number): Promise<void> {
+    const requestSeq = ++householdRefreshSeq.current;
     const next = await listMyHouseholds();
+    if (requestSeq !== householdRefreshSeq.current) return;
+    if (expectedAuthSeq !== undefined && expectedAuthSeq !== authRefreshSeq.current) return;
     setHouseholds(next);
     const activeId = preferredId ?? next.find((household) => household.isActive)?.id ?? next[0]?.id ?? null;
     setHouseholdId(activeId);
@@ -81,30 +87,48 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!isSupabaseConfigured) return;
     let active = true;
+    const applySessionUser = (nextUser: User | null) => {
+      const nextUserId = nextUser?.id ?? null;
+      // TOKEN_REFRESHED and duplicate initial-session events must not reset the visible household.
+      if (authUserIdRef.current === nextUserId) return;
+      authUserIdRef.current = nextUserId;
+      const seq = ++authRefreshSeq.current;
+      householdRefreshSeq.current += 1;
+
+      // Clear the previous account scope in the same render as the user change. Otherwise CloudApp
+      // can briefly render the old household for the new user and show the removed-member guard.
+      setUser(nextUser);
+      setHouseholdId(null);
+      setHouseholds([]);
+      if (!nextUser) {
+        setLoading(false);
+        return;
+      }
+
+      setLoading(true);
+      void refreshHouseholds(undefined, seq)
+        .catch(() => {
+          if (!active || seq !== authRefreshSeq.current) return;
+          setHouseholdId(null);
+          setHouseholds([]);
+        })
+        .finally(() => {
+          if (active && seq === authRefreshSeq.current) setLoading(false);
+        });
+    };
+
     supabase.auth.getSession().then(({ data }) => {
       if (!active) return;
-      const u = data.session?.user ?? null;
-      setUser(u);
-      if (u) {
-        refreshHouseholds()
-          .catch(() => active && setHouseholds([]))
-          .finally(() => active && setLoading(false));
-      } else {
-        setLoading(false);
-      }
+      applySessionUser(data.session?.user ?? null);
     });
     const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
-      const u = session?.user ?? null;
-      setUser(u);
-      if (u) {
-        void refreshHouseholds();
-      } else {
-        setHouseholdId(null);
-        setHouseholds([]);
-      }
+      if (!active) return;
+      applySessionUser(session?.user ?? null);
     });
     return () => {
       active = false;
+      authRefreshSeq.current += 1;
+      householdRefreshSeq.current += 1;
       sub.subscription.unsubscribe();
     };
   }, []);
@@ -124,11 +148,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
   const signOut = async () => {
     await supabase.auth.signOut();
+    authUserIdRef.current = null;
+    authRefreshSeq.current += 1;
+    householdRefreshSeq.current += 1;
     // I6: 登出清理全部家庭缓存（OCR 原文/审计细节等明文数据不留设备）。
     void clearHouseholdCaches();
     setUser(null);
     setHouseholdId(null);
     setHouseholds([]);
+    setLoading(false);
   };
   const createHousehold = async (args: CreateHouseholdArgs) => {
     if (!user) throw new Error("Not authenticated");

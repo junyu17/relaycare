@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { View, Text, TouchableOpacity, StyleSheet, Alert, ScrollView } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { getConsent, setConsent, openLegal } from "./consent";
-import { makeTranslator, type Language } from "../i18n";
+import { languageOptions, makeTranslator, type Language } from "../i18n";
 import { initStoredLanguage, setStoredLanguage } from "../lib/language";
 
 // 首次启动同意门：未同意前阻断使用 app；同意后渲染 children。
@@ -51,13 +51,13 @@ export function ConsentGate({ children }: { children: ReactNode }) {
       <Text style={s.title}>{t("consent.title")}</Text>
       <Text style={s.body}>{t("consent.body")}</Text>
       <View style={s.languageRow}>
-        {(["en", "zh", "es"] as Language[]).map((lng) => (
+        {languageOptions.map((opt) => (
           <TouchableOpacity
-            key={lng}
-            style={[s.langBtn, language === lng && s.langBtnActive]}
-            onPress={() => switchLanguage(lng)}
+            key={opt.code}
+            style={[s.langBtn, language === opt.code && s.langBtnActive]}
+            onPress={() => switchLanguage(opt.code)}
           >
-            <Text style={language === lng ? s.langTextActive : s.langText}>{lng.toUpperCase()}</Text>
+            <Text style={language === opt.code ? s.langTextActive : s.langText}>{opt.shortLabel}</Text>
           </TouchableOpacity>
         ))}
       </View>

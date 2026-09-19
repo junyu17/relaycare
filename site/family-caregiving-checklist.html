@@ -1,0 +1,425 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Family Caregiving Checklist for Siblings | TaskKin Care</title>
+    <meta
+      name="description"
+      content="Free printable caregiver checklist for siblings: agree roles, list recurring tasks, name one owner each, hand off tasks properly, and keep one shared timeline."
+    />
+    <meta name="apple-itunes-app" content="app-id=6794837934" />
+    <meta property="og:type" content="article" />
+    <meta property="og:site_name" content="TaskKin Care" />
+    <meta property="og:title" content="Family Caregiving Checklist for Siblings" />
+    <meta
+      property="og:description"
+      content="A free, printable checklist for a family care plan: agree roles, list recurring tasks, name one owner per task, hand off work properly, and keep one shared timeline."
+    />
+    <meta property="og:url" content="https://junyu17.github.io/relaycare/family-caregiving-checklist.html" />
+    <meta property="og:image" content="https://junyu17.github.io/relaycare/og-card.jpg" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Family Caregiving Checklist for Siblings" />
+    <meta
+      name="twitter:description"
+      content="A free, printable checklist for a family care plan: agree roles, list recurring tasks, name one owner per task, hand off work properly, and keep one shared timeline."
+    />
+    <meta name="twitter:image" content="https://junyu17.github.io/relaycare/og-card.jpg" />
+    <link rel="stylesheet" href="styles.css" />
+    <link rel="icon" href="icons/icon-1.svg" type="image/svg+xml" />
+    <link rel="canonical" href="https://junyu17.github.io/relaycare/family-caregiving-checklist.html" />
+    <style>
+      /* Page-specific styles for the checklist layout and print output. */
+      .checklist-header {
+        padding: 48px 0 8px;
+      }
+      .checklist-header .container {
+        max-width: 760px;
+      }
+      .checklist-header h1 {
+        font-size: 34px;
+        font-weight: 800;
+        letter-spacing: -0.01em;
+        margin-bottom: 14px;
+      }
+      .checklist-header p.lead {
+        font-size: 17px;
+        color: var(--muted);
+      }
+      .checklist-meta {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+        margin: 18px 0 4px;
+      }
+      .print-bar {
+        max-width: 760px;
+        margin: 0 auto;
+        padding: 0 20px 8px;
+        display: flex;
+        justify-content: flex-end;
+      }
+      .print-btn {
+        background: none;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        padding: 8px 16px;
+        font-size: 13px;
+        font-weight: 600;
+        color: var(--ink);
+        cursor: pointer;
+        font-family: inherit;
+      }
+      .print-btn:hover {
+        background: var(--teal-light);
+        border-color: var(--teal);
+      }
+      .checklist-body {
+        max-width: 760px;
+        margin: 0 auto;
+        padding: 0 20px 8px;
+      }
+      .checklist-body h2 {
+        font-size: 21px;
+        margin: 36px 0 6px;
+      }
+      .checklist-body h2 .step-no {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 26px;
+        height: 26px;
+        border-radius: 50%;
+        background: var(--teal);
+        color: #fff;
+        font-size: 13px;
+        margin-right: 10px;
+        vertical-align: middle;
+      }
+      .checklist-body p.step-note {
+        color: var(--muted);
+        font-size: 14.5px;
+        margin-bottom: 12px;
+        max-width: 640px;
+      }
+      ul.check-list {
+        list-style: none;
+        padding: 0;
+        margin: 0 0 8px;
+      }
+      ul.check-list li {
+        display: flex;
+        align-items: flex-start;
+        gap: 10px;
+        padding: 9px 0;
+        border-bottom: 1px solid var(--line);
+        font-size: 15px;
+      }
+      ul.check-list li:last-child {
+        border-bottom: none;
+      }
+      ul.check-list input[type="checkbox"] {
+        margin-top: 3px;
+        width: 16px;
+        height: 16px;
+        flex: 0 0 auto;
+        accent-color: var(--teal);
+      }
+      .fill-line {
+        display: inline-block;
+        min-width: 120px;
+        border-bottom: 1px solid var(--muted);
+      }
+      .callout {
+        background: var(--teal-light);
+        border: 1px solid var(--line);
+        border-radius: var(--radius);
+        padding: 16px 20px;
+        margin: 20px 0;
+        font-size: 14px;
+        color: var(--teal-dark);
+      }
+      .note {
+        font-size: 13px;
+        color: var(--muted);
+        border-top: 1px solid var(--line);
+        padding-top: 16px;
+        margin-top: 32px;
+      }
+      .app-support {
+        background: var(--surface);
+        border-top: 1px solid var(--line);
+        border-bottom: 1px solid var(--line);
+        padding: 44px 0;
+        margin-top: 36px;
+      }
+      .app-support .container {
+        max-width: 900px;
+      }
+      .app-support h2 {
+        font-size: 26px;
+        margin-bottom: 8px;
+      }
+      .app-support .sub {
+        color: var(--muted);
+        margin-bottom: 26px;
+        max-width: 620px;
+      }
+      .back-row {
+        max-width: 760px;
+        margin: 32px auto 48px;
+        padding: 0 20px;
+        text-align: center;
+      }
+      @media print {
+        nav,
+        footer,
+        .print-bar,
+        .app-support,
+        .cta,
+        .checklist-header .badges,
+        .back-row {
+          display: none !important;
+        }
+        body {
+          background: #fff;
+        }
+        .checklist-header {
+          padding: 0 0 8px;
+        }
+        .checklist-header .container,
+        .checklist-body {
+          max-width: 100%;
+          padding: 0;
+        }
+        .checklist-body h2 {
+          margin: 20px 0 6px;
+          page-break-after: avoid;
+        }
+        ul.check-list {
+          page-break-inside: avoid;
+        }
+        a {
+          color: #000;
+          text-decoration: none;
+        }
+        .callout {
+          background: none;
+          border: 1px solid #999;
+        }
+      }
+      @media (max-width: 480px) {
+        .checklist-header h1 {
+          font-size: 26px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <nav>
+      <div class="container">
+        <a href="index.html" class="brand"><img src="icons/icon-1.svg" alt="" />TaskKin Care</a>
+        <ul>
+          <li><a href="index.html#features">Features</a></li>
+          <li><a href="index.html#faq">FAQ</a></li>
+          <li><a href="index.html#contact">Contact</a></li>
+        </ul>
+        <div class="language-switcher" aria-label="Select language">
+          <a class="active" href="family-caregiving-checklist.html" lang="en" aria-current="page">EN</a>
+        </div>
+      </div>
+    </nav>
+
+    <main>
+      <header class="checklist-header">
+        <div class="container">
+          <div class="badges">
+            <span class="badge">Free</span><span class="badge">Printable</span
+            ><span class="badge">For siblings sharing care</span>
+          </div>
+          <h1>Family Caregiving Checklist: How Siblings Can Share Care Without Dropping the Ball</h1>
+          <p class="lead">
+            A short, practical checklist for a family care plan — for siblings and relatives who are splitting the care
+            of a parent or relative. Agree on roles, list the recurring work, give every task one named owner, hand
+            tasks off properly, and keep one shared timeline everyone can see. Print it, fill it in together, and pin it
+            somewhere the whole family will actually look.
+          </p>
+        </div>
+      </header>
+
+      <div class="print-bar">
+        <button class="print-btn" type="button" onclick="window.print()">Print this checklist</button>
+      </div>
+
+      <div class="checklist-body">
+        <section>
+          <h2><span class="step-no">1</span>Agree on roles before you start</h2>
+          <p class="step-note">
+            Most caregiver conflict between siblings comes from unclear authority, not unclear love. Decide this as a
+            family, in writing, before a crisis forces the decision for you.
+          </p>
+          <ul class="check-list">
+            <li><input type="checkbox" /><span>Pick one person as the day-to-day coordinator for scheduling and decisions.</span></li>
+            <li><input type="checkbox" /><span>Decide who has medical/legal power of attorney, if anyone does, and keep that separate from day-to-day coordination.</span></li>
+            <li><input type="checkbox" /><span>Agree how the family will make a shared decision when siblings disagree (majority, coordinator's call, or a family meeting).</span></li>
+            <li><input type="checkbox" /><span>Write down who is <em>not</em> available for regular tasks (distance, work, health) so expectations are realistic.</span></li>
+            <li><input type="checkbox" /><span>Set a recurring check-in (weekly or biweekly call, or a shared summary) so nobody has to chase updates.</span></li>
+          </ul>
+        </section>
+
+        <section>
+          <h2><span class="step-no">2</span>List every recurring task</h2>
+          <p class="step-note">
+            Write down the actual recurring work, not just "help mom." A task that isn't written down has no owner, and
+            a task with no owner becomes one person's job by default.
+          </p>
+          <ul class="check-list">
+            <li><input type="checkbox" /><span>Medical and dental appointments — booking, driving, and attending.</span></li>
+            <li><input type="checkbox" /><span>Medication pickups and refill reminders.</span></li>
+            <li><input type="checkbox" /><span>Bills and paperwork — rent/mortgage, utilities, insurance, benefits forms.</span></li>
+            <li><input type="checkbox" /><span>Grocery runs and meal prep.</span></li>
+            <li><input type="checkbox" /><span>Regular visits or phone/video check-ins.</span></li>
+            <li><input type="checkbox" /><span>Home maintenance and safety checks.</span></li>
+            <li><input type="checkbox" /><span>Transport to social activities, worship, or appointments.</span></li>
+            <li><input type="checkbox" /><span>Other: <span class="fill-line">&nbsp;</span></span></li>
+          </ul>
+        </section>
+
+        <section>
+          <h2><span class="step-no">3</span>Give every task one named owner</h2>
+          <p class="step-note">
+            "We'll figure it out" is how appointments get missed. Every recurring task on your list from step 2 should
+            have exactly one person's name next to it — not "whoever is free."
+          </p>
+          <ul class="check-list">
+            <li><input type="checkbox" /><span>Go through the list from step 2 and write one name next to each task.</span></li>
+            <li><input type="checkbox" /><span>If a task has no obvious owner, decide together instead of letting it default to whoever asked first.</span></li>
+            <li><input type="checkbox" /><span>Rebalance the list if one person ends up with most of the recurring tasks.</span></li>
+            <li><input type="checkbox" /><span>Revisit ownership every few months as work, health, or availability changes.</span></li>
+          </ul>
+        </section>
+
+        <section>
+          <h2><span class="step-no">4</span>Hand a task over properly</h2>
+          <p class="step-note">
+            Plans change — someone gets sick, travels, or has a work deadline. The failure mode isn't handing a task
+            off; it's handing it off by text and assuming the other person saw it. A real handover needs an explicit
+            yes.
+          </p>
+          <ul class="check-list">
+            <li><input type="checkbox" /><span>Tell the new owner directly what the task is and when it's due — don't just drop it in a group chat.</span></li>
+            <li><input type="checkbox" /><span>Get an explicit "yes, I've got it" before you stop tracking the task yourself.</span></li>
+            <li><input type="checkbox" /><span>If the other person can't take it, agree on a backup instead of leaving it unowned.</span></li>
+            <li><input type="checkbox" /><span>Confirm once the handed-off task is actually done.</span></li>
+          </ul>
+        </section>
+
+        <section>
+          <h2><span class="step-no">5</span>Keep one shared timeline</h2>
+          <p class="step-note">
+            Appointments, visits, and deadlines that live in one sibling's personal calendar are invisible to everyone
+            else. Put them somewhere every caregiver can see.
+          </p>
+          <ul class="check-list">
+            <li><input type="checkbox" /><span>Put every appointment, visit, and deadline in one place the whole family can see — not five separate calendars.</span></li>
+            <li><input type="checkbox" /><span>Note who is attending each appointment, not just when it is.</span></li>
+            <li><input type="checkbox" /><span>Keep a simple running history of what's been done, so a sibling who was away can catch up in minutes.</span></li>
+            <li><input type="checkbox" /><span>Share a short weekly or monthly recap with anyone who isn't checking daily.</span></li>
+          </ul>
+        </section>
+
+        <div class="callout">
+          This checklist is a coordination tool for organizing family caregiving logistics. It is not medical advice —
+          for any health or treatment decision, talk to the person's doctor or care team.
+        </div>
+      </div>
+
+      <section class="app-support">
+        <div class="container">
+          <h2>How TaskKin Care supports this checklist</h2>
+          <p class="sub">
+            This checklist works with pen and paper. TaskKin Care is an iPhone and iPad app that keeps the same five
+            habits going day to day, so ownership and handoffs stay clear without another group chat.
+          </p>
+          <div class="grid">
+            <div class="card">
+              <div class="ico">01</div>
+              <h3>One named owner per task</h3>
+              <p>Every task has a single owner, matching step 3 — no task quietly becomes "whoever is free."</p>
+            </div>
+            <div class="card">
+              <div class="ico">02</div>
+              <h3>Handoffs the other person must accept</h3>
+              <p>
+                Handing off a task creates a request to the new owner, who has to accept it before ownership moves —
+                matching step 4's "get an explicit yes."
+              </p>
+            </div>
+            <div class="card">
+              <div class="ico">03</div>
+              <h3>Three roles for step 1</h3>
+              <p>Coordinator, Caregiver, and Viewer roles put the authority decision from step 1 directly into the app.</p>
+            </div>
+            <div class="card">
+              <div class="ico">04</div>
+              <h3>Relatives join with a code, no account needed</h3>
+              <p>
+                A relative can join a family's care circle with a 6-digit code or a QR code and a display name — no
+                account or password required, so getting everyone in from step 1 takes a minute.
+              </p>
+            </div>
+            <div class="card">
+              <div class="ico">05</div>
+              <h3>One shared timeline</h3>
+              <p>Appointments, visits, and events sit in a single family timeline, matching step 5.</p>
+            </div>
+            <div class="card">
+              <div class="ico">06</div>
+              <h3>An append-only audit trail</h3>
+              <p>
+                Key coordination changes — tasks, handoffs, role changes — are written to an append-only log. The
+                app only lets members add entries; it gives them no way to edit or delete one, so the running
+                history from step 5 stays trustworthy.
+              </p>
+            </div>
+          </div>
+          <p class="note">
+            A document you upload — like an appointment letter or a bill — can also be scanned on the device itself:
+            text recognition runs locally (Apple Vision on iOS, Google ML Kit on Android), and the file's contents
+            aren't sent to an external OCR service. TaskKin Care is a family coordination tool, not a medical device
+            or emergency service.
+          </p>
+          <div class="cta">
+            <a class="btn btn-primary" href="https://apps.apple.com/app/id6794837934">Download on the App Store</a>
+          </div>
+        </div>
+      </section>
+
+      <div class="back-row">
+        <a href="index.html">&larr; Back to TaskKin Care home</a>
+      </div>
+    </main>
+    <footer>
+      <div class="container">
+        <div class="col">
+          <h5>TaskKin Care</h5>
+          <a href="index.html#why">Family care coordination</a><a href="index.html#features">Non-PHI design</a>
+        </div>
+        <div class="col">
+          <h5>Product</h5>
+          <a href="index.html#features">Features</a><a href="index.html#shots">Screens</a
+          ><a href="index.html#faq">FAQ</a><a href="family-caregiving-checklist.html">Caregiving checklist</a>
+        </div>
+        <div class="col">
+          <h5>Legal</h5>
+          <a href="privacy.html">Privacy notice</a>
+        </div>
+        <div class="col">
+          <h5>Contact</h5>
+          <a href="mailto:Billy.yu@me.com">Billy.yu@me.com</a>
+        </div>
+      </div>
+      <div class="container footer-note">© 2026 TaskKin Care. Product name subject to trademark review.</div>
+    </footer>
+  </body>
+</html>

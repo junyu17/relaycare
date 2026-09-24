@@ -2,7 +2,7 @@
   "expo": {
     "name": "TaskKin Care",
     "slug": "taskkin-care",
-    "version": "1.6",
+    "version": "1.7",
     "icon": "./assets/icon.png",
     "orientation": "portrait",
     "scheme": "taskkin-care",
@@ -10,10 +10,15 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "cd.cc.relaycare",
-      "buildNumber": "10",
+      "buildNumber": "11",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
-        "CFBundleLocalizations": ["en", "zh-Hans", "es", "ja"]
+        "CFBundleLocalizations": [
+          "en",
+          "zh-Hans",
+          "es",
+          "ja"
+        ]
       }
     },
     "android": {
@@ -24,7 +29,9 @@
       "package": "cd.cc.taskkincare",
       "versionCode": 1,
       "allowBackup": false,
-      "blockedPermissions": ["android.permission.SYSTEM_ALERT_WINDOW"],
+      "blockedPermissions": [
+        "android.permission.SYSTEM_ALERT_WINDOW"
+      ],
       "permissions": [
         "android.permission.POST_NOTIFICATIONS",
         "android.permission.VIBRATE",

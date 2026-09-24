@@ -132,6 +132,25 @@ const tabs: { key: TabKey; labelKey: string; icon: IconName }[] = [
   { key: "settings", labelKey: "tabs.settings", icon: "settings-outline" }
 ];
 
+// Cross-promotion list for the Settings screen. App names are brand names and stay
+// untranslated; only the one-line description is looked up per language.
+const moreApps: { name: string; descriptionKey: string; url: string }[] = [
+  { name: "Maren", descriptionKey: "settings.moreApps.maren", url: "https://apps.apple.com/app/id6795029983" },
+  {
+    name: "Dog & Cat Nutrition Coach",
+    descriptionKey: "settings.moreApps.dogCat",
+    url: "https://apps.apple.com/app/id6800743305"
+  },
+  { name: "Live Pet AI", descriptionKey: "settings.moreApps.livePet", url: "https://apps.apple.com/app/id6794836674" },
+  {
+    name: "Virtual Pets",
+    descriptionKey: "settings.moreApps.virtualPets",
+    url: "https://apps.apple.com/app/id6784545568"
+  },
+  { name: "StartKind", descriptionKey: "settings.moreApps.startKind", url: "https://apps.apple.com/app/id6799113108" },
+  { name: "PlatePace", descriptionKey: "settings.moreApps.platePace", url: "https://apps.apple.com/app/id6799087226" }
+];
+
 const eventTypes: ("all" | EventType)[] = ["all", "appointment", "transport", "visit", "reminder", "document"];
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
@@ -2864,6 +2883,36 @@ function renderSettings(
           </TouchableOpacity>
         </View>
       </View>
+
+      {/* All six sibling apps are iOS-only today (no Google Play listings), so the
+          App Store links below are meaningless on Android — hide the section there
+          rather than send Android users to a dead apps.apple.com link. */}
+      {Platform.OS !== "android" && (
+        <>
+          <SectionTitle icon="apps-outline" title={t("settings.moreAppsTitle")} />
+          {moreApps.map((app) => (
+            <TouchableOpacity
+              key={app.url}
+              style={styles.listItem}
+              accessibilityRole="button"
+              accessibilityLabel={t("settings.moreAppsOpen", { name: app.name })}
+              onPress={() => {
+                void Linking.openURL(app.url).catch(() => undefined);
+              }}
+            >
+              <View style={styles.listText}>
+                <Text style={styles.itemTitle} allowFontScaling>
+                  {app.name}
+                </Text>
+                <Text style={styles.itemMeta} allowFontScaling>
+                  {t(app.descriptionKey)}
+                </Text>
+              </View>
+              <Ionicons name="chevron-forward-outline" size={17} color={palette.muted} />
+            </TouchableOpacity>
+          ))}
+        </>
+      )}
 
       {onDeleteAccount && (
         <View style={styles.panel}>

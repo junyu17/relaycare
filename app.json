@@ -10,7 +10,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "cd.cc.relaycare",
-      "buildNumber": "11",
+      "buildNumber": "12",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
         "CFBundleLocalizations": [
@@ -69,7 +69,8 @@
       ],
       "./plugins/with-no-push-entitlement",
       "expo-sharing",
-      "expo-localization"
+      "expo-localization",
+      "./plugins/with-scene-lifecycle"
     ]
   }
 }

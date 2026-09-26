@@ -11,7 +11,11 @@ const COUNT_KEY = "taskkin-care:review-value-moments";
 const VERSION_KEY = "taskkin-care:review-prompted-version";
 
 // 累计多少次价值时刻后才第一次开口。
-const MOMENTS_BEFORE_ASKING = 3;
+//
+// 1，不是 3。3 适合已经有用户的 App —— 稀缺的是系统每年 3 次的配额；
+// 在这个装机量下几乎没有人累计到 3 次，于是弹窗基本没出现过。
+// 第一次完成一件照护任务，就是这个 App 的承诺兑现的那一刻。
+const MOMENTS_BEFORE_ASKING = 1;
 
 function currentVersion(): string {
   return Constants.expoConfig?.version ?? "0";

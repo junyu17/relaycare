@@ -859,6 +859,7 @@ function LocalApp(props: { cloud?: CloudProps } = {}) {
       const localized: Record<Language, string> = {
         en: buildLocalizedReportText(snapshot, "en", makeTranslator("en")),
         zh: buildLocalizedReportText(snapshot, "zh", makeTranslator("zh")),
+        zhHant: buildLocalizedReportText(snapshot, "zhHant", makeTranslator("zhHant")),
         es: buildLocalizedReportText(snapshot, "es", makeTranslator("es")),
         ja: buildLocalizedReportText(snapshot, "ja", makeTranslator("ja"))
       };

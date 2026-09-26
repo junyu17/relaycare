@@ -25,6 +25,7 @@ const PUBLIC_SITE_BASE = "https://junyu17.github.io/relaycare";
 const languageFileSuffix: Record<Language, string> = {
   en: "",
   zh: "-zh",
+  zhHant: "-zh-hant",
   es: "-es",
   ja: "-ja"
 };

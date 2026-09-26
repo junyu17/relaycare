@@ -4,10 +4,10 @@ import { translations, type Language } from "../i18n";
 
 import { AUDIT_ACTIONS } from "../types";
 
-const LANGS: Language[] = ["en", "zh", "es"];
+const LANGS: Language[] = ["en", "zh", "zhHant", "es", "ja"];
 
 describe("i18n completeness (R2, IOS_SUBMISSION_DEV_SPEC 2026-08-03)", () => {
-  it("every AuditAction has a non-empty title key in all three languages", () => {
+  it("every AuditAction has a non-empty title key in all five languages", () => {
     for (const action of AUDIT_ACTIONS) {
       for (const lang of LANGS) {
         const key = `audit.${action}`;

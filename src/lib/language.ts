@@ -18,7 +18,15 @@ function deviceLanguage(): Language {
   try {
     for (const locale of getLocales()) {
       const code = (locale.languageCode ?? "").toLowerCase();
-      if (code === "zh") return "zh";
+      if (code === "zh") {
+        // Both scripts report languageCode "zh", so the tag and region are the
+        // only way to tell them apart. Taiwan, Hong Kong and Macau read
+        // Traditional; everything else falls through to Simplified.
+        const tag = (locale.languageTag ?? "").toLowerCase();
+        const region = (locale.regionCode ?? "").toUpperCase();
+        if (tag.includes("hant") || ["TW", "HK", "MO"].includes(region)) return "zhHant";
+        return "zh";
+      }
       if (code === "es") return "es";
       if (code === "ja") return "ja";
       if (code === "en") return "en";
@@ -32,7 +40,13 @@ function deviceLanguage(): Language {
 export async function initStoredLanguage(): Promise<Language> {
   try {
     const stored = await AsyncStorage.getItem(LANGUAGE_STORAGE_KEY);
-    if (stored === "en" || stored === "zh" || stored === "es" || stored === "ja") {
+    if (
+      stored === "en" ||
+      stored === "zh" ||
+      stored === "zhHant" ||
+      stored === "es" ||
+      stored === "ja"
+    ) {
       currentLanguage = stored;
       return currentLanguage;
     }

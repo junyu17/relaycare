@@ -40,13 +40,7 @@ function deviceLanguage(): Language {
 export async function initStoredLanguage(): Promise<Language> {
   try {
     const stored = await AsyncStorage.getItem(LANGUAGE_STORAGE_KEY);
-    if (
-      stored === "en" ||
-      stored === "zh" ||
-      stored === "zhHant" ||
-      stored === "es" ||
-      stored === "ja"
-    ) {
+    if (stored === "en" || stored === "zh" || stored === "zhHant" || stored === "es" || stored === "ja") {
       currentLanguage = stored;
       return currentLanguage;
     }

@@ -13,13 +13,7 @@
       "buildNumber": "13",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
-        "CFBundleLocalizations": [
-          "en",
-          "zh-Hans",
-          "zh-Hant",
-          "es",
-          "ja"
-        ]
+        "CFBundleLocalizations": ["en", "zh-Hans", "zh-Hant", "es", "ja"]
       }
     },
     "android": {
@@ -30,9 +24,7 @@
       "package": "cd.cc.taskkincare",
       "versionCode": 1,
       "allowBackup": false,
-      "blockedPermissions": [
-        "android.permission.SYSTEM_ALERT_WINDOW"
-      ],
+      "blockedPermissions": ["android.permission.SYSTEM_ALERT_WINDOW"],
       "permissions": [
         "android.permission.POST_NOTIFICATIONS",
         "android.permission.VIBRATE",

@@ -51,7 +51,8 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
 
 function patchAppDelegate(contents) {
   // Move window creation out of didFinishLaunching and expose it to the scene.
-  const windowBlock = /#if os\(iOS\) \|\| os\(tvOS\)\s*\n\s*window = UIWindow\(frame: UIScreen\.main\.bounds\)\s*\n\s*factory\.startReactNative\(\s*\n\s*withModuleName: "main",\s*\n\s*in: window,\s*\n\s*launchOptions: launchOptions\)\s*\n\s*#endif\n/;
+  const windowBlock =
+    /#if os\(iOS\) \|\| os\(tvOS\)\s*\n\s*window = UIWindow\(frame: UIScreen\.main\.bounds\)\s*\n\s*factory\.startReactNative\(\s*\n\s*withModuleName: "main",\s*\n\s*in: window,\s*\n\s*launchOptions: launchOptions\)\s*\n\s*#endif\n/;
   if (!windowBlock.test(contents)) {
     if (contents.includes("func startReactNative(in window: UIWindow)")) return contents; // already patched
     throw new Error("with-scene-lifecycle: AppDelegate no longer matches the expected template — update the plugin");
@@ -65,10 +66,7 @@ function patchAppDelegate(contents) {
     "  var launchOptionsForScene: [UIApplication.LaunchOptionsKey: Any]?\n  var reactNativeDelegate: ExpoReactNativeFactoryDelegate?"
   );
   // Append the scene entry point.
-  out = out.replace(
-    /^(@main\nclass AppDelegate: ExpoAppDelegate \{)/m,
-    "$1"
-  );
+  out = out.replace(/^(@main\nclass AppDelegate: ExpoAppDelegate \{)/m, "$1");
   const startFn = `
   /// Called by SceneDelegate once the scene hands us its window.
   func startReactNative(in window: UIWindow) {
@@ -86,7 +84,10 @@ function patchAppDelegate(contents) {
     if (out[i] === "{") depth += 1;
     else if (out[i] === "}") {
       depth -= 1;
-      if (depth === 0) { classEnd = i; break; }
+      if (depth === 0) {
+        classEnd = i;
+        break;
+      }
     }
   }
   if (classEnd === -1) throw new Error("with-scene-lifecycle: could not find the end of AppDelegate");
@@ -102,10 +103,10 @@ module.exports = function withSceneLifecycle(config) {
         UIWindowSceneSessionRoleApplication: [
           {
             UISceneConfigurationName: "Default Configuration",
-            UISceneDelegateClassName: "$(PRODUCT_MODULE_NAME).SceneDelegate",
-          },
-        ],
-      },
+            UISceneDelegateClassName: "$(PRODUCT_MODULE_NAME).SceneDelegate"
+          }
+        ]
+      }
     };
     return cfg;
   });
@@ -120,7 +121,7 @@ module.exports = function withSceneLifecycle(config) {
       const patched = patchAppDelegate(fs.readFileSync(appDelegatePath, "utf8"));
       fs.writeFileSync(appDelegatePath, patched);
       return cfg;
-    },
+    }
   ]);
 
   // Add SceneDelegate.swift to the Xcode target, or it is never compiled.

@@ -10,7 +10,8 @@ export function buildReportHtml(
   householdName: string,
   weekLabel: string,
   sections: PdfReportSection[],
-  reportTitle = "Weekly report" // 本地化标题由调用方传入（R3 MEDIUM：避免硬编码英文）
+  reportTitle = "Weekly report", // 本地化标题由调用方传入（R3 MEDIUM：避免硬编码英文）
+  footer?: string // 已本地化的小字落款（"Made with TaskKin - <link>"），由调用方传入
 ): string {
   const esc = (v: string) =>
     v.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
@@ -21,9 +22,11 @@ export function buildReportHtml(
     body { font-family: -apple-system, "PingFang SC", sans-serif; margin: 24px; color: #1e293b; }
     h1 { font-size: 20px; } h2 { font-size: 15px; margin-top: 18px; color: #0f766e; }
     li { margin: 4px 0; font-size: 13px; } .muted { color: #64748b; font-size: 12px; }
+    .footer { margin-top: 24px; font-size: 10px; }
   </style></head><body>
     <h1>${esc(householdName)} — ${esc(reportTitle)}</h1>
     <p class="muted">${esc(weekLabel)}</p>
     ${body}
+    ${footer ? `<p class="muted footer">${esc(footer)}</p>` : ""}
   </body></html>`;
 }

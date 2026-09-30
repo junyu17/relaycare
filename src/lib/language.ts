@@ -29,6 +29,7 @@ function deviceLanguage(): Language {
       }
       if (code === "es") return "es";
       if (code === "ja") return "ja";
+      if (code === "ko") return "ko";
       if (code === "en") return "en";
     }
   } catch {
@@ -40,7 +41,14 @@ function deviceLanguage(): Language {
 export async function initStoredLanguage(): Promise<Language> {
   try {
     const stored = await AsyncStorage.getItem(LANGUAGE_STORAGE_KEY);
-    if (stored === "en" || stored === "zh" || stored === "zhHant" || stored === "es" || stored === "ja") {
+    if (
+      stored === "en" ||
+      stored === "zh" ||
+      stored === "zhHant" ||
+      stored === "es" ||
+      stored === "ja" ||
+      stored === "ko"
+    ) {
       currentLanguage = stored;
       return currentLanguage;
     }

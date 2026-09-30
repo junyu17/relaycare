@@ -1,0 +1,5 @@
+{
+  "ios": {
+    "NSCameraUsageDescription": "TaskKin Care는 가족 참여 QR 코드를 스캔하기 위해 카메라를 사용해요."
+  }
+}

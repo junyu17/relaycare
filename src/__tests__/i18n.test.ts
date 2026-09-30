@@ -4,7 +4,7 @@ import { translations, type Language } from "../i18n";
 
 import { AUDIT_ACTIONS } from "../types";
 
-const LANGS: Language[] = ["en", "zh", "zhHant", "es", "ja"];
+const LANGS: Language[] = ["en", "zh", "zhHant", "es", "ja", "ko"];
 
 describe("i18n completeness (R2, IOS_SUBMISSION_DEV_SPEC 2026-08-03)", () => {
   it("every AuditAction has a non-empty title key in all five languages", () => {
@@ -31,6 +31,7 @@ describe("i18n completeness (R2, IOS_SUBMISSION_DEV_SPEC 2026-08-03)", () => {
     const en = keys("en");
     expect(keys("zh")).toEqual(en);
     expect(keys("es")).toEqual(en);
+    expect(keys("ko")).toEqual(en);
   });
 
   it("no value equals its own key (untranslated placeholder leak)", () => {

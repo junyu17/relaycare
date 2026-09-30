@@ -19,6 +19,7 @@ import {
 
 import { uniqueId } from "./lib/id";
 import { getStoredLanguage, initStoredLanguage, setStoredLanguage } from "./lib/language";
+import { crossPromoLink, shareLink, writeReviewLink } from "./lib/attribution";
 import { recordValueMoment } from "./lib/review-prompter";
 import { ocrProviderName } from "./lib/ocr";
 import { initialState } from "./data";
@@ -135,20 +136,12 @@ const tabs: { key: TabKey; labelKey: string; icon: IconName }[] = [
 // Cross-promotion list for the Settings screen. App names are brand names and stay
 // untranslated; only the one-line description is looked up per language.
 const moreApps: { name: string; descriptionKey: string; url: string }[] = [
-  { name: "Maren", descriptionKey: "settings.moreApps.maren", url: "https://apps.apple.com/app/id6795029983" },
-  {
-    name: "Dog & Cat Nutrition Coach",
-    descriptionKey: "settings.moreApps.dogCat",
-    url: "https://apps.apple.com/app/id6800743305"
-  },
-  { name: "Live Pet AI", descriptionKey: "settings.moreApps.livePet", url: "https://apps.apple.com/app/id6794836674" },
-  {
-    name: "Virtual Pets",
-    descriptionKey: "settings.moreApps.virtualPets",
-    url: "https://apps.apple.com/app/id6784545568"
-  },
-  { name: "StartKind", descriptionKey: "settings.moreApps.startKind", url: "https://apps.apple.com/app/id6799113108" },
-  { name: "PlatePace", descriptionKey: "settings.moreApps.platePace", url: "https://apps.apple.com/app/id6799087226" }
+  { name: "StartKind", descriptionKey: "settings.moreApps.startKind", url: crossPromoLink("startkind") },
+  { name: "Maren", descriptionKey: "settings.moreApps.maren", url: crossPromoLink("maren") },
+  { name: "PlatePace", descriptionKey: "settings.moreApps.platePace", url: crossPromoLink("platepace") },
+  { name: "Live Pet AI", descriptionKey: "settings.moreApps.livePet", url: crossPromoLink("livepet") },
+  { name: "Virtual Pets", descriptionKey: "settings.moreApps.virtualPets", url: crossPromoLink("vpets") },
+  { name: "Dog & Cat Nutrition Coach", descriptionKey: "settings.moreApps.dogCat", url: crossPromoLink("dogcat") }
 ];
 
 const eventTypes: ("all" | EventType)[] = ["all", "appointment", "transport", "visit", "reminder", "document"];
@@ -857,11 +850,12 @@ function LocalApp(props: { cloud?: CloudProps } = {}) {
       const result = generateLocalizedWeeklyReport(state, actor, language, t);
       const snapshot = result.state;
       const localized: Record<Language, string> = {
-        en: buildLocalizedReportText(snapshot, "en", makeTranslator("en")),
-        zh: buildLocalizedReportText(snapshot, "zh", makeTranslator("zh")),
-        zhHant: buildLocalizedReportText(snapshot, "zhHant", makeTranslator("zhHant")),
-        es: buildLocalizedReportText(snapshot, "es", makeTranslator("es")),
-        ja: buildLocalizedReportText(snapshot, "ja", makeTranslator("ja"))
+        en: buildLocalizedReportText(snapshot, "en", makeTranslator("en"), false),
+        zh: buildLocalizedReportText(snapshot, "zh", makeTranslator("zh"), false),
+        zhHant: buildLocalizedReportText(snapshot, "zhHant", makeTranslator("zhHant"), false),
+        es: buildLocalizedReportText(snapshot, "es", makeTranslator("es"), false),
+        ja: buildLocalizedReportText(snapshot, "ja", makeTranslator("ja"), false),
+        ko: buildLocalizedReportText(snapshot, "ko", makeTranslator("ko"), false)
       };
       if (cloud) {
         // R2（B6）：手动生成落库周报历史（record_weekly_report 内部写一次 report.generated 审计，
@@ -894,7 +888,10 @@ function LocalApp(props: { cloud?: CloudProps } = {}) {
     }
 
     try {
-      await Share.share({ title: t("report.modalTitle"), message: report });
+      // 落款只在分享时追加，弹窗里不展示长链接。
+      // Android 不带落款：链接指向仅 iOS 的商店。
+      const footer = Platform.OS === "android" ? "" : t("report.madeWith", { link: shareLink("pdf") });
+      await Share.share({ title: t("report.modalTitle"), message: footer ? `${report}\n${footer}` : report });
     } catch {
       reportCloudActionFailure();
     }
@@ -938,7 +935,7 @@ function LocalApp(props: { cloud?: CloudProps } = {}) {
     // H7（R3）：PDF 内容与弹窗周报一致（buildLocalizedReportText 聚合）+ i18n 标题 + 截断说明
     const pdfSnapshot = generateLocalizedWeeklyReport(state, actor, language, t);
     const weekLabel = `${t("report.weekOf")}${new Date().toISOString().slice(0, 10)}`;
-    const pdfBody = buildLocalizedReportText(pdfSnapshot.state, language, makeTranslator(language));
+    const pdfBody = buildLocalizedReportText(pdfSnapshot.state, language, makeTranslator(language), false);
     const lines = pdfBody.split("\n").filter((l) => l.trim().length > 0);
     const truncated = lines.length > 80;
     const sections: PdfReportSection[] = [
@@ -947,7 +944,13 @@ function LocalApp(props: { cloud?: CloudProps } = {}) {
         lines: truncated ? [...lines.slice(0, 80), t("report.truncatedNote")] : lines
       }
     ];
-    const html = buildReportHtml(state.household?.name ?? "Household", weekLabel, sections, t("report.modalTitle"));
+    const html = buildReportHtml(
+      state.household?.name ?? "Household",
+      weekLabel,
+      sections,
+      t("report.modalTitle"),
+      Platform.OS === "android" ? undefined : t("report.madeWith", { link: shareLink("pdf") })
+    );
     const fileName = `taskkin-weekly-report-${new Date().toISOString().slice(0, 10)}.pdf`;
     try {
       // printToFileAsync 直接生成 PDF 文件（uri），分享即可（无需再复制）。
@@ -2638,6 +2641,20 @@ function renderSettings(
                   {t("settings.codeExpires", { date: formatDateTime(joinCode.expiresAt, language) })}
                 </Text>
                 <ActionButton
+                  icon="share-outline"
+                  label={t("settings.joinShare")}
+                  tone="primary"
+                  onPress={() => {
+                    void Share.share({
+                      message: t("settings.joinShareMessage", {
+                        code: joinCode.code,
+                        // Android 收件人打不开 App Store 链接，只发加入码。
+                        link: Platform.OS === "android" ? "" : shareLink("invite")
+                      }).trim()
+                    }).catch(() => undefined);
+                  }}
+                />
+                <ActionButton
                   icon="refresh-outline"
                   label={t("settings.refreshCode")}
                   tone="secondary"
@@ -2884,6 +2901,42 @@ function renderSettings(
           </TouchableOpacity>
         </View>
       </View>
+
+      {/* Rate / share point at the App Store, which Android users do not have (see below). */}
+      {Platform.OS !== "android" && (
+        <View style={styles.panel}>
+          <View style={styles.settingsInlineActions}>
+            <TouchableOpacity
+              style={[styles.roleChangeButton, styles.settingsInlineButton]}
+              accessibilityRole="button"
+              accessibilityLabel={t("settings.rateApp")}
+              onPress={() => {
+                void Linking.openURL(writeReviewLink()).catch(() => undefined);
+              }}
+            >
+              <Ionicons name="star-outline" size={17} color={palette.teal} />
+              <Text style={styles.roleChangeButtonText} allowFontScaling>
+                {t("settings.rateApp")}
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.roleChangeButton, styles.settingsInlineButton]}
+              accessibilityRole="button"
+              accessibilityLabel={t("settings.shareApp")}
+              onPress={() => {
+                void Share.share({ message: t("settings.shareAppMessage", { link: shareLink("app") }) }).catch(
+                  () => undefined
+                );
+              }}
+            >
+              <Ionicons name="share-outline" size={17} color={palette.teal} />
+              <Text style={styles.roleChangeButtonText} allowFontScaling>
+                {t("settings.shareApp")}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
 
       {/* All six sibling apps are iOS-only today (no Google Play listings), so the
           App Store links below are meaningless on Android — hide the section there
@@ -3565,7 +3618,7 @@ function generateLocalizedWeeklyReport(
   language: Language,
   t: Translate
 ): { state: AppState; report: string } {
-  const report = buildLocalizedReportText(state, language, t);
+  const report = buildLocalizedReportText(state, language, t, false);
 
   return {
     report,
@@ -3589,7 +3642,8 @@ function generateLocalizedWeeklyReport(
   };
 }
 
-function buildLocalizedReportText(state: AppState, language: Language, t: Translate): string {
+// withFooter=false 给 PDF 用：PDF 的落款由 buildReportHtml 单独排版，避免重复。
+function buildLocalizedReportText(state: AppState, language: Language, t: Translate, withFooter = true): string {
   const completed = state.tasks.filter((task) => task.status === "completed");
   const open = state.tasks.filter((task) => task.status !== "completed");
   const loadByMember = state.members
@@ -3613,7 +3667,8 @@ function buildLocalizedReportText(state: AppState, language: Language, t: Transl
     t("report.load", { load: loadByMember }),
     t("report.upcoming"),
     upcoming,
-    t("report.boundary")
+    t("report.boundary"),
+    ...(withFooter ? [t("report.madeWith", { link: shareLink("pdf") })] : [])
   ].join("\n");
 }
 

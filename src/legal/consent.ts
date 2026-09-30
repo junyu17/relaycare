@@ -27,7 +27,9 @@ const languageFileSuffix: Record<Language, string> = {
   zh: "-zh",
   zhHant: "-zh-hant",
   es: "-es",
-  ja: "-ja"
+  ja: "-ja",
+  // No Korean legal pages yet: point at the English documents.
+  ko: ""
 };
 
 export function legalUrl(kind: "privacy" | "terms", language: Language): string {

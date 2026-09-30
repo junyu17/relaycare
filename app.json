@@ -2,18 +2,21 @@
   "expo": {
     "name": "TaskKin Care",
     "slug": "taskkin-care",
-    "version": "1.8",
+    "version": "1.9",
     "icon": "./assets/icon.png",
     "orientation": "portrait",
     "scheme": "taskkin-care",
+    "locales": {
+      "ko": "./locales/ko.json"
+    },
     "userInterfaceStyle": "light",
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "cd.cc.relaycare",
-      "buildNumber": "13",
+      "buildNumber": "14",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
-        "CFBundleLocalizations": ["en", "zh-Hans", "zh-Hant", "es", "ja"]
+        "CFBundleLocalizations": ["en", "zh-Hans", "zh-Hant", "es", "ja", "ko"]
       }
     },
     "android": {

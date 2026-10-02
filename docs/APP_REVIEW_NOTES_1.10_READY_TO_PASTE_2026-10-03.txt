@@ -1,0 +1,37 @@
+TASKKIN CARE 1.10 REVIEW INFORMATION
+
+1) WHAT CHANGED IN 1.10
+- No sign-up is needed on first launch. The welcome screen offers "Start without an account", "Continue with Apple", "I have a family code" and "Sign in with email". The first two appear on devices where Sign in with Apple is available.
+- Sign in with Apple requests no name and no email. A user who started without an account is asked to sign in with Apple before inviting family (Settings > Family join code) and before subscribing or restoring Family Plus. The account and its family stay the same.
+- Account deletion: Settings > Delete account & households, and also at the bottom of the setup screen ("Set up your care circle") before any family exists. For an account that uses Sign in with Apple, the app asks for a fresh Apple authorization during deletion and the server uses it to revoke the app's Apple tokens (Guideline 5.1.1(v)). Deletion still completes if Apple cannot be reached.
+- A coordinator can hand the coordinator role to another member who has signed in with Apple (Settings > Role management > member > "Make coordinator (I become a caregiver)").
+- Join-code protection: while many wrong codes are being entered across the service, new joins temporarily need the coordinator's approval (Home banner and Settings > Role management).
+
+2) ACCESS
+Welcome screen > "Sign in with email":
+Coordinator: [EMAIL] / [PASSWORD]
+Caregiver (optional): [EMAIL] / [PASSWORD]
+Deletion-only: [EMAIL] / [PASSWORD]
+Do not delete the permanent Coordinator account. "Start without an account" and "Continue with Apple" work with any Apple ID and need no setup.
+
+Home shows metrics/notifications. Tasks covers the full lifecycle. Timeline adds/filters updates. Docs > acknowledge safety > Upload document > review on-device OCR > Confirm and create task. Settings contains Account, households, roles, join code, reports/export, audit, Plan, legal links, and deletion.
+
+3) PURPOSE/AUDIENCE
+TaskKin Care helps adult family members and trusted caregivers coordinate tasks/handoffs, timeline updates, private documents, notifications, reports, and audit. It provides no diagnosis, treatment, prescription, billing, emergency triage, or medical-record integration. Content is private to invited households; there is no public feed, messaging, or stranger interaction.
+
+4) SERVICES
+Supabase (Auth including Sign in with Apple and sessions without sign-up, database, Realtime, private Storage, Edge Functions); Apple Sign in with Apple; Apple StoreKit 2/Server Notifications; Apple Vision on-device OCR; iOS notification/camera/file/share/PDF services; GitHub Pages; Expo/React Native. Sign in with Apple is the only third-party login. No external LLM/cloud OCR, ads, analytics, or tracking.
+
+5) REGIONS
+Core features are the same in all regions. English, Simplified Chinese, Traditional Chinese, Spanish, Japanese, and Korean are selectable everywhere. No regional restrictions.
+
+6) IAP
+Family Plus is an optional auto-renewable household subscription. The Coordinator purchases it; a payer who later hands over the coordinator role can still restore it for the households it covers.
+- Monthly: `TaskKin.care.pro.mon`, 1 month, StoreKit-localized price.
+- Yearly: `TaskKin.care.pro.yearly`, 1 year, StoreKit-localized price.
+Path: Settings > Plan > Upgrade to Family Plus. Paywall shows duration, localized price, renewal terms, Restore, Terms, and Privacy. Account deletion does not cancel the subscription; the app says so before deleting.
+
+Support: Billy.yu@me.com
+Privacy: https://junyu17.github.io/relaycare/privacy.html
+Delete account: https://junyu17.github.io/relaycare/delete-account.html
+Terms: https://junyu17.github.io/relaycare/terms.html

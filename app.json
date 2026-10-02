@@ -2,7 +2,7 @@
   "expo": {
     "name": "TaskKin Care",
     "slug": "taskkin-care",
-    "version": "1.9",
+    "version": "1.10",
     "icon": "./assets/icon.png",
     "orientation": "portrait",
     "scheme": "taskkin-care",
@@ -13,7 +13,8 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "cd.cc.relaycare",
-      "buildNumber": "15",
+      "buildNumber": "16",
+      "usesAppleSignIn": true,
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
         "CFBundleLocalizations": ["en", "zh-Hans", "zh-Hant", "es", "ja", "ko"]
@@ -66,7 +67,14 @@
       "./plugins/with-no-push-entitlement",
       "expo-sharing",
       "expo-localization",
-      "./plugins/with-scene-lifecycle"
+      "./plugins/with-scene-lifecycle",
+      "expo-apple-authentication",
+      [
+        "expo-secure-store",
+        {
+          "faceIDPermission": false
+        }
+      ]
     ]
   }
 }

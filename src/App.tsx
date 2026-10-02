@@ -23,7 +23,25 @@ import { crossPromoLink, shareLink, writeReviewLink } from "./lib/attribution";
 import { recordValueMoment } from "./lib/review-prompter";
 import { ocrProviderName } from "./lib/ocr";
 import { initialState } from "./data";
-import { AuthProvider, useAuth, type CreateHouseholdArgs } from "./auth/AuthContext";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import {
+  AuthProvider,
+  useAuth,
+  type BindPromptReason,
+  type BindResult,
+  type CreateHouseholdArgs,
+  type SignOutResult
+} from "./auth/AuthContext";
+import { accountIdLabel, canInvite, postMembershipLossAction, type SignOutOptions } from "./auth/guards";
+import {
+  confirmSubscriptionStillCharging,
+  promptSignOut,
+  runBindFlow,
+  runDeleteAccountFlow
+} from "./auth/accountFlows";
+import { AppleButton } from "./auth/AppleButton";
+import { BindAppleSheet, type BindSheetReason } from "./auth/BindAppleSheet";
+import { JoinRequestsPanel } from "./components/JoinRequestsPanel";
 import { cloudScopeKey } from "./auth/cloudScope";
 import { AuthScreen, OnboardingScreen } from "./auth/AuthScreen";
 import { HouseholdSwitcher } from "./auth/HouseholdSwitcher";
@@ -33,7 +51,6 @@ import {
   subscribeRoleNotifications,
   cacheHouseholdState,
   getCachedHouseholdState,
-  deleteAccount,
   generateHouseholdCode,
   getHouseholdCode,
   leaveHousehold,
@@ -41,6 +58,11 @@ import {
   dissolveHousehold,
   updateMyName,
   subscribeUserNotifications,
+  subscribeJoinRequests,
+  approveJoinRequest,
+  rejectJoinRequest,
+  transferCoordinator,
+  getMySubscriptionStatus,
   type HouseholdCode,
   type HouseholdSummary,
   listWeeklyReports,
@@ -67,7 +89,7 @@ import { isCreateBusy, beginCreate, endCreate, resetCreateLocks, shouldShowBusyA
 // S3（SYNC_FIX_REVIEW）：创建类操作同步防重入（连点/双指）。
 // 模块级可变对象——useState setter 不更新当前闭包（同批次连点会漏），
 // 而 react-compiler 禁止组件内函数读 ref；模块级锁两全。
-import { errorMessage } from "./lib/error";
+import { errorMessage, localizedErrorMessage } from "./lib/error";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 import {
   addDocument,
@@ -119,6 +141,7 @@ import {
   Plan,
   Role,
   RoleNotification,
+  JoinRequest,
   Task
 } from "./types";
 
@@ -237,6 +260,34 @@ function orderAppStateForDisplay(state: AppState, currentMemberId?: string): App
   };
 }
 
+// 账号状态和操作（cloud 模式）。退出只走 AuthContext 的一个出口（requestSignOut / signOut）。
+interface CloudAccount {
+  userId: string;
+  email: string | null;
+  isAnonymous: boolean;
+  hasAppleIdentity: boolean;
+  appleAvailable: boolean;
+  bindApple: () => Promise<BindResult>;
+  requestSignOut: () => Promise<SignOutResult>;
+  signOut: (options?: SignOutOptions) => Promise<SignOutResult>;
+  deleteAccount: () => Promise<"deleted" | "cancelled">;
+  refreshHouseholds: () => Promise<void>;
+  recoverFromMembershipLoss: () => Promise<void>;
+  bindPrompt: BindPromptReason | null;
+  clearBindPrompt: () => void;
+}
+
+// 不强制的绑定提示只弹一次（按账号记在本机）。
+async function firstTimeFor(key: string): Promise<boolean> {
+  try {
+    if (await AsyncStorage.getItem(key)) return false;
+    await AsyncStorage.setItem(key, "1");
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 interface CloudProps {
   state: AppState;
   actor: Member;
@@ -244,7 +295,7 @@ interface CloudProps {
   households: HouseholdSummary[];
   onSwitchHousehold: (householdId: string) => Promise<void>;
   onCreateHousehold: (args: CreateHouseholdArgs) => Promise<void>;
-  onSignOut: () => void;
+  account: CloudAccount;
   // S7/P0（SYNC_FIX_REVIEW）：受控乐观更新入口——只允许函数式局部更新，不暴露整份 setState。
   applyOptimistic: (fn: (s: AppState) => AppState) => void;
 }
@@ -284,6 +335,8 @@ function LocalApp(props: { cloud?: CloudProps } = {}) {
   const [otherTimelineVisible, setOtherTimelineVisible] = useState(false);
   const [nameEditorVisible, setNameEditorVisible] = useState(false);
   const [nameEditValue, setNameEditValue] = useState("");
+  const [bindSheet, setBindSheet] = useState<BindSheetReason | null>(null);
+  const account = cloud?.account;
 
   const t = useMemo(() => makeTranslator(language), [language]);
 
@@ -308,9 +361,10 @@ function LocalApp(props: { cloud?: CloudProps } = {}) {
     return () => resetCreateLocks();
   }, []);
 
-  // cloud 模式：加载当前加入码（仅协调人有意义）。
+  // cloud 模式：加载当前加入码（仅已绑定的协调人；匿名协调人先绑定，0060 在服务端兜底）。
+  const isAnonymousAccount = account?.isAnonymous ?? false;
   useEffect(() => {
-    if (!cloud || actor.role !== "coordinator") {
+    if (!cloud || !canInvite({ isAnonymous: isAnonymousAccount, role: actor.role })) {
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setJoinCode(null);
       return;
@@ -322,7 +376,17 @@ function LocalApp(props: { cloud?: CloudProps } = {}) {
         console.warn("get_household_code failed", e);
         setJoinCode(null);
       });
-  }, [cloud, actor.role, state.members.length]);
+  }, [cloud, actor.role, state.members.length, isAnonymousAccount]);
+
+  // 建家庭成功后弹一次不强制的「用 Apple 登录，保存你的家庭」。
+  const bindPrompt = account?.bindPrompt ?? null;
+  const appleAvailable = account?.appleAvailable ?? false;
+  useEffect(() => {
+    if (bindPrompt !== "afterCreate") return;
+    account?.clearBindPrompt();
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (appleAvailable && isAnonymousAccount) setBindSheet("afterCreate");
+  }, [bindPrompt, account, appleAvailable, isAnonymousAccount]);
 
   const roleEditorMember = useMemo(
     () => state.members.find((member) => member.id === roleEditorMemberId),
@@ -809,6 +873,12 @@ function LocalApp(props: { cloud?: CloudProps } = {}) {
               storagePath: fileBody ? storagePath : undefined
             })
           );
+          // 第一次上传文档时再提示一次绑定（不强制，每个账号只提示一次）。
+          if (account?.isAnonymous && account.appleAvailable) {
+            void firstTimeFor(`taskkin-care:bind-prompt:first-upload:${account.userId}`).then((first) => {
+              if (first) setBindSheet("firstUpload");
+            });
+          }
         } else {
           setState((current) => addDocument(current, actor, name, "manual_upload", t));
         }
@@ -1110,29 +1180,124 @@ function LocalApp(props: { cloud?: CloudProps } = {}) {
     }));
   };
 
-  // 删除账号 + 家庭数据（cloud 模式；Apple 5.1.1）。
+  // 自己是否在为这个家庭付费（转让、退出、解散、删号前提示 Apple 会继续扣费）。
+  // 查询失败时退回本地的 plus_owner_id（付款人在该家庭的成员行）。
+  const isPayerForHousehold = async (): Promise<boolean> => {
+    if (!cloud) return false;
+    try {
+      return (await getMySubscriptionStatus(cloud.householdId)).active;
+    } catch {
+      return plan !== "free" && state.household.plusOwnerId === actor.id;
+    }
+  };
+
+  // 删除账号 + 家庭数据（cloud 模式；Apple 5.1.1）。删号成功后由 AuthContext 强制登出（账号已不存在）；
+  // 绑定了 Apple 的账号先重新授权一次，用 authorizationCode 撤销 Apple 授权（决策 3A）。
   const onDeleteAccount = () => {
     if (!cloud) return;
-    Alert.alert(t("settings.deleteAccountTitle"), t("settings.deleteAccountConfirm"), [
-      { style: "cancel", text: t("paywall.close") },
+    void runDeleteAccountFlow({
+      t,
+      hasAppleIdentity: cloud.account.hasAppleIdentity,
+      isPayer: isPayerForHousehold,
+      deleteAccount: cloud.account.deleteAccount
+    });
+  };
+
+  const generateCodeNow = () =>
+    generateHouseholdCode()
+      .then(setJoinCode)
+      .catch((e) => Alert.alert(t("alerts.actionFailedTitle"), localizedErrorMessage(e, t)));
+
+  // 生成/刷新 6 位加入码（协调人）。匿名协调人先绑定 Apple。
+  const onGenerateCode = () => {
+    if (!cloud) return;
+    if (cloud.account.isAnonymous) {
+      setBindSheet("invite");
+      return;
+    }
+    void generateCodeNow();
+  };
+
+  // 加入码面板里的 Apple 按钮：绑定成功后直接生成码。
+  const onBindForInvite = async () => {
+    if (!cloud) return;
+    const result = await runBindFlow(cloud.account.bindApple, t, {
+      userId: cloud.account.userId,
+      announceLinked: false
+    });
+    if (result === "linked") await generateCodeNow();
+  };
+
+  const onBindDone = (reason: BindSheetReason, result: BindResult) => {
+    if (reason === "invite" && result === "linked") void generateCodeNow();
+  };
+
+  // 所有退出都走 AuthContext 的唯一出口；匿名会话弹三选项警告。
+  const onSignOutPress = () => {
+    if (!cloud) return;
+    void promptSignOut({
+      t,
+      requestSignOut: cloud.account.requestSignOut,
+      signOut: cloud.account.signOut,
+      appleAvailable: cloud.account.appleAvailable,
+      onProtectFirst: () => setBindSheet("protect")
+    });
+  };
+
+  const onBindFromSettings = () => {
+    if (!cloud) return Promise.resolve();
+    return runBindFlow(cloud.account.bindApple, t, { userId: cloud.account.userId });
+  };
+
+  // 协调人处理加入申请（熔断期）。
+  const onApproveJoinRequest = async (request: JoinRequest) => {
+    try {
+      await approveJoinRequest(request.id);
+      applyOptimistic((current) => ({
+        ...current,
+        joinRequests: (current.joinRequests ?? []).filter((item) => item.id !== request.id)
+      }));
+      showMessage(
+        t("join.requestsTitle"),
+        t("join.approved", { name: request.displayName.trim() || t("member.fallback") })
+      );
+    } catch (e) {
+      Alert.alert(t("alerts.actionFailedTitle"), localizedErrorMessage(e, t));
+    }
+  };
+
+  const onRejectJoinRequest = async (request: JoinRequest) => {
+    try {
+      await rejectJoinRequest(request.id);
+      applyOptimistic((current) => ({
+        ...current,
+        joinRequests: (current.joinRequests ?? []).filter((item) => item.id !== request.id)
+      }));
+    } catch (e) {
+      Alert.alert(t("alerts.actionFailedTitle"), localizedErrorMessage(e, t));
+    }
+  };
+
+  // 转让协调人：对方必须已绑定（服务端 target_not_bound）；付款人先看到扣费提示。
+  const onTransferCoordinator = async (target: Member) => {
+    if (!cloud) return;
+    setRoleEditorMemberId(null);
+    if ((await isPayerForHousehold()) && !(await confirmSubscriptionStillCharging(t))) return;
+    const name = memberDisplayName(target, t);
+    Alert.alert(t("settings.transferConfirmTitle"), t("settings.transferConfirm", { name }), [
+      { style: "cancel", text: t("settings.cancel") },
       {
-        style: "destructive",
-        text: t("settings.deleteAccountTitle"),
+        text: t("settings.transferCoordinator"),
         onPress: () => {
-          deleteAccount()
-            .then(() => cloud.onSignOut())
-            .catch((e) => Alert.alert(t("alerts.actionFailedTitle"), errorMessage(e)));
+          transferCoordinator(target.id)
+            .then(async () => {
+              showMessage(t("settings.transferCoordinator"), t("settings.transferDone", { name }));
+              await cloud.account.refreshHouseholds().catch(() => undefined);
+            })
+            .catch((e) => Alert.alert(t("alerts.actionFailedTitle"), localizedErrorMessage(e, t)));
         }
       }
     ]);
-  };
-
-  // 生成/刷新 6 位加入码（协调人）。
-  const onGenerateCode = () => {
-    if (!cloud) return;
-    generateHouseholdCode()
-      .then(setJoinCode)
-      .catch((e) => Alert.alert(t("alerts.actionFailedTitle"), errorMessage(e)));
   };
 
   // 移除成员（协调人，不能移除自己）。
@@ -1164,9 +1329,10 @@ function LocalApp(props: { cloud?: CloudProps } = {}) {
     ]);
   };
 
-  // 普通成员退出家庭。
-  const onLeaveHousehold = () => {
+  // 普通成员退出家庭。退出后不登出：刷新家庭列表，还有家庭就切过去，没有就停在 Onboarding。
+  const onLeaveHousehold = async () => {
     if (!cloud) return;
+    if ((await isPayerForHousehold()) && !(await confirmSubscriptionStillCharging(t))) return;
     Alert.alert(t("settings.leaveHousehold"), t("settings.leaveConfirm"), [
       { style: "cancel", text: t("paywall.close") },
       {
@@ -1180,8 +1346,8 @@ function LocalApp(props: { cloud?: CloudProps } = {}) {
               text: t("settings.leaveHousehold"),
               onPress: () => {
                 leaveHousehold(cloud.householdId)
-                  .then(() => cloud.onSignOut())
-                  .catch((e) => Alert.alert(t("alerts.actionFailedTitle"), errorMessage(e)));
+                  .then(() => cloud.account.recoverFromMembershipLoss())
+                  .catch((e) => Alert.alert(t("alerts.actionFailedTitle"), localizedErrorMessage(e, t)));
               }
             }
           ])
@@ -1189,9 +1355,10 @@ function LocalApp(props: { cloud?: CloudProps } = {}) {
     ]);
   };
 
-  // 协调人解散家庭。
-  const onDissolveHousehold = () => {
+  // 协调人解散家庭。解散后同样不登出，改为刷新家庭列表。
+  const onDissolveHousehold = async () => {
     if (!cloud) return;
+    if ((await isPayerForHousehold()) && !(await confirmSubscriptionStillCharging(t))) return;
     Alert.alert(t("settings.dissolveHousehold"), t("settings.dissolveConfirm"), [
       { style: "cancel", text: t("paywall.close") },
       {
@@ -1205,8 +1372,8 @@ function LocalApp(props: { cloud?: CloudProps } = {}) {
               text: t("settings.dissolveHousehold"),
               onPress: () => {
                 dissolveHousehold()
-                  .then(() => cloud.onSignOut())
-                  .catch((e) => Alert.alert(t("alerts.actionFailedTitle"), errorMessage(e)));
+                  .then(() => cloud.account.recoverFromMembershipLoss())
+                  .catch((e) => Alert.alert(t("alerts.actionFailedTitle"), localizedErrorMessage(e, t)));
               }
             }
           ])
@@ -1314,8 +1481,8 @@ function LocalApp(props: { cloud?: CloudProps } = {}) {
           <TouchableOpacity
             style={[styles.languageButton, styles.headerIconButton]}
             accessibilityRole="button"
-            accessibilityLabel="Sign out"
-            onPress={cloud.onSignOut}
+            accessibilityLabel={t("auth.signOut")}
+            onPress={onSignOutPress}
           >
             <Ionicons name="log-out-outline" size={16} color={palette.teal} />
           </TouchableOpacity>
@@ -1361,6 +1528,15 @@ function LocalApp(props: { cloud?: CloudProps } = {}) {
           </Text>
         </View>
 
+        {activeTab === "home" && cloud && actor.role === "coordinator" && (
+          <JoinRequestsPanel
+            requests={state.joinRequests ?? []}
+            t={t}
+            formatDate={(iso) => formatDateTime(iso, language)}
+            onApprove={onApproveJoinRequest}
+            onReject={onRejectJoinRequest}
+          />
+        )}
         {activeTab === "home" &&
           renderHome(
             state,
@@ -1463,7 +1639,22 @@ function LocalApp(props: { cloud?: CloudProps } = {}) {
             cloud ? onRemoveMember : undefined,
             cloud ? onLeaveHousehold : undefined,
             cloud ? onDissolveHousehold : undefined,
-            cloud ? onOpenNameEditor : undefined
+            cloud ? onOpenNameEditor : undefined,
+            cloud
+              ? {
+                  userId: cloud.account.userId,
+                  email: cloud.account.email,
+                  isAnonymous: cloud.account.isAnonymous,
+                  hasAppleIdentity: cloud.account.hasAppleIdentity,
+                  appleAvailable: cloud.account.appleAvailable,
+                  onBindApple: onBindFromSettings,
+                  onBindForInvite,
+                  onSignOut: onSignOutPress,
+                  joinRequests: state.joinRequests ?? [],
+                  onApproveJoinRequest,
+                  onRejectJoinRequest
+                }
+              : undefined
           )}
         {activeTab === "audit" && can("audit:read") && renderAudit(state, language, t, () => setActiveTab("settings"))}
       </ScrollView>
@@ -1550,7 +1741,24 @@ function LocalApp(props: { cloud?: CloudProps } = {}) {
         householdId={cloud?.householdId}
         onPurchased={() => setPaywallVisible(false)}
         onDevSetPlus={onDevSetPlus}
+        isAnonymous={account?.isAnonymous ?? false}
+        appleAvailable={account?.appleAvailable ?? false}
+        userId={account?.userId}
+        onBindApple={account?.bindApple}
       />
+
+      {cloud && bindSheet && (
+        <BindAppleSheet
+          visible
+          reason={bindSheet}
+          t={t}
+          appleAvailable={cloud.account.appleAvailable}
+          userId={cloud.account.userId}
+          bind={cloud.account.bindApple}
+          onClose={() => setBindSheet(null)}
+          onDone={(result) => onBindDone(bindSheet, result)}
+        />
+      )}
 
       <CustomTaskModal
         visible={customTaskVisible}
@@ -1692,6 +1900,31 @@ function LocalApp(props: { cloud?: CloudProps } = {}) {
                     </TouchableOpacity>
                   );
                 })}
+              {cloud &&
+                roleEditorMember &&
+                actor.role === "coordinator" &&
+                roleEditorMember.id !== actor.id &&
+                roleEditorMember.role !== "coordinator" &&
+                roleEditorMember.inviteStatus !== "pending" && (
+                  <TouchableOpacity
+                    style={styles.roleChoiceButton}
+                    accessibilityRole="button"
+                    accessibilityLabel={t("settings.transferCoordinator")}
+                    onPress={() => void onTransferCoordinator(roleEditorMember)}
+                  >
+                    <View style={styles.roleChoiceIcon}>
+                      <Ionicons name="swap-vertical-outline" size={20} color={palette.teal} />
+                    </View>
+                    <View style={styles.listText}>
+                      <Text style={styles.itemTitle} allowFontScaling>
+                        {t("settings.transferCoordinator")}
+                      </Text>
+                      <Text style={styles.itemMeta} allowFontScaling>
+                        {t("settings.transferHint")}
+                      </Text>
+                    </View>
+                  </TouchableOpacity>
+                )}
             </View>
           </View>
         </View>
@@ -1760,9 +1993,25 @@ function LocalApp(props: { cloud?: CloudProps } = {}) {
 }
 
 function CloudApp() {
-  const { user, householdId, households, loading, signOut, switchHousehold, createHousehold } = useAuth();
+  const auth = useAuth();
+  const {
+    user,
+    householdId,
+    households,
+    loading,
+    signOut,
+    requestSignOut,
+    switchHousehold,
+    createHousehold,
+    refreshHouseholds,
+    recoverFromMembershipLoss,
+    isAnonymous
+  } = auth;
   const [state, setState] = useState<AppState | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  // 加载失败页、成员身份缺失页的「重试」：只重新做一次首次加载，不重建 realtime 订阅。
+  // 同名 channel 刚 unsubscribe 时还没从客户端移除，立刻重建会拿到这个正在关闭的旧实例，订阅就悄悄失效了。
+  const retryLoadRef = useRef<(() => void) | null>(null);
 
   useEffect(() => {
     if (!householdId) return;
@@ -1786,9 +2035,7 @@ function CloudApp() {
           return false;
         });
     };
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setErr(null);
-    void (async () => {
+    const firstLoad = async () => {
       const ok = await guardedFetch();
       if (ok || !active) return;
       // 首次加载失败：回退缓存，避免空白页；无缓存时透传真实错误（S6）。
@@ -1798,15 +2045,29 @@ function CloudApp() {
       if (!active || seqBefore !== refetchSeq) return;
       if (cached) setState(cached);
       else setErr(errorMessage(firstLoadError instanceof Error ? firstLoadError : new Error("load failed")));
-    })();
+    };
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setErr(null);
+    void firstLoad();
+    retryLoadRef.current = () => {
+      if (!active) return;
+      setErr(null);
+      void firstLoad();
+    };
     channel = subscribeHouseholdState(householdId, () => {
       // Bug1：任何表变更（含 DELETE）触发一次串行化守卫的 refetch；
       // 连续事件只保留最后一次，杜绝旧快照覆盖。
       void guardedFetch();
     });
+    // 0059：加入申请变更（协调人的横幅和成员页）。单独 channel，失败不影响上面的订阅。
+    const joinChannel = subscribeJoinRequests(householdId, () => {
+      void guardedFetch();
+    });
     return () => {
       active = false;
+      retryLoadRef.current = null;
       channel?.unsubscribe();
+      joinChannel.unsubscribe();
     };
   }, [householdId]);
 
@@ -1864,52 +2125,90 @@ function CloudApp() {
       : DEFAULT_PREF;
   }, [state, user?.id]);
 
-  // 用户级通知（解散/被移除）：弹通知并自动登出回到登录/引导页。
+  // 订阅回调读最新的家庭列表和恢复函数，避免每次渲染都重新订阅。
+  const membershipRef = useRef({ households, householdId, recoverFromMembershipLoss });
   useEffect(() => {
-    if (!user) return;
-    const ch = subscribeUserNotifications(user.id, (n) => {
+    membershipRef.current = { households, householdId, recoverFromMembershipLoss };
+  });
+
+  // 用户级通知（解散/被移除）：弹通知，然后不登出，清掉本机家庭缓存并刷新家庭列表——
+  // 还有家庭就切过去，没有就停在 Onboarding，会话保留。ScopedCloudApp 按 user+household 重新挂载，
+  // 旧家庭的数据随之丢弃。恢复不挂在 Alert 的 onPress 上：弹窗被遮挡、用户不点或 App 切后台时，
+  // 被移除者也不会停留在已失效的家庭视图上（I5）。
+  const userId = user?.id;
+  useEffect(() => {
+    if (!userId) return;
+    const ch = subscribeUserNotifications(userId, (n) => {
       const tr = makeTranslator(getStoredLanguage());
       const name = n.householdName ?? "";
-      const title = n.kind === "household_dissolved" ? tr("userNotif.dissolvedTitle") : tr("userNotif.removedTitle");
-      const body =
-        n.kind === "household_dissolved"
-          ? tr("userNotif.dissolvedBody", { name })
-          : tr("userNotif.removedBody", { name });
+      const removed = n.kind !== "household_dissolved";
+      const title = removed ? tr("userNotif.removedTitle") : tr("userNotif.dissolvedTitle");
+      const body = removed ? tr("userNotif.removedBody", { name }) : tr("userNotif.dissolvedBody", { name });
       Notifications.scheduleNotificationAsync({ content: { title, body }, trigger: null }).catch(() => {});
-      // 登出不得挂在 Alert 的 onPress 上：弹窗被系统对话框遮挡、用户不点、或 App 切后台时，
-      // 被移除者会继续停留在已失效的家庭视图上（服务端 RLS 已拒绝，但客户端保留 last-known-good
-      // 陈旧数据，见 CloudApp 的 guardedFetch 回退）。改为收到通知即无条件登出，Alert 仅作告知。
-      Alert.alert(title, body);
-      void signOut();
+      const current = membershipRef.current;
+      const lostHouseholdId =
+        current.households.find((household) => household.name === n.householdName)?.id ?? current.householdId;
+      void current.recoverFromMembershipLoss();
+      void (async () => {
+        let isPayer = false;
+        if (removed && lostHouseholdId) {
+          isPayer = await getMySubscriptionStatus(lostHouseholdId)
+            .then((status) => status.active)
+            .catch(() => false);
+        }
+        const action = postMembershipLossAction({ reason: removed ? "removed" : "dissolved", isPayer });
+        // 被移出时如果他仍在为这个家庭付费，额外提示取消路径。
+        Alert.alert(title, action.warnSubscription ? `${body}\n\n${tr("settings.subscriptionStillCharging")}` : body);
+      })();
     });
     return () => {
       ch.unsubscribe();
     };
-  }, [user, signOut]);
+  }, [userId]);
+
+  const tr = makeTranslator(getStoredLanguage());
 
   if (loading) {
     return (
       <View style={cloudStyles.center}>
-        <Text>Loading…</Text>
+        <Text>{tr("cloud.loading")}</Text>
       </View>
     );
   }
   if (!user) return <AuthScreen />;
   if (!householdId) return <OnboardingScreen />;
+  // 加载失败页、成员身份缺失页：先给「重试」；只有已绑定（非匿名）用户才额外显示「退出登录」，
+  // 匿名用户在这里退出就永远回不到这个家庭。
+  const signOutButton = isAnonymous ? null : (
+    <TouchableOpacity style={cloudStyles.btnSecondary} onPress={() => void signOut()}>
+      <Text style={cloudStyles.btnSecondaryText}>{tr("auth.signOut")}</Text>
+    </TouchableOpacity>
+  );
   if (err) {
     return (
       <View style={cloudStyles.center}>
-        <Text>Load error: {err}</Text>
-        <TouchableOpacity style={cloudStyles.btn} onPress={signOut}>
-          <Text style={cloudStyles.btnText}>Sign out</Text>
+        <Text style={cloudStyles.title}>{tr("cloud.loadErrorTitle")}</Text>
+        <Text style={cloudStyles.body}>{tr("cloud.loadErrorBody")}</Text>
+        <Text style={cloudStyles.note}>{err}</Text>
+        <TouchableOpacity
+          style={cloudStyles.btn}
+          onPress={() => {
+            // 和成员身份缺失页一样先刷新家庭列表：当前家庭已经不在列表里时会切走（重新挂载），
+            // 否则只重做一次首次加载。
+            void refreshHouseholds().catch(() => undefined);
+            retryLoadRef.current?.();
+          }}
+        >
+          <Text style={cloudStyles.btnText}>{tr("cloud.loadErrorRetry")}</Text>
         </TouchableOpacity>
+        {signOutButton}
       </View>
     );
   }
   if (!state) {
     return (
       <View style={cloudStyles.center}>
-        <Text>Loading household…</Text>
+        <Text>{tr("cloud.loadingHousehold")}</Text>
       </View>
     );
   }
@@ -1917,18 +2216,20 @@ function CloudApp() {
   const actor = state.members.find((m) => m.userId === user.id);
   if (!actor) {
     // I5: 找不到当前用户的成员身份时，绝不 fallback 到他人身份渲染能力——
-    // 展示错误态并允许退出登录（真正权限仍由 RLS/RPC 兜底，但 UI 不给错误按钮）。
+    // 展示错误态并提供重试（真正权限仍由 RLS/RPC 兜底，但 UI 不给错误按钮）。
     return (
       <View style={cloudStyles.center}>
-        <Text style={{ textAlign: "center", marginBottom: 12 }}>
-          {"无法确定你的成员身份。\n你可能已被移出该家庭，请重新登录或联系家庭协调人。"}
-        </Text>
+        <Text style={cloudStyles.body}>{tr("cloud.memberMissing")}</Text>
         <TouchableOpacity
-          style={{ padding: 10, backgroundColor: "#333", borderRadius: 8 }}
-          onPress={() => void signOut()}
+          style={cloudStyles.btn}
+          onPress={() => {
+            void refreshHouseholds().catch(() => undefined);
+            retryLoadRef.current?.();
+          }}
         >
-          <Text style={{ color: "#fff" }}>退出登录</Text>
+          <Text style={cloudStyles.btnText}>{tr("cloud.loadErrorRetry")}</Text>
         </TouchableOpacity>
+        {signOutButton}
       </View>
     );
   }
@@ -1941,16 +2242,52 @@ function CloudApp() {
         households,
         onSwitchHousehold: switchHousehold,
         onCreateHousehold: createHousehold,
-        onSignOut: signOut,
+        account: {
+          userId: user.id,
+          email: user.email ?? null,
+          isAnonymous,
+          hasAppleIdentity: auth.hasAppleIdentity,
+          appleAvailable: auth.appleAvailable,
+          bindApple: auth.bindApple,
+          requestSignOut,
+          signOut,
+          deleteAccount: auth.deleteAccount,
+          refreshHouseholds: () => refreshHouseholds(),
+          recoverFromMembershipLoss,
+          bindPrompt: auth.bindPrompt,
+          clearBindPrompt: auth.clearBindPrompt
+        },
         applyOptimistic: (fn) => setState((cur) => (cur ? fn(cur) : cur))
       }}
     />
   );
 }
 
+// 未绑定且从备份迁移来的新设备：立即全屏提示用 Apple 登录，尽量赶在旧机刷新 token 导致会话被吊销之前。
+function MigratedDevicePrompt() {
+  const { user, isMigratedDevice, isAnonymous, appleAvailable, bindApple, dismissMigratedDevicePrompt } = useAuth();
+  if (!user || !isMigratedDevice || !isAnonymous || !appleAvailable) return null;
+  return (
+    <BindAppleSheet
+      visible
+      reason="newDevice"
+      t={makeTranslator(getStoredLanguage())}
+      appleAvailable={appleAvailable}
+      userId={user.id}
+      bind={bindApple}
+      onClose={dismissMigratedDevicePrompt}
+    />
+  );
+}
+
 function ScopedCloudApp() {
   const { user, householdId } = useAuth();
-  return <CloudApp key={cloudScopeKey(user?.id, householdId)} />;
+  return (
+    <>
+      <CloudApp key={cloudScopeKey(user?.id, householdId)} />
+      <MigratedDevicePrompt />
+    </>
+  );
 }
 
 export default function App() {
@@ -1993,9 +2330,19 @@ function AppInner() {
 const cloudStyles = StyleSheet.create({
   center: { flex: 1, justifyContent: "center", alignItems: "center", padding: 24, backgroundColor: "#f7faf7" },
   title: { fontSize: 22, fontWeight: "700", color: "#0f766e", marginBottom: 12 },
+  body: { fontSize: 15, color: "#334155", textAlign: "center", maxWidth: 320, lineHeight: 21 },
   note: { fontSize: 12, color: "#64748b", marginTop: 12, textAlign: "center", maxWidth: 300 },
   btn: { backgroundColor: "#0f766e", paddingHorizontal: 20, paddingVertical: 10, borderRadius: 8, marginTop: 20 },
-  btnText: { color: "#fff", fontWeight: "600" }
+  btnText: { color: "#fff", fontWeight: "600" },
+  btnSecondary: {
+    borderWidth: 1,
+    borderColor: "#0f766e",
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 8,
+    marginTop: 12
+  },
+  btnSecondaryText: { color: "#0f766e", fontWeight: "600" }
 });
 
 function renderHome(
@@ -2526,6 +2873,21 @@ function renderAudit(state: AppState, language: Language, t: Translate, onBack: 
   );
 }
 
+// 设置页「账号」区和加入申请（cloud 模式）。
+interface SettingsAccount {
+  userId: string;
+  email: string | null;
+  isAnonymous: boolean;
+  hasAppleIdentity: boolean;
+  appleAvailable: boolean;
+  onBindApple: () => Promise<unknown>;
+  onBindForInvite: () => Promise<unknown>;
+  onSignOut: () => void;
+  joinRequests: JoinRequest[];
+  onApproveJoinRequest: (request: JoinRequest) => Promise<void>;
+  onRejectJoinRequest: (request: JoinRequest) => Promise<void>;
+}
+
 function renderSettings(
   state: AppState,
   actor: Member,
@@ -2547,7 +2909,8 @@ function renderSettings(
   onRemoveMember?: (memberId: string) => void,
   onLeaveHousehold?: () => void,
   onDissolveHousehold?: () => void,
-  onOpenNameEditor?: () => void
+  onOpenNameEditor?: () => void,
+  account?: SettingsAccount
 ) {
   const canManageRoles = hasPermission(state, actor.role, "member:role_update");
   const canGenerateReport = hasPermission(state, actor.role, "report:export");
@@ -2593,6 +2956,61 @@ function renderSettings(
         </>
       )}
 
+      {account && (
+        <>
+          <SectionTitle icon="person-circle-outline" title={t("settings.accountTitle")} />
+          <View style={[styles.panel, account.isAnonymous && styles.accountWarningPanel]}>
+            <View style={styles.panelHeader}>
+              <View style={styles.listText}>
+                <Text style={styles.itemTitle} allowFontScaling>
+                  {account.isAnonymous
+                    ? t("settings.accountUnprotectedTitle")
+                    : account.hasAppleIdentity
+                      ? t("settings.accountApple")
+                      : t("settings.accountEmail")}
+                </Text>
+                <Text style={styles.itemMeta} allowFontScaling>
+                  {account.isAnonymous
+                    ? t("settings.accountUnprotected")
+                    : !account.hasAppleIdentity && account.email
+                      ? account.email
+                      : t("settings.accountProtected")}
+                </Text>
+              </View>
+              <Ionicons
+                name={account.isAnonymous ? "warning-outline" : "shield-checkmark-outline"}
+                size={22}
+                color={account.isAnonymous ? palette.amber : palette.teal}
+              />
+            </View>
+            <Text style={styles.itemMeta} selectable allowFontScaling>
+              {t("settings.accountId", { id: accountIdLabel(account.userId) })}
+            </Text>
+            <Text style={styles.itemMeta} allowFontScaling>
+              {t("settings.accountIdHint")}
+            </Text>
+            {account.isAnonymous && account.appleAvailable && (
+              <AppleButton
+                kind="signIn"
+                accessibilityLabel={t("auth.continueWithApple")}
+                onPress={account.onBindApple}
+              />
+            )}
+            <TouchableOpacity
+              style={styles.roleChangeButton}
+              accessibilityRole="button"
+              accessibilityLabel={t("auth.signOut")}
+              onPress={account.onSignOut}
+            >
+              <Ionicons name="log-out-outline" size={17} color={palette.teal} />
+              <Text style={styles.roleChangeButtonText} allowFontScaling>
+                {t("auth.signOut")}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </>
+      )}
+
       <SectionTitle icon="ribbon-outline" title={t("settings.plan")} />
       <View style={styles.panel}>
         <View style={styles.panelHeader}>
@@ -2619,9 +3037,21 @@ function renderSettings(
           <SectionTitle icon="qr-code-outline" title={t("settings.joinCodeTitle")} />
           <View style={styles.panel}>
             <Text style={styles.bodyText} allowFontScaling>
-              {t("settings.joinCodeCopy")}
+              {account?.isAnonymous ? t("bind.whyInvite") : t("settings.joinCodeCopy")}
             </Text>
-            {joinCode ? (
+            {account?.isAnonymous ? (
+              account.appleAvailable ? (
+                <AppleButton
+                  kind="signIn"
+                  accessibilityLabel={t("auth.continueWithApple")}
+                  onPress={account.onBindForInvite}
+                />
+              ) : (
+                <Text style={styles.itemMeta} allowFontScaling>
+                  {t("bind.unavailable")}
+                </Text>
+              )
+            ) : joinCode ? (
               <>
                 <QRCode value={Linking.createURL("join", { queryParams: { code: joinCode.code } })} size={200} />
                 <TouchableOpacity
@@ -2674,6 +3104,15 @@ function renderSettings(
       )}
 
       <SectionTitle icon="people-circle-outline" title={t("settings.roleManagement")} />
+      {account && canManageRoles && (
+        <JoinRequestsPanel
+          requests={account.joinRequests}
+          t={t}
+          formatDate={(iso) => formatDateTime(iso, language)}
+          onApprove={account.onApproveJoinRequest}
+          onReject={account.onRejectJoinRequest}
+        />
+      )}
       {settingsMembers.map((member) => {
         const isSelf = member.id === actor.id;
         const memberRelationLabel = memberRelation(member, t);
@@ -3600,7 +4039,7 @@ function auditDetail(
   const task = state.tasks.find((item) => item.id === entityId);
   const memberTarget = state.members.find((item) => item.id === entityId);
   const target =
-    action === "member.role_updated"
+    action === "member.role_updated" || action === "member.coordinator_transferred"
       ? memberName(state, entityId, t)
       : task?.handoffToId
         ? memberName(state, task.handoffToId, t)
@@ -4268,6 +4707,10 @@ const styles = StyleSheet.create({
   deleteButton: {
     borderColor: palette.red,
     backgroundColor: "#fff5f5"
+  },
+  accountWarningPanel: {
+    borderColor: "#e5c270",
+    backgroundColor: "#fffaf0"
   },
   roleNameInput: {
     borderWidth: 1,

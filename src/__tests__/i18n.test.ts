@@ -26,12 +26,25 @@ describe("i18n completeness (R2, IOS_SUBMISSION_DEV_SPEC 2026-08-03)", () => {
     }
   });
 
-  it("all three dictionaries have identical key sets", () => {
+  it("all six dictionaries have identical key sets", () => {
     const keys = (lang: Language) => Object.keys(translations[lang]).sort();
     const en = keys("en");
     expect(keys("zh")).toEqual(en);
+    expect(keys("zhHant")).toEqual(en);
     expect(keys("es")).toEqual(en);
+    expect(keys("ja")).toEqual(en);
     expect(keys("ko")).toEqual(en);
+  });
+
+  it("every placeholder in a translation also appears in English", () => {
+    const placeholders = (value: string) => [...value.matchAll(/\{(\w+)\}/g)].map((m) => m[1]).sort();
+    for (const lang of LANGS) {
+      for (const [key, value] of Object.entries(translations[lang])) {
+        const en = translations.en[key];
+        if (en === undefined) continue;
+        expect(placeholders(value), `${lang}:${key}`).toEqual(placeholders(en));
+      }
+    }
   });
 
   it("no value equals its own key (untranslated placeholder leak)", () => {

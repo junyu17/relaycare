@@ -53,8 +53,25 @@
       <h2>1. Informacion que procesamos</h2>
       <ul>
         <li>
-          <strong>Cuenta:</strong> correo electronico y credenciales de autenticacion; no almacenamos contrasenas en
-          texto plano.
+          <strong>Cuenta:</strong> depende de cómo inicies sesión. Si eliges <em>Empezar sin cuenta</em> o te unes con
+          un código familiar, creamos un identificador de cuenta y no recopilamos correo electrónico ni contraseña. Si
+          inicias sesión con Apple, Apple nos da un identificador estable de tu Apple ID; no le pedimos a Apple tu
+          nombre ni tu correo. Si inicias sesión con correo, guardamos tu correo electrónico y tus credenciales de
+          autenticación. No almacenamos contraseñas en texto plano.
+        </li>
+        <li>
+          <strong>En tu dispositivo:</strong> mientras tu cuenta no esté vinculada a Iniciar sesión con Apple, la app
+          guarda su token de inicio de sesión en el Llavero de este iPhone (solo en este dispositivo; no pasa a un
+          teléfono nuevo) para que puedas volver a tu familia si reinstalas la app. Se elimina cuando inicias sesión con
+          Apple, cierras sesión o eliminas tu cuenta.
+        </li>
+        <li>
+          <strong>Protección de los códigos familiares:</strong> para evitar que se adivinen, contamos los intentos
+          recientes de unirse de cada cuenta (como máximo 5 cada 15 minutos) y el total de intentos fallidos de todo el
+          servicio en periodos de 5 minutos, que se borran al cabo de un día. Estos contadores no incluyen direcciones
+          IP. Si se introducen muchos códigos erróneos en el servicio, durante los 30 minutos siguientes unirse requiere
+          la aprobación del coordinador; la solicitud guarda el nombre que escribiste y su estado en esa familia hasta
+          que se elimine la familia o tu cuenta.
         </li>
         <li>
           <strong>Familia y miembros:</strong> hogar, persona cuidada, nombres, relacion, rol, zona horaria y
@@ -94,8 +111,13 @@
         <li>Los miembros solo acceden a la informacion que su rol permite.</li>
         <li>No vendemos informacion personal ni la compartimos para publicidad conductual entre contextos.</li>
         <li>
-          Usamos Supabase para autenticacion, base de datos, almacenamiento y sincronizacion. TaskKin Care no envia
-          archivos a proveedores externos de IA u OCR.
+          Usamos Supabase para autenticación, base de datos, almacenamiento, sincronización y funciones de servidor;
+          como parte de la autenticación y la seguridad, Supabase procesa direcciones IP (por ejemplo, para limitar
+          registros repetidos). TaskKin Care no envía archivos a proveedores externos de IA u OCR.
+        </li>
+        <li>
+          Si usas Iniciar sesión con Apple, Apple verifica tu identidad. Al eliminar tu cuenta, pedimos a Apple que
+          revoque el acceso de TaskKin Care a tu Apple ID.
         </li>
       </ul>
       <h2>5. Seguridad</h2>
@@ -111,6 +133,11 @@
         documentos, informes y auditoría). Esto no se puede deshacer.
       </p>
       <p>
+        Si aún no has creado ni te has unido a una familia, usa <em>Eliminar cuenta y hogares</em> al final de la
+        pantalla <em>Configura tu círculo de cuidado</em>. Si iniciaste sesión con Apple, confirmarás una vez más con
+        Apple y le pediremos que revoque el acceso de TaskKin Care a tu Apple ID.
+      </p>
+      <p>
         Si pertenece a otros hogares que no coordina, su membresía se anonimiza (su nombre pasa a ser un marcador de
         posición "Deleted member") y esos hogares y sus datos se conservan. Las tareas, documentos y registros de
         auditoría compartidos que creó allí siguen atribuidos a ese marcador sin conservar el vínculo de su cuenta ni el
@@ -118,8 +145,17 @@
         retención del plan (30 días en el plan Gratis, hasta 3 años en Family Plus).
       </p>
       <p>
+        <strong>Cuentas sin inicio de sesión que ya no se usan:</strong> si tu cuenta no está vinculada a Iniciar sesión
+        con Apple ni a un correo y contraseña, nadie más está en tu familia y la cuenta nunca ha tenido una suscripción,
+        la eliminamos automáticamente, junto con sus datos y archivos, tras 180 días sin ningún uso. Si una cuenta así
+        nunca creó ni se unió a una familia, se elimina tras 30 días sin uso. Las cuentas de una familia que otros
+        miembros siguen usando nunca se eliminan automáticamente.
+      </p>
+      <p>
         Puede solicitar acceso, correccion, exportacion u otra ayuda de privacidad escribiendo a
-        <a href="mailto:Billy.yu@me.com">Billy.yu@me.com</a>.
+        <a href="mailto:Billy.yu@me.com">Billy.yu@me.com</a>. Si no puedes usar la app, también puedes pedir la
+        eliminación por correo; la página <a href="delete-account.html">Delete your account</a> (en inglés) explica cómo
+        verificamos las cuentas sin correo electrónico.
       </p>
       <h2>7. Aviso de privacidad y recopilacion de California</h2>
       <p>
@@ -144,8 +180,9 @@
         preguntas de privacidad, escriba a <a href="mailto:Billy.yu@me.com">Billy.yu@me.com</a>.
       </p>
       <p>
-        <strong>Vigencia:</strong> 26 de julio de 2026. Aviso revisado por el operador; no se ha obtenido una revisión
-        independiente de un asesor legal.
+        <strong>Vigencia:</strong> 26 de julio de 2026. <strong>Actualizado:</strong> 3 de octubre de 2026 (opciones de
+        inicio de sesión, cuentas sin registro, protección de los códigos familiares y eliminación automática de cuentas
+        sin uso). Aviso revisado por el operador; no se ha obtenido una revisión independiente de un asesor legal.
       </p>
       <p class="back-link"><a href="index-es.html">Volver al inicio</a></p>
     </main>

@@ -30,6 +30,9 @@ export const AUDIT_ACTIONS = [
   "member.removed",
   "member.left",
   "member.role_updated",
+  "member.coordinator_transferred",
+  "member.join_approved",
+  "member.join_rejected",
   "task.created",
   "task.claimed",
   "task.rejected",
@@ -160,6 +163,15 @@ export interface AuditEvent {
   detail: string;
 }
 
+// 加入申请（0059）：只在熔断期出现，等协调人同意。RLS 只让本户 active 协调人读到。
+export interface JoinRequest {
+  id: string;
+  householdId: string;
+  displayName: string;
+  status: "pending" | "approved" | "rejected" | "expired";
+  createdAt: string;
+}
+
 export interface AppState {
   household: Household;
   members: Member[];
@@ -170,4 +182,5 @@ export interface AppState {
   events: CareEvent[];
   documents: DocumentRecord[];
   auditEvents: AuditEvent[];
+  joinRequests?: JoinRequest[];
 }

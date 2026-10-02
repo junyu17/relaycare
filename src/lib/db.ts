@@ -1,9 +1,13 @@
 import { supabase } from "./supabase";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import type { RealtimeChannel } from "@supabase/supabase-js";
+import { parseJoinV2Response, parseLegacyJoinResponse, parseMyJoinRequests, isActiveJoinRequest } from "./joinV2";
+import type { JoinResult, MyJoinRequest } from "./joinV2";
+import { parseAppleConflictResult, type AppleConflictResult } from "../auth/guards";
 import type {
   AppState,
   Household,
+  JoinRequest,
   Member,
   RoleDefinition,
   NotificationPreference,
@@ -116,6 +120,14 @@ interface DBAuditEvent {
   entity_type: AuditEvent["entityType"];
   entity_id: string;
   detail: string;
+  created_at: string;
+}
+
+interface DBJoinRequest {
+  id: string;
+  household_id: string;
+  display_name: string | null;
+  status: JoinRequest["status"];
   created_at: string;
 }
 
@@ -238,6 +250,13 @@ const mapAuditEvent = (r: DBAuditEvent): AuditEvent => ({
   createdAt: r.created_at,
   detail: r.detail
 });
+const mapJoinRequest = (r: DBJoinRequest): JoinRequest => ({
+  id: r.id,
+  householdId: r.household_id,
+  displayName: r.display_name ?? "",
+  status: r.status,
+  createdAt: r.created_at
+});
 const mapHouseholdSummary = (r: DBHouseholdSummary): HouseholdSummary => ({
   id: r.id,
   name: r.name,
@@ -251,7 +270,7 @@ const mapHouseholdSummary = (r: DBHouseholdSummary): HouseholdSummary => ({
 // ============ 加载家庭全部数据 -> AppState ============
 
 export async function fetchHouseholdState(householdId: string): Promise<AppState> {
-  const [householdRes, membersRes, rolesRes, prefsRes, notesRes, tasksRes, eventsRes, docsRes, auditRes] =
+  const [householdRes, membersRes, rolesRes, prefsRes, notesRes, tasksRes, eventsRes, docsRes, auditRes, joinRes] =
     await Promise.all([
       supabase.from("households").select("*").eq("id", householdId).single(),
       supabase
@@ -274,7 +293,14 @@ export async function fetchHouseholdState(householdId: string): Promise<AppState
         .from("audit_events")
         .select("*")
         .eq("household_id", householdId)
-        .order("created_at", { ascending: false })
+        .order("created_at", { ascending: false }),
+      // 0059：加入申请，RLS 只放行本户 active 协调人（其他角色读到 0 行）。
+      supabase
+        .from("household_join_requests")
+        .select("id, household_id, display_name, status, created_at")
+        .eq("household_id", householdId)
+        .eq("status", "pending")
+        .order("created_at", { ascending: true })
     ]);
 
   const errors = [
@@ -291,6 +317,12 @@ export async function fetchHouseholdState(householdId: string): Promise<AppState
   if (errors.length) {
     throw new Error(`fetchHouseholdState failed: ${errors[0]?.message}`);
   }
+  // 加入申请不影响家庭主体数据：读失败（例如服务端还没有这张表）时按没有申请处理，不让整页加载失败。
+  if (joinRes.error) console.warn("household_join_requests fetch failed", joinRes.error.message);
+  const now = Date.now();
+  const joinRequests = joinRes.error
+    ? []
+    : ((joinRes.data ?? []) as DBJoinRequest[]).map(mapJoinRequest).filter((r) => isActiveJoinRequest(r, now));
 
   return {
     household: mapHousehold(householdRes.data as DBHousehold),
@@ -301,7 +333,8 @@ export async function fetchHouseholdState(householdId: string): Promise<AppState
     tasks: (tasksRes.data as DBTask[]).map(mapTask),
     events: (eventsRes.data as DBCareEvent[]).map(mapCareEvent),
     documents: (docsRes.data as DBDocument[]).map(mapDocument),
-    auditEvents: (auditRes.data as DBAuditEvent[]).map(mapAuditEvent)
+    auditEvents: (auditRes.data as DBAuditEvent[]).map(mapAuditEvent),
+    joinRequests
   };
 }
 
@@ -322,9 +355,11 @@ export async function cacheHouseholdState(householdId: string, state: AppState):
   try {
     // I6: 缓存剔除 OCR 原文（rawText 可能含敏感内容），离线仅恢复非敏感数据；
     // 成员名/审计 detail 等保持（家庭内部成员本可见，且缓存本机）。
+    // 加入申请是陌生人的显示名、且很快过期，不进离线缓存。
     const sanitized: AppState = {
       ...state,
-      documents: state.documents.map((d) => ({ ...d, rawText: undefined }))
+      documents: state.documents.map((d) => ({ ...d, rawText: undefined })),
+      joinRequests: []
     };
     await AsyncStorage.setItem(`taskkin-care:household:${householdId}`, JSON.stringify(sanitized));
   } catch {
@@ -405,6 +440,19 @@ export function subscribeHouseholdState(householdId: string, onChanged: () => vo
       )
       .subscribe()
   );
+}
+
+// 0059：加入申请变更 -> 触发回调（协调人的首页横幅和成员页）。
+// 单独一个 channel：表还没加进 supabase_realtime 时，失败不会拖垮上面的家庭数据订阅。
+export function subscribeJoinRequests(householdId: string, onChanged: () => void): RealtimeChannel {
+  return supabase
+    .channel(`household-join-requests-${householdId}`)
+    .on(
+      "postgres_changes",
+      { event: "*", schema: "public", table: "household_join_requests", filter: `household_id=eq.${householdId}` },
+      onChanged
+    )
+    .subscribe();
 }
 
 // 实时订阅角色通知新增 -> 触发本地 push 通知
@@ -496,10 +544,32 @@ export async function createDocumentRpc(args: {
 
 // 手动设置家庭套餐（dev/测试用；上线后由校验 Edge Function 调用）。
 // 删除账号 + 家庭数据（调 delete-account Edge Function；Apple 5.1.1）。
-// 成功后调用方应 signOut。
-export async function deleteAccount(): Promise<void> {
-  const { error } = await supabase.functions.invoke("delete-account", {});
+// 绑定了 Apple 的账号带上刚拿到的 authorizationCode，服务端用它撤销 Apple 授权（决策 3A，尽力而为）。
+// 成功后调用方应 signOut({ reason: "account_deleted" })。
+export async function deleteAccount(appleAuthorizationCode?: string | null): Promise<void> {
+  const { error } = await supabase.functions.invoke("delete-account", {
+    body: appleAuthorizationCode ? { appleAuthorizationCode } : {}
+  });
   if (error) throw error;
+}
+
+// 4a(b)：已经切到 Apple 账号 X 之后，用之前保存的 U 的 access token 删除空的匿名账号 U。
+// 显式带 Authorization 头：supabase 客户端此时的会话已经是 X。
+export async function deleteAccountWithToken(accessToken: string): Promise<void> {
+  const { error } = await supabase.functions.invoke("delete-account", {
+    headers: { Authorization: `Bearer ${accessToken}` },
+    body: {}
+  });
+  if (error) throw error;
+}
+
+// 4a：linkIdentity 返回 identity_already_exists 时，交给服务端校验 id_token 并决定怎么处理。
+export async function resolveAppleConflict(args: { idToken: string; rawNonce: string }): Promise<AppleConflictResult> {
+  const { data, error } = await supabase.functions.invoke("apple-identity-conflict", {
+    body: { idToken: args.idToken, rawNonce: args.rawNonce }
+  });
+  if (error) throw error;
+  return parseAppleConflictResult(data);
 }
 
 // ============ 家庭 6 位加入码 + 成员管理（0014）============
@@ -527,7 +597,7 @@ export async function getHouseholdCode(): Promise<HouseholdCode | null> {
   return { code: row[0].code, expiresAt: row[0].expires_at };
 }
 
-// 凭 6 位码加入家庭（返回 household_id）。
+// 凭 6 位码加入家庭（返回 household_id）。旧接口，保留作兼容。
 export async function joinByCode(code: string, displayName?: string): Promise<string> {
   const { data, error } = await supabase.rpc("join_by_code", {
     p_code: code,
@@ -535,6 +605,64 @@ export async function joinByCode(code: string, displayName?: string): Promise<st
   });
   if (error) throw error;
   return data as string;
+}
+
+// 0059：join_by_code_v2 返回 joined / pending / invalid / rate_limited / requests_full。
+// 服务端还没有 v2（PGRST202：函数不存在）时回退到旧接口，保证部署顺序不影响加入。
+export async function joinByCodeV2(code: string, displayName?: string): Promise<JoinResult> {
+  const { data, error } = await supabase.rpc("join_by_code_v2", {
+    p_code: code,
+    p_display_name: displayName ?? null
+  });
+  if (error?.code === "PGRST202") {
+    const legacy = await supabase.rpc("join_by_code", { p_code: code, p_display_name: displayName ?? null });
+    if (legacy.error) throw legacy.error;
+    return parseLegacyJoinResponse(legacy.data);
+  }
+  if (error) throw error;
+  return parseJoinV2Response(data);
+}
+
+// 申请人查询自己的加入申请（pending 期间服务端不返回家庭名）。
+export async function myJoinRequests(): Promise<MyJoinRequest[]> {
+  const { data, error } = await supabase.rpc("my_join_requests");
+  if (error) throw error;
+  return parseMyJoinRequests(data);
+}
+
+// 协调人同意 / 拒绝加入申请。
+export async function approveJoinRequest(requestId: string): Promise<void> {
+  const { error } = await supabase.rpc("approve_join_request", { p_request_id: requestId });
+  if (error) throw error;
+}
+
+export async function rejectJoinRequest(requestId: string): Promise<void> {
+  const { error } = await supabase.rpc("reject_join_request", { p_request_id: requestId });
+  if (error) throw error;
+}
+
+// 0058：协调人把角色转给已绑定的成员，自己改为照护者（同一事务互换）。
+export async function transferCoordinator(memberId: string): Promise<void> {
+  const { error } = await supabase.rpc("transfer_coordinator", { p_member_id: memberId });
+  if (error) throw error;
+}
+
+export interface MySubscriptionStatus {
+  active: boolean;
+  expiresAt: string | null;
+}
+
+// 0058：只返回调用者本人对这个家庭是否有有效订阅（转让、退出、删号前提示「Apple 会继续扣费」）。
+export async function getMySubscriptionStatus(householdId: string): Promise<MySubscriptionStatus> {
+  const { data, error } = await supabase.rpc("get_my_subscription_status", { p_household_id: householdId });
+  if (error) throw error;
+  if (typeof data === "boolean") return { active: data, expiresAt: null };
+  const row = (Array.isArray(data) ? data[0] : data) as Record<string, unknown> | null | undefined;
+  if (!row || typeof row !== "object") return { active: false, expiresAt: null };
+  // 0058 返回 table (is_paying, plan, expires_at)。
+  const active = row.is_paying ?? row.active ?? row.is_active;
+  const expiresAt = row.expires_at ?? row.expiresAt;
+  return { active: active === true, expiresAt: typeof expiresAt === "string" ? expiresAt : null };
 }
 
 // 普通成员退出自己。

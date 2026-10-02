@@ -30,6 +30,9 @@ import {
 } from "./iap";
 
 import { ROWS, rowValue } from "./paywallRows";
+import { AppleButton } from "../auth/AppleButton";
+import { runBindFlow } from "../auth/accountFlows";
+import type { BindResult } from "../auth/AuthContext";
 import { PLAN_FALLBACK_PRICES, freeTrialDays, yearlySavingPercent } from "./prices";
 
 function findPrice(subs: ProductSubscription[], plan: "monthly" | "yearly"): string | null {
@@ -54,9 +57,13 @@ function purchaseFailureMessage(error: unknown, t: Translate): string {
   return errorMessage(error);
 }
 
+type PendingStoreAction = { kind: "subscribe"; plan: "monthly" | "yearly" } | { kind: "restore" };
+
 // 付费墙：Free / Family Plus 对比 + 订阅。
 // cloud 模式（householdId 提供）：走真实 iOS IAP（expo-iap + 校验 Edge Function）。
 // local 模式 / 非 iOS：dev 切换用于测试。
+// 匿名用户点「订阅」或「恢复购买」时先在付费墙里绑定 Apple，绑定完成才打开 StoreKit
+//（appAccountToken 仍等于同一个 uid，iap.ts 不动）。
 export function Paywall({
   visible,
   onClose,
@@ -66,7 +73,11 @@ export function Paywall({
   isCoordinator,
   householdId,
   onPurchased,
-  onDevSetPlus
+  onDevSetPlus,
+  isAnonymous = false,
+  appleAvailable = false,
+  userId,
+  onBindApple
 }: {
   visible: boolean;
   onClose: () => void;
@@ -77,11 +88,25 @@ export function Paywall({
   householdId?: string;
   onPurchased?: () => void;
   onDevSetPlus: (plan: "free" | "monthly" | "yearly") => void;
+  isAnonymous?: boolean;
+  appleAvailable?: boolean;
+  userId?: string | null;
+  onBindApple?: () => Promise<BindResult>;
 }) {
   const isPlus = currentPlan === "monthly" || currentPlan === "yearly";
   const canIap = Boolean(householdId) && isCoordinator && isIosIapAvailable();
+  // 转让之后付款人变成照护者，仍可以给已覆盖的家庭恢复购买（服务端 verify-apple-receipt 判断是否覆盖）。
+  const canRestore = Boolean(householdId) && isIosIapAvailable();
   const [subs, setSubs] = useState<ProductSubscription[]>([]);
   const [busy, setBusy] = useState(false);
+  const [bindingFor, setBindingFor] = useState<PendingStoreAction | null>(null);
+  const needsBinding = Boolean(householdId) && isAnonymous;
+
+  useEffect(() => {
+    // 关掉付费墙时丢弃未完成的绑定步骤。
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (!visible) setBindingFor(null);
+  }, [visible]);
 
   useEffect(() => {
     if (visible && canIap) {
@@ -120,7 +145,11 @@ export function Paywall({
     }
   };
 
-  const onSubscribe = (plan: "monthly" | "yearly") => {
+  const onSubscribe = (plan: "monthly" | "yearly", bound = false) => {
+    if (canIap && needsBinding && !bound) {
+      setBindingFor({ kind: "subscribe", plan });
+      return;
+    }
     if (canIap) {
       if (!findPrice(subs, plan)) {
         Alert.alert(t("alerts.actionFailedTitle"), t("paywall.productUnavailable"));
@@ -155,8 +184,12 @@ export function Paywall({
     );
   };
 
-  const onRestore = () => {
-    if (canIap && householdId) {
+  const onRestore = (bound = false) => {
+    if (canRestore && needsBinding && !bound) {
+      setBindingFor({ kind: "restore" });
+      return;
+    }
+    if (canRestore && householdId) {
       setBusy(true);
       restoreIos(householdId)
         .then((plan) => {
@@ -174,6 +207,20 @@ export function Paywall({
       return;
     }
     Alert.alert(t("paywall.title"), t("paywall.iapUnavailable"));
+  };
+
+  const onBind = async () => {
+    const pending = bindingFor;
+    if (!pending || !onBindApple) return;
+    const result = await runBindFlow(onBindApple, t, { userId, announceLinked: false });
+    if (result !== "linked") {
+      // switched：账号换了，整个家庭界面会重新挂载；其余情况留在绑定步骤。
+      if (result === "switched" || result === "both_have_data") setBindingFor(null);
+      return;
+    }
+    setBindingFor(null);
+    if (pending.kind === "subscribe") onSubscribe(pending.plan, true);
+    else onRestore(true);
   };
 
   const yearlyRaw = findPrice(subs, "yearly") ?? PLAN_FALLBACK_PRICES.yearly;
@@ -239,7 +286,30 @@ export function Paywall({
             ))}
           </ScrollView>
 
-          {!isPlus && (
+          {!isPlus && bindingFor && (
+            <View style={s.bindPanel}>
+              <Text style={s.bindTitle} allowFontScaling>
+                {t("bind.title")}
+              </Text>
+              <Text style={s.bindBody} allowFontScaling>
+                {t("bind.whyPurchase")}
+              </Text>
+              {appleAvailable && onBindApple ? (
+                <AppleButton kind="signIn" accessibilityLabel={t("auth.continueWithApple")} onPress={onBind} />
+              ) : (
+                <Text style={s.bindBody} allowFontScaling>
+                  {t("bind.unavailable")}
+                </Text>
+              )}
+              <TouchableOpacity accessibilityRole="button" onPress={() => setBindingFor(null)}>
+                <Text style={s.restoreText} allowFontScaling>
+                  {t("bind.later")}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          )}
+
+          {!isPlus && !bindingFor && (
             <>
               <TouchableOpacity
                 style={[s.subscribeBtn, s.yearlyBtn, busy && s.disabledBtn]}
@@ -292,7 +362,7 @@ export function Paywall({
                 accessibilityRole="button"
                 accessibilityLabel={t("paywall.restore")}
                 disabled={busy}
-                onPress={onRestore}
+                onPress={() => onRestore()}
               >
                 <Text style={s.restoreText} allowFontScaling>
                   {t("paywall.restore")}
@@ -435,5 +505,8 @@ const s = StyleSheet.create({
   legalRow: { flexDirection: "row", justifyContent: "center", gap: 10, marginTop: 10, marginBottom: 6 },
   legalLink: { paddingVertical: 6 },
   legalLinkText: { color: "#0f766e", textDecorationLine: "underline", fontSize: 14, fontWeight: "600" },
-  legalSep: { color: "#94a3b8", alignSelf: "center" }
+  legalSep: { color: "#94a3b8", alignSelf: "center" },
+  bindPanel: { borderWidth: 1, borderColor: "#cbd5e1", borderRadius: 10, padding: 14, marginBottom: 8 },
+  bindTitle: { fontSize: 16, fontWeight: "700", color: "#0f766e", marginBottom: 4 },
+  bindBody: { fontSize: 13, color: "#334155", lineHeight: 19, marginBottom: 8 }
 });

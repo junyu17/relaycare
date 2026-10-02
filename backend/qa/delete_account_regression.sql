@@ -2,10 +2,12 @@
 -- delete_account_data 回归测试（0053）
 -- 证明：协调家庭级联删除；其他家庭成员匿名化软删除；restrictive FK 安全。
 --
--- 无需真实 secret。两种运行方式：
---   1) Supabase 本地：cd backend/supabase && supabase start
+-- 无需真实 secret。三种运行方式：
+--   1) 本地 Postgres（无需 Docker）：bash backend/qa/local_pg.sh（会连同其他 SQL / Deno 测试一起跑）
+--   2) Supabase 本地：cd backend/supabase && supabase start
 --      然后 psql "$(supabase status -o json | jq -r .DB_URL)" < backend/qa/delete_account_regression.sql
---   2) 远端 SQL Editor（service role / postgres）：粘贴执行（脚本末 rollback，不污染数据）。
+--   3) 远端 SQL Editor（service role / postgres）：粘贴执行（脚本末 rollback，不污染数据）。
+-- 场景 6/7（方案 B）：匿名协调人删号；转让协调人之后原协调人删号（需要 0058 已部署）。
 --
 -- 脚本整体在事务内执行并回滚；任一断言失败即 RAISE，便于 CI/人工识别。
 -- 说明：members.user_id / households.created_by / user_household_context.user_id
@@ -363,6 +365,103 @@ begin
   end if;
 
   raise notice 'PASS [5] restrictive FK 确实拒绝成员硬删 => 0053 匿名化路径必要';
+end $$;
+
+-- ----------------------------------------------------------------------------
+-- 6) 场景 F：匿名协调人删号（方案 B：匿名用户点「开始使用」后建家）
+--    家庭整户删除，Storage 清理目标进入队列；随后 auth 用户可删。
+-- ----------------------------------------------------------------------------
+do $$
+declare
+  v_uid_m uuid := gen_random_uuid();
+  v_h8 uuid;
+  v_m uuid;
+begin
+  perform qa_seed_auth_user(v_uid_m);
+  update auth.users set is_anonymous = true, email = null where id = v_uid_m;
+
+  insert into public.households (name, timezone, invite_expires_at, care_recipient_label, created_by)
+  values ('H8', 'America/Los_Angeles', now() + interval '48 hours', 'Care recipient', v_uid_m)
+  returning id into v_h8;
+  insert into public.members (household_id, user_id, name, relation, role, timezone, availability, invite_status)
+  values (v_h8, v_uid_m, 'Mia', 'self', 'coordinator', 'America/Los_Angeles', '', 'active')
+  returning id into v_m;
+  insert into public.documents (household_id, name, uploaded_by_id, source, storage_path)
+  values (v_h8, 'scan.pdf', v_m, 'manual_upload', v_h8::text || '/scan.pdf');
+
+  perform public.delete_account_data(v_uid_m);
+
+  if exists (select 1 from public.households where id = v_h8) then
+    raise exception 'FAIL: 匿名协调人的家庭 H8 未删除';
+  end if;
+  if not exists (
+    select 1 from public.account_deletion_storage_cleanup where user_id = v_uid_m and household_id = v_h8
+  ) then raise exception 'FAIL: H8 的 Storage 清理目标未进入队列'; end if;
+  delete from auth.users where id = v_uid_m;
+  if exists (select 1 from auth.users where id = v_uid_m) then
+    raise exception 'FAIL: 匿名协调人的 auth 用户未能删除';
+  end if;
+
+  raise notice 'PASS [6] 匿名协调人删号：家庭删除 + Storage 清理入队 + auth 用户可删';
+end $$;
+
+-- ----------------------------------------------------------------------------
+-- 7) 场景 G：转让协调人之后，原协调人删号（依赖 0058 transfer_coordinator）
+--    家庭保留，新协调人不受影响；原协调人的成员行被匿名化软删除，不进 Storage 清理队列。
+-- ----------------------------------------------------------------------------
+do $$
+declare
+  v_uid_n uuid := gen_random_uuid(); -- 原协调人（匿名）
+  v_uid_o uuid := gen_random_uuid(); -- 已绑定 Apple 的家人
+  v_h9 uuid;
+  v_m_n uuid;
+  v_m_o uuid;
+begin
+  if to_regprocedure('public.transfer_coordinator(uuid)') is null then
+    raise exception 'FAIL: transfer_coordinator 不存在（未部署 0058?）';
+  end if;
+  perform qa_seed_auth_user(v_uid_n);
+  perform qa_seed_auth_user(v_uid_o);
+  update auth.users set is_anonymous = true, email = null where id = v_uid_n;
+  insert into auth.identities (provider_id, user_id, identity_data, provider, created_at, updated_at)
+  values ('qa-apple-' || v_uid_o, v_uid_o, jsonb_build_object('sub', 'qa-apple-' || v_uid_o), 'apple', now(), now());
+
+  insert into public.households (name, timezone, invite_expires_at, care_recipient_label, created_by)
+  values ('H9', 'America/Los_Angeles', now() + interval '48 hours', 'Care recipient', v_uid_n)
+  returning id into v_h9;
+  insert into public.members (household_id, user_id, name, relation, role, timezone, availability, invite_status)
+  values (v_h9, v_uid_n, 'Nina', 'self', 'coordinator', 'America/Los_Angeles', '', 'active')
+  returning id into v_m_n;
+  insert into public.members (household_id, user_id, name, relation, role, timezone, availability, invite_status)
+  values (v_h9, v_uid_o, 'Omar', 'child', 'caregiver', 'America/Los_Angeles', '', 'active')
+  returning id into v_m_o;
+  insert into public.tasks (household_id, title, requested_by_id, owner_id) values (v_h9, 'Nina 的任务', v_m_n, v_m_n);
+
+  -- 以原协调人身份转让（auth.uid() 读 request.jwt.claims）。
+  perform set_config('request.jwt.claims', json_build_object('sub', v_uid_n, 'role', 'authenticated')::text, true);
+  perform public.transfer_coordinator(v_m_o);
+  perform set_config('request.jwt.claims', '', true);
+
+  perform public.delete_account_data(v_uid_n);
+
+  if not exists (select 1 from public.households where id = v_h9) then
+    raise exception 'FAIL: 转让后原协调人删号不应删除家庭 H9';
+  end if;
+  if not exists (select 1 from public.members where id = v_m_o and role = 'coordinator' and invite_status = 'active') then
+    raise exception 'FAIL: 新协调人受到影响';
+  end if;
+  if not exists (
+    select 1 from public.members
+    where id = v_m_n and user_id is null and invite_status = 'removed' and name = 'Deleted member'
+  ) then raise exception 'FAIL: 原协调人的成员行未匿名化软删除'; end if;
+  if exists (select 1 from public.account_deletion_storage_cleanup where user_id = v_uid_n) then
+    raise exception 'FAIL: 家庭保留时不应进入 Storage 清理队列';
+  end if;
+  if not exists (select 1 from public.tasks where household_id = v_h9 and requested_by_id = v_m_n) then
+    raise exception 'FAIL: 原协调人创建的任务应保留（归属已删除成员占位符）';
+  end if;
+
+  raise notice 'PASS [7] 转让后原协调人删号：家庭保留、新协调人不受影响、原成员行匿名化';
 end $$;
 
 -- ----------------------------------------------------------------------------

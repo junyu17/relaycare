@@ -1,0 +1,7 @@
+{
+  "nodeModulesDir": "none",
+  "imports": {
+    "https://esm.sh/@supabase/supabase-js@2": "./stubs/supabase-js.ts",
+    "../_shared/apple-jws.ts": "./stubs/apple-jws.ts"
+  }
+}

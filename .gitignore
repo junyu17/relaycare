@@ -24,3 +24,6 @@ supabase/.temp/
 keystore.properties
 *.jks
 *.keystore
+
+# local Postgres used by backend/qa/local_pg.sh
+backend/.localpg/

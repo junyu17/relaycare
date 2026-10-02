@@ -5,7 +5,8 @@
 # v2：修复支付端点（Edge Function）、清理路径（delete-account Edge Function +
 #      service_role admin）、viewer 入家语义、补非 coordinator 越权用例。
 #
-# 用法（目标环境需已部署 0024-0030 迁移 + 3 个 Edge Function）：
+# 用法（目标环境需已部署 0024-0030 迁移 + 3 个 Edge Function；B6 的计数断言和 7b 的订阅伪造探测需要 0057）：
+# 不连线上：无 Docker 的本地等价测试见 backend/qa/local_pg.sh（本地 Postgres + auth 替身，覆盖 0057–0062）。
 #   SUPABASE_URL=https://<ref>.supabase.co \
 #   SUPABASE_ANON_KEY=<publishable key> \
 #   SUPABASE_SERVICE_ROLE_KEY=<service_role（可选，用于角色用例与清理）> \
@@ -134,11 +135,43 @@ expect_fail "viewer INSERT documents" "$(http POST "$REST/documents" "$V_TOK" "{
 say "I4: cleanup_old_audit 仅 service_role（0030）"
 expect_fail "authenticated 调 cleanup_old_audit" "$(rpc cleanup_old_audit "$C_TOK" '{}')"
 
+# ---------- 7b. 订阅伪造（0057 第 7 条）：anon / authenticated 不能执行 upsert_subscription ----------
+# 用不存在的家庭 id + status=expired 探测：口子没关时函数会走到外键报错（23503），什么都写不进去；
+# 关上之后 PostgREST 返回 42501。所以无论结果如何都不会在目标环境留下数据。
+say "订阅伪造：upsert_subscription 仅 service_role（0057）"
+probe_upsert() { # probe_upsert <bearer|''> -> 响应体
+  local args=(-s --max-time 20 -X POST "$REST/rpc/upsert_subscription" -H "$API_H" -H "$JSON_H")
+  [ -n "$1" ] && args+=(-H "Authorization: Bearer $1")
+  curl "${args[@]}" -d "{\"p_household_id\":\"00000000-0000-4000-8000-000000000000\",\"p_original_transaction_id\":\"qa-probe-$RANDOM$RANDOM\",\"p_plan\":\"yearly\",\"p_expires_at\":\"2099-01-01T00:00:00Z\",\"p_status\":\"expired\",\"p_environment\":\"Production\",\"p_last_transaction_id\":\"qa-probe\",\"p_owner_member_id\":null}"
+}
+for who in anon authenticated; do
+  if [ "$who" = anon ]; then body="$(probe_upsert "")"; else body="$(probe_upsert "$C_TOK")"; fi
+  if printf '%s' "$body" | grep -q '"42501"'; then ok "$who 调 upsert_subscription 被拒（42501）"; else bad "$who 能执行 upsert_subscription：$body"; fi
+done
+
 # ---------- 8. B6: 加入码格式 ----------
 say "B6: 加入码格式"
 expect_fail "8 位字母数字码被拒（仅 6 位数字）" "$(rpc join_by_code "$V_TOK" '{"p_code":"ABCD2345"}')"
 expect_fail "7 位码被拒" "$(rpc join_by_code "$V_TOK" '{"p_code":"1234567"}')"
-expect_fail "6 位数字格式通过、码无效返回 400" "$(rpc join_by_code "$V_TOK" '{"p_code":"000000"}')"
+# 0057：码不存在不再 RAISE（RAISE 会把计数一起回滚），返回 NULL（HTTP 200），uid 计数随事务提交；
+# 同一 uid 15 分钟内第 6 次才报限流：message 保持原英文，hint=join_rate_limited。会给全站失败计数加 5 次（熔断阈值 30）。
+join_raw() { # join_raw <token> <code> -> "<body>|<http_code>"
+  curl -s --max-time 20 -w '|%{http_code}' -X POST "$REST/rpc/join_by_code" -H "$API_H" -H "Authorization: Bearer $1" \
+    -H "$JSON_H" -d "{\"p_code\":\"$2\"}"
+}
+JR="$(join_raw "$V_TOK" 000000)"
+if [ "${JR##*|}" = "200" ] && [ "${JR%|*}" = "null" ]; then
+  ok "6 位数字格式通过、码无效返回 NULL（HTTP 200，计数可提交）"
+else
+  bad "码无效：预期 HTTP 200 + null，实际 ${JR##*|} ${JR%|*}（0057 已部署？）"
+fi
+for _ in 2 3 4 5; do join_raw "$V_TOK" 000000 >/dev/null; done
+JR="$(join_raw "$V_TOK" 000000)"
+if [[ ! "${JR##*|}" =~ ^2 ]] && printf '%s' "${JR%|*}" | grep -Eq '"hint": ?"join_rate_limited"'; then
+  ok "同一 uid 第 6 次输码被限流（HTTP ${JR##*|}，hint join_rate_limited）"
+else
+  bad "第 6 次输码未被限流：${JR##*|} ${JR%|*}（计数被回滚？）"
+fi
 
 # P0-1 回归：协调人读取已有家庭码必须 200 且返回同一码（FINAL_LAUNCH_AUDIT 2026-08-02）
 READ_CODE=$(curl -s --max-time 20 -X POST "$REST/rpc/get_household_code" -H "$API_H" -H "Authorization: Bearer $C_TOK" -H "$JSON_H" -d '{}')

@@ -77,3 +77,34 @@ bash backend/qa/adversarial_tests.sh
 - [ ] 恢复购买 → 成功且不误报 STALE（restore 模式按订阅周期放宽）
 - [ ] 取消续订/退款 → Server Notification → entitlement 回退 free；随后重放旧 JWS 必须被拒（SUBSCRIPTION_NOT_RESTORABLE / RESTORE_NOT_ALLOWED）
 - [ ] 生产环境确认 `APPLE_ACCEPTED_ENVIRONMENTS` 未设置或为 `Production`（严禁 `ALLOW_SANDBOX_PURCHASES=true` 遗留在生产）
+
+## 6. 方案 B（匿名开始 + Apple 绑定）本地回归：一条命令，不需要 Docker
+
+```bash
+bash backend/qa/local_pg.sh             # SQL + Deno，全部通过退出码为 0
+bash backend/qa/local_pg.sh --sql-only  # 只跑 SQL
+bash backend/qa/local_pg.sh --keep      # 跑完不停库，便于手工查：psql -h backend/.localpg/sock -p 54399 -U postgres taskkin_all
+```
+
+不连任何 Supabase 项目。脚本在 `backend/.localpg/`（整个目录不进 git）用 Homebrew 的 Postgres 17 建私有实例（只开 unix socket），
+加载 `local_pg_stubs.sql`（auth / storage / 角色 / realtime 的最小替身，**只存在于本地库，绝不放进迁移**），然后：
+
+| 步骤             | 内容                                                                                                                                      |
+| ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| shipped 库       | `supabase/migrations/` 0001–0059（TestFlight 之前 db push 的状态），跑 `sql/10_*`、`20_*`、`30_*` 和 `delete_account_regression.sql`      |
+| schema dump 对照 | `all_in_one.sql`（0001–0003 的旧汇总）+ 0004 之后的迁移另建一库，`pg_dump --schema-only` 与 shipped 库的 public schema 必须完全一致       |
+| all 库           | 再加 `supabase/pending_migrations/`（0060–0062），跑全部 `sql/*.sql`                                                                      |
+| 并发             | 两个会话：`delete_auth_user_if_empty` 持锁时并发插入成员行要么外键失败、要么被复查看到；不会留下 user_id 被置空的成员行                   |
+| deno check       | 用真实 supabase-js 类型检查 apple-identity-conflict / purge-abandoned-anonymous / delete-account                                          |
+| deno test        | `supabase/functions/_tests/`：import map 把 supabase-js 和 StoreKit JWS 校验换成替身，Apple 的 HTTP 端点 stub 掉 fetch，不需要任何 secret |
+
+SQL 测试用 `qa.call(uid, sql)` 模拟一次 PostgREST 请求（`request.jwt.claims` + `set local role authenticated`，出错只回滚这一次调用），
+断言 1.9 能看到的英文 message 和 1.10 用的 hint。
+
+上线顺序（方案 B）：0057 现在就上（含订阅伪造口子的修复：收回 API 角色对 upsert_subscription 的执行权；0058 开头重复一次作安全网）→ 0058、0059 和 apple-identity-conflict / delete-account / verify-apple-receipt 在 TestFlight 之前上
+→ 0060 在 1.10 审核通过当天先上、再点发布 → 0061 + purge-abandoned-anonymous 在发布后一周内上 → 核对候选账号后再上 0062（定时任务）。
+0060–0062 在那之前一直放在 `supabase/pending_migrations/`，避免更早的 `db push` 提前应用。
+
+新函数都用 `--no-verify-jwt` 部署（apple-identity-conflict 在函数里校验会话；purge-abandoned-anonymous 只认 `x-cron-secret`）。
+新增 secrets：`APPLE_TEAM_ID`、`APPLE_SIWA_KEY_ID`、`APPLE_SIWA_PRIVATE_KEY`（delete-account 撤销 Apple 授权，缺失时跳过撤销、删号照常）、
+`CRON_SECRET`（purge 函数；同时存进 Vault，另存 `SUPABASE_URL` 供 0061 的 pg_net 调用）。私钥和 CRON_SECRET 只用 `--env-file` 读入，不写进仓库。

@@ -11,8 +11,18 @@
 //     保留成员行以维持 tasks/documents/audit 外键引用，共享记录归属已删除成员占位符。
 //   - 协调家庭的 storage 文件（documents/{household_id}/...）通过 0053 的
 //     account_deletion_storage_cleanup 队列可靠清理；失败可由同一用户重试。
+//     removeStoragePrefix 在 _shared/account-cleanup.ts，purge-abandoned-anonymous 也用它。
+//
+// Apple 授权撤销（方案 B 决策 3A，App Review 5.1.1(v)）：请求体可选 {appleAuthorizationCode}。
+// 绑定了 Apple 的用户删号前重新做一次 Apple 授权，客户端把拿到的 authorizationCode 带过来；
+// 这里用 ES256 client_secret 换 token、核对 sub 与该用户的 Apple identity 一致后撤销。
+// 撤销是尽力而为：未配置 SIWA 私钥、换 token 失败、sub 不一致、撤销失败都只记日志，删除照常进行。
+// 不带 code（匿名用户、邮箱用户、1.9 客户端）时行为与之前完全相同。
+// 额外 Secrets（可选）：APPLE_SIWA_KEY_ID / APPLE_SIWA_PRIVATE_KEY / APPLE_TEAM_ID / APPLE_BUNDLE_ID。
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { removeStoragePrefix } from "../_shared/account-cleanup.ts";
+import { appleSubsOf, revokeAppleAuthorization } from "../_shared/apple-siwa.ts";
 
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 const ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY") ?? Deno.env.get("SUPABASE_PUBLISHABLE_KEY");
@@ -30,41 +40,16 @@ function json(body: unknown, status = 200): Response {
   });
 }
 
-// 列出并删除 storage 桶中某个前缀下的全部对象（路径第一段 = household_id）。
-async function removeStoragePrefix(admin: ReturnType<typeof createClient>, householdId: string): Promise<void> {
-  const BUCKET = "documents";
-  const prefix = `${householdId}`;
-  let offset = 0;
-  const LIMIT = 200;
-  const paths: string[] = [];
-
-  // 先完整分页收集，再删除。若边分页边删除并递增 offset，会因结果集收缩而跳过文件。
-  for (;;) {
-    const { data, error } = await admin.storage.from(BUCKET).list(prefix, {
-      limit: LIMIT,
-      offset,
-      sortBy: { column: "name", order: "asc" }
-    });
-    if (error) {
-      throw new Error(`list storage failed for ${prefix}: ${error.message}`);
-    }
-    paths.push(
-      ...(data ?? [])
-        .filter((f) => f.id != null) // 只删文件，忽略目录占位
-        .map((f) => `${prefix}/${f.name}`)
-    );
-    if (!data || data.length < LIMIT) break;
-    offset += LIMIT;
-  }
-
-  for (let start = 0; start < paths.length; start += LIMIT) {
-    const batch = paths.slice(start, start + LIMIT);
-    if (batch.length > 0) {
-      const { error: rmErr } = await admin.storage.from(BUCKET).remove(batch);
-      if (rmErr) {
-        throw new Error(`remove storage failed for ${prefix}: ${rmErr.message}`);
-      }
-    }
+// 请求体可以为空（1.9 客户端不带 body）；解析失败按空处理。
+async function readAppleAuthorizationCode(req: Request): Promise<string | null> {
+  try {
+    const text = await req.text();
+    if (!text.trim()) return null;
+    const body = JSON.parse(text) as { appleAuthorizationCode?: unknown };
+    const code = body?.appleAuthorizationCode;
+    return typeof code === "string" && code.trim() ? code.trim() : null;
+  } catch {
+    return null;
   }
 }
 
@@ -82,6 +67,18 @@ Deno.serve(async (req) => {
     const { data: ud, error: ue } = await userClient.auth.getUser();
     if (ue || !ud.user) return json({ ok: false, error: "Invalid session" }, 401);
     const uid = ud.user.id;
+
+    // 撤销 Apple 授权（尽力而为，失败不影响删除）。放在删除之前：authorizationCode 只有 5 分钟有效期。
+    const appleAuthorizationCode = await readAppleAuthorizationCode(req);
+    if (appleAuthorizationCode) {
+      const appleSubs = appleSubsOf(ud.user);
+      const outcome =
+        appleSubs.length > 0
+          ? await revokeAppleAuthorization(appleAuthorizationCode, appleSubs).catch(() => "failed_unexpected")
+          : "skipped_no_apple_identity";
+      // 只记结果类型，不记 code、token 或 sub。
+      console.log("delete-account: apple revoke", outcome);
+    }
 
     const admin = createClient(SUPA_URL, SERVICE_ROLE);
 

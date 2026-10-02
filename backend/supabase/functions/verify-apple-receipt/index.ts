@@ -9,6 +9,12 @@
 //   ALLOW_SANDBOX_PURCHASES=true（仅 TestFlight/沙盒调试时追加 Sandbox）
 // 客户端购买必须携带 appAccountToken=auth.uid()（服务端校验绑定，防订阅劫持）；
 // signedDate 超过 24h 的旧交易拒绝（防退款/状态变更后重放）。
+// 首次购买只允许该户 active 协调人。方案 B（0058 转让协调人）：付款人转让后变成照护者，
+// 仍可以恢复购买，但只限「本人付费（owner_app_account_token = 调用者）且 subscription_households
+// 已覆盖这一户」的订阅，不扩大覆盖范围。已覆盖家庭的恢复（照护者付款人，或订阅最初登记在另一户）
+// 走 sync_subscription_by_transaction 按覆盖范围逐户重算，而不是 register_apple_subscription
+// （后者只认最初登记的那一户）。不在这里拒绝匿名用户：服务端校验发生在扣款之后，
+// 拒绝只会让人付了钱却拿不到 Plus（购买前的绑定拦截在客户端）。
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import {
@@ -155,7 +161,9 @@ Deno.serve(async (req) => {
     if (!member) {
       return fail("NOT_HOUSEHOLD_MEMBER", "You are not an active member of this household", 403, { householdId });
     }
-    if (member.role !== "coordinator") {
+    const isCoordinator = member.role === "coordinator";
+    // 非协调人只能走恢复购买，且要等查到订阅登记之后再判断是否覆盖（见下方 coveredRestore）。
+    if (!isCoordinator && !isRestore) {
       return fail("COORDINATOR_REQUIRED", "Only a household coordinator can purchase", 403, { role: member.role });
     }
 
@@ -239,7 +247,7 @@ Deno.serve(async (req) => {
       }
       return fail(
         "ACCOUNT_TOKEN_MISMATCH",
-        "This Apple subscription belongs to a different TaskKin Care email account, not to this device. Sign in to the original account to restore it, or use an Apple account without an active TaskKin Care subscription to purchase for a new TaskKin Care account.",
+        "This Apple subscription belongs to a different TaskKin Care account. Sign in to the TaskKin Care account you used for the purchase (Apple or email) to restore it, or use an Apple ID without an active TaskKin Care subscription to purchase for this account.",
         403,
         {
           jwsHasAccountToken: true,
@@ -253,6 +261,80 @@ Deno.serve(async (req) => {
     if (isRestore && (!sub || (sub.owner_user_id !== null && sub.owner_user_id !== userData.user.id))) {
       return fail("RESTORE_NOT_ALLOWED", "This subscription cannot be restored in its current state.", 400);
     }
+    // 恢复购买时：这份订阅是否已经覆盖这一户（subscription_households）。
+    let covered = false;
+    if (isRestore && sub) {
+      const { data: coverage, error: coverageError } = await admin
+        .from("subscription_households")
+        .select("subscription_id")
+        .eq("subscription_id", sub.id)
+        .eq("household_id", householdId)
+        .maybeSingle();
+      if (coverageError) {
+        return fail("SUBSCRIPTION_LOOKUP_FAILED", "Unable to verify subscription. Please try again.", 500, {
+          dbError: coverageError.message
+        });
+      }
+      covered = Boolean(coverage);
+    }
+    // 走到这里的非协调人一定是 restore。付款人（照护者）只能给这份订阅已经覆盖的家庭恢复，
+    // 并且必须是本人付费（存下的 owner_app_account_token 等于调用者；旧行没有存过的不算）。
+    if (!isCoordinator && !(covered && storedAccountToken === userData.user.id)) {
+      return fail("COORDINATOR_REQUIRED", "Only a household coordinator can purchase", 403, {
+        role: member.role,
+        mode
+      });
+    }
+
+    // 已覆盖家庭的恢复：照护者付款人，或者订阅登记在另一户（例如 create_household 把订阅延伸到的第二户）。
+    // register_apple_subscription 只认最初登记的那一户（household_id 不同就报 already linked），
+    // 所以这里改用 0058 的 sync_subscription_by_transaction：用刚验过的 JWS 更新订阅行，
+    // 再按 subscription_households 逐户重算 Plus。不新增覆盖，也不改订阅归属。
+    if (isRestore && covered && sub && (!isCoordinator || sub.household_id !== householdId)) {
+      // 与 register_apple_subscription 的 coalesce 一致：旧行没存过归属的，补上调用者（上面已校验过 token）。
+      const ownership: Record<string, string> = {};
+      if (!sub.owner_user_id) ownership.owner_user_id = userData.user.id;
+      if (!storedAccountToken) ownership.owner_app_account_token = userData.user.id;
+      for (const [column, value] of Object.entries(ownership)) {
+        const { error: ownErr } = await admin
+          .from("subscriptions")
+          .update({ [column]: value })
+          .eq("id", sub.id)
+          .is(column, null);
+        if (ownErr) {
+          return fail("ACCOUNT_TOKEN_PERSIST_FAILED", "Unable to preserve subscription ownership.", 500, {
+            dbError: ownErr.message
+          });
+        }
+      }
+      const { error: syncErr } = await admin.rpc("sync_subscription_by_transaction", {
+        p_original_transaction_id: originalTxId,
+        p_plan: plan,
+        p_expires_at: plusUntil,
+        p_status: "active",
+        p_last_transaction_id: tx.transactionId ?? transactionId
+      });
+      if (syncErr) {
+        return fail(
+          "SUBSCRIPTION_REGISTER_FAILED",
+          "Unable to register subscription. Please try again or restore purchases.",
+          500,
+          {
+            dbError: syncErr.message,
+            plan,
+            environment,
+            householdId,
+            originalTransactionId: shorten(originalTxId)
+          }
+        );
+      }
+      console.log(
+        "verify-apple-receipt covered restore succeeded",
+        JSON.stringify({ plan, environment, householdId, originalTransactionId: shorten(originalTxId) })
+      );
+      return json({ ok: true, plan, plusUntil }, 200);
+    }
+
     // Register against the authenticated coordinator's household. The database
     // rejects an original transaction previously linked elsewhere.
     const { error: upErr } = await admin.rpc("register_apple_subscription", {

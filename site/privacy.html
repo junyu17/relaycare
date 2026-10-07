@@ -53,8 +53,24 @@
       <h2>1. Information we process</h2>
       <ul>
         <li>
-          <strong>Account information:</strong> email address and authentication credentials. TaskKin Care does not
-          store plaintext passwords.
+          <strong>Account information:</strong> this depends on how you sign in. If you choose
+          <em>Start without an account</em> or join with a family code, we create an account identifier for you and
+          collect no email address or password. If you sign in with Apple, Apple gives us a stable identifier for your
+          Apple ID; we do not ask Apple for your name or email address. If you sign in with email, we hold your email
+          address and authentication credentials. TaskKin Care does not store plaintext passwords.
+        </li>
+        <li>
+          <strong>On your device:</strong> until your account is linked to Sign in with Apple, the app keeps its sign-in
+          token in this iPhone's Keychain (this device only; it does not move to a new phone), so you can get back to
+          your family after reinstalling the app. It is removed when you sign in with Apple, sign out, or delete your
+          account.
+        </li>
+        <li>
+          <strong>Join-code protection:</strong> to stop family codes from being guessed, we keep a count of recent join
+          attempts for each account (at most 5 every 15 minutes) and service-wide totals of failed attempts in 5-minute
+          periods, which are deleted after one day. These counters contain no IP address. When many wrong codes are
+          entered across the service, joining needs the coordinator's approval for the next 30 minutes; a join request
+          stores the name you entered and its status with that family until the family or your account is deleted.
         </li>
         <li>
           <strong>Family and member information:</strong> household name, care-recipient label, member name,
@@ -95,8 +111,15 @@
         <li>Household members may access only the family information their role permits.</li>
         <li>We do not sell personal information or share it for cross-context behavioral advertising.</li>
         <li>
-          We use Supabase for authentication, database, object storage, and realtime synchronization. TaskKin Care does
-          not send uploaded content to external AI or OCR providers.
+          App version 1.10 (build 19) and later builds use our own server for authentication, database, private storage,
+          realtime synchronization, and server functions. Our backend processes IP addresses for security,
+          including repeated-sign-up limits. Brevo delivers password-reset emails and processes their recipient
+          address and message, but not uploaded files. Earlier installed versions may continue using Supabase
+          during migration until updated. TaskKin Care does not send uploaded content to external AI or OCR providers.
+        </li>
+        <li>
+          If you use Sign in with Apple, Apple verifies your identity. When you delete your account, we ask Apple to
+          revoke TaskKin Care's access to your Apple ID.
         </li>
       </ul>
       <h2>5. Security</h2>
@@ -112,6 +135,11 @@
         data (tasks, timeline, documents, reports, and audit records). This cannot be undone.
       </p>
       <p>
+        If you have not created or joined a family yet, use <em>Delete account &amp; households</em> at the bottom of
+        the <em>Set up your care circle</em> screen. If you signed in with Apple, you confirm with Apple once more and
+        we ask Apple to revoke TaskKin Care's access to your Apple ID.
+      </p>
+      <p>
         If you belong to other households you do not coordinate, your membership is anonymized (your name becomes a
         "Deleted member" placeholder) and those households and their data are kept. Shared tasks, documents, and audit
         records you created there remain attributable to that placeholder without retaining your account link or profile
@@ -119,8 +147,15 @@
         the Free tier, up to 3 years on Family Plus).
       </p>
       <p>
+        <strong>Accounts without sign-in.</strong> We currently do not automatically delete anonymous accounts solely
+        because they are inactive. You can delete your account and its data from the app as described above. Any
+        future change to inactivity-based cleanup will be announced in this policy before it takes effect.
+      </p>
+      <p>
         You may request access, correction, export, or other privacy assistance by emailing
-        <a href="mailto:Billy.yu@me.com">Billy.yu@me.com</a>.
+        <a href="mailto:Billy.yu@me.com">Billy.yu@me.com</a>. If you cannot use the app, you can also request deletion
+        by email; <a href="delete-account.html">Delete your account</a> explains how we verify accounts that have no
+        email address.
       </p>
       <h2>7. California Privacy Notice and Notice at Collection</h2>
       <p>
@@ -146,8 +181,8 @@
         <a href="mailto:Billy.yu@me.com">Billy.yu@me.com</a>.
       </p>
       <p>
-        <strong>Effective:</strong> July 26, 2026. Operator-reviewed product notice; independent legal counsel review
-        has not been obtained.
+        <strong>Effective:</strong> July 26, 2026. <strong>Updated:</strong> October 8, 2026 (owned backend and password-reset email provider). Operator-reviewed product
+        notice; independent legal counsel review has not been obtained.
       </p>
       <p class="back-link"><a href="index.html">Back to home</a></p>
     </main>

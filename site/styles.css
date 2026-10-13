@@ -157,6 +157,7 @@ nav ul a:hover {
 }
 .cta {
   display: inline-flex;
+  flex-wrap: wrap;
   gap: 12px;
 }
 .btn {
